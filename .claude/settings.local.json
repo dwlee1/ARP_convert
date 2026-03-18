@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Edit",
+      "Write",
+      "WebSearch",
+      "WebFetch(*)",
+      "mcp__Claude_in_Chrome__*",
+      "mcp__Claude_Preview__*",
+      "mcp__mcp-registry__*",
+      "mcp__scheduled-tasks__*"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+# 에셋 파일 (대용량 블렌더/FBX 파일)
+Asset/
+
+# Blender 자동 백업
+*.blend1
+*.blend2
+
+# OS 생성 파일
+Thumbs.db
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
