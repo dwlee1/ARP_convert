@@ -1,0 +1,359 @@
+======================================================================
+ARP 오퍼레이터 진단 결과
+Blender 버전: 4.5.3 LTS
+ARP 모듈 존재: arp=True, arp_export_scene=True
+======================================================================
+
+✅ bpy.ops.arp.append_arp
+   설명: (undocumented operator)
+   파라미터 (3개):
+     - tooltip (STRING)
+     - rig_preset (STRING)
+     - preset_description (STRING)
+
+✅ bpy.ops.arp.add_limb
+   설명: Add a limb
+   파라미터 (1개):
+     - limbs_presets (ENUM)
+
+✅ bpy.ops.arp.import_rig_data
+   설명: Import rig data
+   파라미터 (2개):
+     - filepath (STRING) [기본값: py]
+     - filter_glob (STRING) [기본값: *.py]
+
+✅ bpy.ops.arp.export_rig_data
+   설명: Export rig data
+   파라미터 (2개):
+     - filepath (STRING) [기본값: py]
+     - filter_glob (STRING) [기본값: *.py]
+
+✅ bpy.ops.arp.import_rig_data_options
+   설명: Import rig data (reference bones, custom shapes)
+   파라미터 (4개):
+     - import_ref_bones (BOOLEAN): Import reference bones transforms [기본값: True]
+     - import_ref_bones_settings (BOOLEAN): Import Limb Options [기본값: True]
+     - selection_only (BOOLEAN): Import reference bones transforms for selected bones only [기본값: False]
+     - import_custom_shapes (BOOLEAN): Import bones custom shapes [기본값: True]
+
+✅ bpy.ops.arp.export_rig_data_options
+   설명: Export rig data (reference bones, custom shapes)
+   파라미터 (3개):
+     - ref_bones (BOOLEAN): Export reference bones transforms [기본값: True]
+     - ref_bones_settings (BOOLEAN): Export Limb Options, containing the settings of the limbs [기본값: True]
+     - custom_shapes (BOOLEAN): Export bones custom shapes [기본값: True]
+
+✅ bpy.ops.arp.match_to_rig
+   설명: Generate the final rig from the reference bones
+   파라미터 (3개):
+     - state_proxy_picker (BOOLEAN) [기본값: False]
+     - state_xmirror (BOOLEAN) [기본값: False]
+     - scale_actions (BOOLEAN) [기본값: False]
+
+✅ bpy.ops.arp.edit_ref
+   설명: Display and edit the reference bones
+   파라미터: 없음
+
+✅ bpy.ops.arp.auto_scale
+   설명: Automatic scale of the source armature to fit the target armature height
+May not work if the rest position is incorrect, the height is calculated on this basis. Scale manually otherwise.
+   파라미터: 없음
+
+✅ bpy.ops.arp.align_wings
+   설명: Align wing bones
+   파라미터: 없음
+
+✅ bpy.ops.arp.bind_to_rig
+   설명: Bind selected meshes to rig.
+Select first the meshes, then the armature
+   파라미터 (2개):
+     - binding_error (BOOLEAN) [기본값: False]
+     - binding_time (FLOAT) [기본값: 0.0] 범위: [-3.4028234663852886e+38, 3.4028234663852886e+38]
+
+✅ bpy.ops.arp.unbind_to_rig
+   설명: Unbind the selected meshes from the rig
+   파라미터: 없음
+
+✅ bpy.ops.arp.retarget
+   설명: Retarget the source armature action to the target armature
+   파라미터 (22개):
+     - frame_start (INT): Bake from this frame [기본값: 0] 범위: [-2147483648, 2147483647]
+     - frame_end (INT): Bake to this frame [기본값: 10] 범위: [-2147483648, 2147483647]
+     - freeze_source (ENUM) [기본값: NO]
+       • YES = Yes, Please!
+       • NO = No, Maybe Later
+     - freeze_target (ENUM) [기본값: NO]
+       • YES = Yes, Please!
+       • NO = No, Maybe Later
+     - show_freeze_warn (BOOLEAN) [기본값: True]
+     - fake_user_action (BOOLEAN): Enable "Fake User" to the remapped action, so that it is not removed from the file later if not used.
+Automatically enabled when retargetting multiple animations [기본값: False]
+     - clean_fk_rot (BOOLEAN): Ensure single rotation axis for forearm and leg FK controllers (ARP armatures only) [기본값: False]
+     - clean_ik_pole (BOOLEAN): Remove IK pole bones keyframes below a given angle threshold [기본값: False]
+     - clean_ik_pole_angle (FLOAT): Angle threshold [기본값: 5.0] 범위: [-3.4028234663852886e+38, 3.4028234663852886e+38]
+     - too_long_bones_names (BOOLEAN) [기본값: False]
+     - only_existing_keyframes (BOOLEAN): Only bake existing keyframes instead of baking one keyrame per frame
+Can lead to incorrect results, especially with IK controllers -use it wisely [기본값: False]
+     - extract_root_motion (BOOLEAN): (Only for Auto-Rig Pro rigs)
+Project the pelvis location and rotation to the floor, to the c_traj bone [기본값: False]
+     - loc_x (BOOLEAN): Use X location (World space, left/right) [기본값: True]
+     - loc_y (BOOLEAN): Use Y location (World space, forward/backward) [기본값: True]
+     - loc_z (BOOLEAN): Use Z location (World space, height) [기본값: False]
+     - loc_z_offset (BOOLEAN): Keep initial offset when applying Z location [기본값: True]
+     - rotation (BOOLEAN): Use rotation (World space) [기본값: True]
+     - forward_axis (ENUM): The c_root_master axis pointing forward, that will be used to orient the c_traj Y axis [기본값: Z]
+       • X = X
+       • Y = Y
+       • Z = Z
+       • -X = -X
+       • -Y = -Y
+       • -Z = -Z
+     - force_source_freeze (ENUM): Freeze the source armature [기본값: NO]
+       • YES = Yes, Please!
+       • NO = No, Maybe Later
+     - interpolation_type (ENUM) [기본값: LINEAR]
+       • LINEAR = Linear
+       • BEZIER = Bezier
+       • CONSTANT = Constant
+     - handle_type (ENUM) [기본값: DEFAULT]
+       • DEFAULT = Default
+       • AUTO_CLAMPED = Auto Clamped
+       • AUTO = Auto
+       • VECTOR = Vector
+       • ALIGNED = Aligned
+       • FREE = Free
+     - unbind (BOOLEAN) [기본값: False]
+
+✅ bpy.ops.arp.retarget_bind_only
+   설명: Retarget, binding only without baking for quick preview
+   파라미터 (5개):
+     - freeze_source (ENUM) [기본값: NO]
+       • YES = Yes, Please!
+       • NO = No, Maybe Later
+     - freeze_target (ENUM) [기본값: NO]
+       • YES = Yes, Please!
+       • NO = No, Maybe Later
+     - show_freeze_warn (BOOLEAN) [기본값: True]
+     - too_long_bones_names (BOOLEAN): Bones names length >50 will fail retargetting because temp bones are renamed when retargetting [기본값: False]
+     - unbind (BOOLEAN) [기본값: False]
+
+✅ bpy.ops.arp.batch_retarget
+   설명: Select multiple source animations for retargetting
+   파라미터: 없음
+
+✅ bpy.ops.arp.build_bones_list
+   설명: Build the source and target bones list, and try to match their names with Auto-Rig Pro or any other armature
+   파라미터: 없음
+
+✅ bpy.ops.arp.import_config_preset
+   설명: Import bones mapping from the presets list
+   파라미터 (3개):
+     - filepath (STRING) [기본값: bmap]
+     - preset_name (STRING)
+     - clear_current (BOOLEAN) [기본값: True]
+
+✅ bpy.ops.arp.remap_update
+   설명: Update Remap settings to latest version
+   파라미터: 없음
+
+✅ bpy.ops.arp.remap_enable_all_actions
+   설명: Enable all actions for retargetting
+   파라미터: 없음
+
+✅ bpy.ops.arp.remap_disable_all_actions
+   설명: Disable all actions for retargetting
+   파라미터: 없음
+
+✅ bpy.ops.arp.remap_export_preset
+   설명: Export as custom preset
+   파라미터 (1개):
+     - preset_name (STRING) [기본값: RemapPreset]
+
+✅ bpy.ops.arp.remap_import_act_list
+   설명: Import selected actions list
+   파라미터 (1개):
+     - filepath (STRING) [기본값: py]
+
+✅ bpy.ops.arp.remap_export_act_list
+   설명: Export selected actions list
+   파라미터 (1개):
+     - filepath (STRING) [기본값: py]
+
+✅ bpy.ops.arp.toggle_action_remap
+   설명: Enable or disable this action from export
+   파라미터 (1개):
+     - action_name (STRING)
+
+✅ bpy.ops.arp.redefine_rest_pose
+   설명: If the source and target armatures have different rest poses, click this button to change the source armature rest pose, so that it looks like the target armature.
+Necessary for accurate retargetting.
+Click Apply to complete
+   파라미터 (3개):
+     - preserve (BOOLEAN): If enabled, the actual rest pose of the source armature is preserved. It only takes a snapshot of the new pose, and use it to offset the bones transforms when retargetting.
+If disabled, the actual rest pose is modified, and its animation is re-baked based on the new rest pose [기본값: True]
+     - rest_pose (ENUM): Set the rest pose [기본값: REST]
+       • REST = Rest Pose
+       • CURRENT = Current Pose
+       • SAVED = Saved
+     - is_arp_armature (BOOLEAN) [기본값: False]
+
+✅ bpy.ops.arp.save_pose_rest
+   설명: Complete the rest pose edition
+   파라미터: 없음
+
+✅ bpy.ops.arp.reset_pose
+   설명: Reset character controllers to rest position
+   파라미터: 없음
+
+✅ bpy.ops.arp.apply_pose_as_rest
+   설명: Apply the current pose as rest pose: apply armature modifiers and align reference bones with controller bones (like an inverted 'Match to Rig')
+Click Match to Rig afterward to complete 
+   파라미터 (3개):
+     - preserve_anim (BOOLEAN): Bake actions based on the new rest pose, to preserve animations [기본값: False]
+     - key_all_frames (BOOLEAN): One keyframe per frame if enabled for best preservation, otherwise only key current keyframes [기본값: True]
+     - apply_shape_keys (BOOLEAN): Bake shape keys over the new rest pose [기본값: True]
+
+✅ bpy.ops.arp.export
+   설명: Export Auto-Rig Pro character
+   파라미터: 없음
+
+✅ bpy.ops.arp.check_rig_export
+   설명: Check the rig to find possible export related errors
+   파라미터: 없음
+
+✅ bpy.ops.arp.fix_rig_export
+   설명: Fix the rig issues automatically when possible(set stretch to 0, disable Preserve Volume...)
+   파라미터: 없음
+
+✅ bpy.ops.arp_export_scene.fbx
+   설명: Write a FBX file
+   파라미터 (45개):
+     - filepath (STRING): Filepath used for exporting the file
+     - check_existing (BOOLEAN): Check and warn on overwriting existing files [기본값: True]
+     - filter_glob (STRING) [기본값: *.fbx]
+     - ui_tab (ENUM): Export options categories [기본값: MAIN]
+       • MAIN = Main
+       • GEOMETRY = Geometries
+       • ARMATURE = Armatures
+       • ANIMATION = Animation
+     - use_selection (BOOLEAN): Export selected and visible objects only [기본값: False]
+     - use_active_collection (BOOLEAN): Export only objects from the active collection (and its children) [기본값: False]
+     - global_scale (FLOAT): Scale all data (Some importers do not support scaled armatures!) [기본값: 1.0] 범위: [0.0010000000474974513, 1000.0]
+     - apply_unit_scale (BOOLEAN): Take into account current Blender units settings (if unset, raw Blender Units values are used as-is) [기본값: True]
+     - apply_scale_options (ENUM): How to apply custom and units scalings in generated FBX file (Blender uses FBX scale to detect units on import, but many other applications do not handle the same way) [기본값: FBX_SCALE_NONE]
+       • FBX_SCALE_NONE = All Local
+       • FBX_SCALE_UNITS = FBX Units Scale
+       • FBX_SCALE_CUSTOM = FBX Custom Scale
+       • FBX_SCALE_ALL = FBX All
+     - use_space_transform (BOOLEAN): Apply global space transform to the object rotations. When disabled only the axis space is written to the file and all object transforms are left as-is [기본값: True]
+     - bake_space_transform (BOOLEAN): Bake space transform into object data, avoids getting unwanted rotations to objects when target space is not aligned with Blender's space (WARNING! experimental option, use at own risks, known broken with armatures/animations) [기본값: False]
+     - colors_type (ENUM): Import vertex color attributes [기본값: SRGB]
+       • NONE = None
+       • SRGB = sRGB
+       • LINEAR = Linear
+     - prioritize_active_color (BOOLEAN): Make sure active color will be exported first. Could be important since some other software can discard other color attributes besides the first one [기본값: False]
+     - object_types (ENUM): Which kind of object to export
+       • EMPTY = Empty
+       • CAMERA = Camera
+       • LIGHT = Lamp
+       • ARMATURE = Armature
+       • MESH = Mesh
+       • OTHER = Other
+     - use_mesh_modifiers (BOOLEAN): Apply modifiers to mesh objects (except Armature ones) - WARNING: prevents exporting shape keys [기본값: True]
+     - use_mesh_modifiers_render (BOOLEAN): Use render settings when applying modifiers to mesh objects [기본값: True]
+     - mesh_smooth_type (ENUM): Export smoothing information (prefer 'Normals Only' option if your target importer understand split normals) [기본값: OFF]
+       • OFF = Normals Only
+       • FACE = Face
+       • EDGE = Edge
+     - use_subsurf (BOOLEAN): Export the last Catmull-Rom subdivision modifier as FBX subdivision (does not apply the modifier even if 'Apply Modifiers' is enabled) [기본값: False]
+     - use_mesh_edges (BOOLEAN): Export loose edges (as two-vertices polygons) [기본값: False]
+     - use_tspace (BOOLEAN): Add binormal and tangent vectors, together with normal they form the tangent space (will only work correctly with tris/quads only meshes!) [기본값: False]
+     - use_triangles (BOOLEAN): Convert all faces to triangles [기본값: False]
+     - use_custom_props (BOOLEAN): Export custom properties [기본값: False]
+     - add_leaf_bones (BOOLEAN): Append a final bone to the end of each chain to specify last bone length (use this when you intend to edit the armature from exported data) [기본값: True]
+     - primary_bone_axis (ENUM) [기본값: Y]
+       • X = X Axis
+       • Y = Y Axis
+       • Z = Z Axis
+       • -X = -X Axis
+       • -Y = -Y Axis
+       • -Z = -Z Axis
+     - secondary_bone_axis (ENUM) [기본값: X]
+       • X = X Axis
+       • Y = Y Axis
+       • Z = Z Axis
+       • -X = -X Axis
+       • -Y = -Y Axis
+       • -Z = -Z Axis
+     - use_armature_deform_only (BOOLEAN): Only write deforming bones (and non-deforming ones when they have deforming children) [기본값: False]
+     - armature_nodetype (ENUM): FBX type of node (object) used to represent Blender's armatures (use Null one unless you experience issues with other app, other choices may no import back perfectly in Blender...) [기본값: NULL]
+       • NULL = Null
+       • ROOT = Root
+       • LIMBNODE = LimbNode
+     - bake_anim (BOOLEAN): Export baked keyframe animation [기본값: True]
+     - bake_anim_use_all_bones (BOOLEAN): Force exporting at least one key of animation for all bones (needed with some target applications, like UE4) [기본값: True]
+     - bake_anim_use_nla_strips (BOOLEAN): Export each non-muted NLA strip as a separated FBX's AnimStack, if any, instead of global scene animation [기본값: True]
+     - bake_anim_use_all_actions (BOOLEAN): Export each action as a separated FBX's AnimStack, instead of global scene animation (note that animated objects will get all actions compatible with them, others will get no animation at all) [기본값: True]
+     - bake_anim_force_startend_keying (BOOLEAN): Always add a keyframe at start and end of actions for animated channels [기본값: True]
+     - bake_anim_force_startend_keying_sk (BOOLEAN): Always add a keyframe at start and end of actions for animated channels [기본값: False]
+     - bake_anim_step (FLOAT): How often to evaluate animated values (in frames) [기본값: 1.0] 범위: [0.009999999776482582, 100.0]
+     - bake_anim_simplify_factor (FLOAT): How much to simplify baked values (0.0 to disable, the higher the more simplified) [기본값: 1.0] 범위: [0.0, 100.0]
+     - path_mode (ENUM): Method used to reference paths [기본값: AUTO]
+       • AUTO = Auto
+       • ABSOLUTE = Absolute
+       • RELATIVE = Relative
+       • MATCH = Match
+       • STRIP = Strip
+       • COPY = Copy
+     - embed_textures (BOOLEAN): Embed textures in FBX binary file (only for "Copy" path mode!) [기본값: False]
+     - batch_mode (ENUM) [기본값: OFF]
+       • OFF = Off
+       • SCENE = Scene
+       • COLLECTION = Collection
+       • SCENE_COLLECTION = Scene Collections
+       • ACTIVE_SCENE_COLLECTION = Active Scene Collections
+     - use_batch_own_dir (BOOLEAN): Create a dir for each exported file [기본값: True]
+     - use_metadata (BOOLEAN) [기본값: True]
+     - shape_keys_baked_data (STRING)
+     - mesh_names_data (STRING)
+     - export_action_only (STRING)
+     - axis_forward (ENUM) [기본값: -Z]
+       • X = X Forward
+       • Y = Y Forward
+       • Z = Z Forward
+       • -X = -X Forward
+       • -Y = -Y Forward
+       • -Z = -Z Forward
+     - axis_up (ENUM) [기본값: Y]
+       • X = X Up
+       • Y = Y Up
+       • Z = Z Up
+       • -X = -X Up
+       • -Y = -Y Up
+       • -Z = -Z Up
+
+✅ bpy.ops.arp.set_character_name
+   설명: Set the character name in collections and objects names
+   파라미터 (1개):
+     - name (STRING) [기본값: character]
+
+✅ bpy.ops.arp.save_armature_preset
+   설명:  Save the selected armature as a new preset 
+   파라미터 (1개):
+     - armature_name (STRING)
+
+✅ bpy.ops.arp.update_armature
+   설명: Update old armatures to the latest version
+May require to click 'Match to Rig' afterward to correct bones alignment
+   파라미터 (3개):
+     - required (BOOLEAN) [기본값: False]
+     - breaking (BOOLEAN) [기본값: False]
+     - update_axes_consistent (BOOLEAN): Make foot and arms Z axis up for consistency [기본값: False]
+
+✅ bpy.ops.arp.delete_arp
+   설명: Delete the selected Auto-Rig Pro armature
+   파라미터: 없음
+
+======================================================================
+요약: 36개 발견, 0개 누락
+======================================================================
