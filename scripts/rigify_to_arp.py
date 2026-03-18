@@ -99,13 +99,14 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if '_
 ARP_RIG_PRESET = "dog"
 
 # .bmap 프리셋 이름 (확장자 제외)
-BMAP_PRESET_NAME = "rigify_quadruped"
+# custom_quadruped = Fox 등 커스텀 리그용, rigify_quadruped = DEF- 기반
+BMAP_PRESET_NAME = "custom_quadruped"
 
 # 변환 결과 저장 경로 (None이면 원본 옆에 _arp 접미사로 저장)
 OUTPUT_PATH = None
 
-# FBX 익스포트 테스트 여부
-TEST_FBX_EXPORT = True
+# FBX 익스포트 테스트 여부 (ARP 익스포트 기능을 수동으로 사용할 경우 False)
+TEST_FBX_EXPORT = False
 
 # 로그 레벨
 VERBOSE = True
@@ -397,6 +398,57 @@ def convert_to_arp():
             log(f"ARP 리그 생성 실패: {e}", "ERROR")
             return result
 
+        # ─── Step 4.5: ARP 팔(앞다리) IK→FK 전환 ───
+        log("=" * 50)
+        log("Step 4.5: ARP 앞다리 IK→FK 전환")
+        log("=" * 50)
+
+        try:
+            ensure_object_mode()
+            select_only(arp_obj)
+            bpy.ops.object.mode_set(mode='POSE')
+
+            # ARP의 모든 커스텀 프로퍼티를 탐색하여 IK/FK 관련 프로퍼티 찾기
+            ik_fk_switched = 0
+            ik_fk_props_found = []
+
+            for pbone in arp_obj.pose.bones:
+                for prop_name in pbone.keys():
+                    # rna_type 등 내부 프로퍼티 무시
+                    if prop_name.startswith('_') or prop_name == 'rna_type':
+                        continue
+                    prop_lower = prop_name.lower()
+                    # IK/FK 관련 프로퍼티 찾기
+                    if 'ik' in prop_lower and 'fk' in prop_lower:
+                        old_val = pbone[prop_name]
+                        ik_fk_props_found.append(f"{pbone.name}['{prop_name}'] = {old_val}")
+                        # FK로 전환 (ARP에서 보통 1.0 = FK, 0.0 = IK)
+                        try:
+                            pbone[prop_name] = 1.0
+                            ik_fk_switched += 1
+                            log(f"  {pbone.name}['{prop_name}']: {old_val} → 1.0 (FK)")
+                        except:
+                            log(f"  {pbone.name}['{prop_name}']: 변경 실패 (읽기 전용?)", "WARN")
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            if ik_fk_switched > 0:
+                log(f"  IK→FK 전환 완료: {ik_fk_switched}개 스위치")
+            elif ik_fk_props_found:
+                log(f"  프로퍼티 발견했으나 전환 실패: {ik_fk_props_found}", "WARN")
+            else:
+                # IK/FK 프로퍼티 못 찾으면 전체 커스텀 프로퍼티 덤프
+                log("  IK/FK 프로퍼티 못 찾음. 커스텀 프로퍼티 탐색:", "WARN")
+                for pbone in arp_obj.pose.bones:
+                    custom_props = [k for k in pbone.keys() if not k.startswith('_')]
+                    if custom_props and ('hand' in pbone.name.lower() or 'foot' in pbone.name.lower() or 'arm' in pbone.name.lower() or 'leg' in pbone.name.lower()):
+                        log(f"    {pbone.name}: {custom_props}")
+                result['warnings'].append("IK/FK 스위치를 자동 전환하지 못함")
+
+        except Exception as e:
+            log(f"  IK→FK 전환 실패 (계속 진행): {e}", "WARN")
+            ensure_object_mode()
+
         # ─── Step 5: Remap 애니메이션 리타게팅 ───
         log("=" * 50)
         log("Step 5: Remap 애니메이션 리타게팅")
@@ -424,10 +476,10 @@ def convert_to_arp():
                 bmap_loaded = False
                 try:
                     run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=BMAP_PRESET_NAME)
-                    log(f"  .bmap 프리셋 로드: {BMAP_PRESET_NAME}")
+                    log(f"  .bmap 프리셋 로드 성공: {BMAP_PRESET_NAME}")
                     bmap_loaded = True
                 except Exception as e:
-                    log(f"  .bmap 프리셋 없음 — ARP 자동 매핑 사용: {e}", "WARN")
+                    log(f"  .bmap 프리셋 로드 실패 — ARP 자동 매핑 사용: {e}", "WARN")
                     result['warnings'].append(f".bmap 프리셋 미사용, ARP 자동 매핑")
 
                 # 레스트 포즈 조정 (소스 포즈를 타겟에 맞춤)
@@ -436,19 +488,49 @@ def convert_to_arp():
                 ensure_object_mode()
                 log("  레스트 포즈 조정 완료")
 
-                # 프레임 범위
-                all_start = min(a['frame_start'] for a in pre_actions)
-                all_end = max(a['frame_end'] for a in pre_actions)
+                # ── 액션별 리타게팅 ──
+                # 소스 아마추어에 각 액션을 활성화하고 리타게팅
+                retarget_success = 0
+                retarget_fail = 0
 
-                # 리타게팅
-                run_arp_operator(
-                    bpy.ops.arp.retarget,
-                    frame_start=all_start,
-                    frame_end=all_end,
-                    fake_user_action=True,
-                    interpolation_type='LINEAR',
-                )
-                log(f"  리타게팅 완료 (프레임 {all_start}~{all_end})")
+                for i, action_info in enumerate(pre_actions):
+                    action_name = action_info['name']
+                    frame_start = action_info['frame_start']
+                    frame_end = action_info['frame_end']
+
+                    log(f"  [{i+1}/{len(pre_actions)}] 리타게팅: '{action_name}' ({frame_start}~{frame_end})")
+
+                    try:
+                        # 소스 아마추어에 액션 설정
+                        action = bpy.data.actions.get(action_name)
+                        if action is None:
+                            log(f"    액션 '{action_name}' 찾을 수 없음", "WARN")
+                            retarget_fail += 1
+                            continue
+
+                        if source_obj.animation_data is None:
+                            source_obj.animation_data_create()
+                        source_obj.animation_data.action = action
+
+                        ensure_object_mode()
+
+                        run_arp_operator(
+                            bpy.ops.arp.retarget,
+                            frame_start=frame_start,
+                            frame_end=frame_end,
+                            fake_user_action=True,
+                            interpolation_type='LINEAR',
+                        )
+                        retarget_success += 1
+                        log(f"    ✓ 성공")
+
+                    except Exception as e:
+                        retarget_fail += 1
+                        log(f"    ✗ 실패: {e}", "WARN")
+
+                log(f"  리타게팅 완료: {retarget_success}/{len(pre_actions)} 성공, {retarget_fail} 실패")
+                result['retarget_success'] = retarget_success
+                result['retarget_fail'] = retarget_fail
                 result['steps_completed'].append('retargeted')
 
             except Exception as e:
@@ -474,14 +556,17 @@ def convert_to_arp():
                 for mesh_obj in mesh_objects:
                     mesh_obj.select_set(True)
 
-                run_arp_operator(bpy.ops.arp_export_scene.fbx,
+                # Blender 기본 FBX 익스포터 사용 (ARP 익스포터는 shape_keys 버그)
+                bpy.ops.export_scene.fbx(
                     filepath=fbx_path,
                     use_selection=True,
                     add_leaf_bones=False,
                     bake_anim=True,
                     bake_anim_use_all_actions=True,
+                    bake_anim_force_startend_keying=True,
                     axis_forward='-Z',
                     axis_up='Y',
+                    use_armature_deform_only=True,
                 )
                 log(f"FBX 익스포트 성공: {fbx_path}")
                 result['fbx_path'] = fbx_path
