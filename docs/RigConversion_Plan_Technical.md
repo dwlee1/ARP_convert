@@ -164,12 +164,143 @@ AutoRigPro-to-Rigify 애드온에서 ARP→Rigify 매핑 150+개를 역참조하
 ```
 
 ### 검증
-- 변환 파일 열기 → 애니메이션 재생 비교
+- 자동 검증 스크립트 실행 (아래 Phase 2-1 참조)
 - `bpy.ops.arp_export_scene.fbx()` 로 FBX 익스포트
 
 ---
 
-## Phase 2: 디버깅 & 보정
+## Phase 2: 자동 검증 + 디버깅
+
+### 2-1. 자동 검증 스크립트
+
+**생성할 파일:** `scripts/validate_conversion.py`
+
+변환 직후 자동 실행되어 결과를 검증. 배치 파이프라인에 통합.
+
+#### 구조 검증 (PASS/FAIL 판정)
+
+```python
+def validate_structure(original_blend, converted_blend):
+    """변환 전후 구조 비교"""
+    results = {}
+
+    # 1. 본 개수 검증
+    #    원본 DEF 본 수 ↔ 변환 후 ARP 대응 본 수
+    #    커스텀 본(cc_)도 누락 없는지 확인
+    rigify_def_count = count_bones(original, prefix='DEF-')
+    arp_bone_count = count_mapped_bones(converted)
+    results['bone_count'] = rigify_def_count <= arp_bone_count
+
+    # 2. 액션(애니메이션) 보존 검증
+    #    원본 액션 수 == 변환 후 액션 수
+    orig_actions = len(bpy.data.actions)  # 변환 전 저장
+    conv_actions = len(bpy.data.actions)  # 변환 후
+    results['action_count'] = orig_actions == conv_actions
+
+    # 3. 키프레임 수 보존
+    #    각 액션별 총 키프레임 수 비교
+    for action_name in action_names:
+        orig_kf = count_keyframes(original, action_name)
+        conv_kf = count_keyframes(converted, action_name)
+        results[f'keyframes_{action_name}'] = orig_kf == conv_kf
+
+    # 4. 버텍스 그룹 검증
+    #    메시의 버텍스 그룹이 ARP 본과 매칭되는지
+    mesh_vgroups = get_vertex_groups(mesh_obj)
+    arp_bones = get_bone_names(arp_armature)
+    orphan_groups = mesh_vgroups - arp_bones
+    results['vertex_groups'] = len(orphan_groups) == 0
+
+    # 5. FBX 익스포트 테스트
+    #    오류 없이 FBX 파일 생성되는지
+    try:
+        bpy.ops.arp_export_scene.fbx(...)
+        results['fbx_export'] = True
+    except:
+        results['fbx_export'] = False
+
+    return results
+```
+
+#### 수치 검증 (오차 범위 판정)
+
+```python
+def validate_animation(original_blend, converted_blend, threshold=0.01):
+    """애니메이션 수치 비교"""
+    results = {}
+
+    for action in actions:
+        max_error = 0.0
+        for frame in sample_frames:  # 전체가 아닌 샘플링 (성능)
+            bpy.context.scene.frame_set(frame)
+
+            for bone_mapping in mappings:
+                # 원본 Rigify DEF 본의 월드 좌표
+                orig_pos = get_bone_world_position(original, bone_mapping.rigify)
+                # 변환 후 ARP 본의 월드 좌표
+                conv_pos = get_bone_world_position(converted, bone_mapping.arp)
+
+                # 위치 오차 (유클리드 거리)
+                error = (orig_pos - conv_pos).length
+                max_error = max(max_error, error)
+
+        results[action.name] = {
+            'max_error': max_error,
+            'pass': max_error < threshold,
+            'grade': 'A' if max_error < 0.001
+                     else 'B' if max_error < 0.01
+                     else 'C' if max_error < 0.05
+                     else 'F'
+        }
+
+    return results
+```
+
+#### 검증 등급 기준
+
+| 등급 | 최대 위치 오차 | 판정 |
+|------|---------------|------|
+| **A** | < 0.001 (0.1mm) | 완벽 — 육안 구분 불가 |
+| **B** | < 0.01 (1mm) | 양호 — 미세한 차이, 수용 가능 |
+| **C** | < 0.05 (5mm) | 주의 — 눈에 보일 수 있음, 검토 필요 |
+| **F** | >= 0.05 | 실패 — 수동 확인 필수 |
+
+#### 검증 리포트 출력
+
+```
+=== 변환 검증 리포트: 3082_Cat_rig.blend ===
+
+[구조 검증]
+  본 개수:        PASS (Rigify DEF: 52 → ARP: 54)
+  액션 수:        PASS (8/8)
+  키프레임 보존:   PASS (전체 일치)
+  버텍스 그룹:    PASS (고아 그룹 0개)
+  FBX 익스포트:   PASS
+
+[수치 검증]
+  Walk:     A (max error: 0.0003)
+  Run:      B (max error: 0.0072)
+  Idle:     A (max error: 0.0001)
+  Jump:     C (max error: 0.0312) ⚠️ 검토 필요
+  ...
+
+종합: PASS (7/8 액션 B등급 이상, 1개 C등급 검토 필요)
+```
+
+#### 배치 파이프라인 통합
+
+```
+변환 파이프라인 (수정):
+1~14. (기존 변환 단계)
+15. validate_conversion() 실행        ← 추가
+16. 검증 결과를 CSV 리포트에 기록      ← 추가
+17. F등급 파일은 별도 목록으로 분리     ← 추가
+18. 저장
+```
+
+---
+
+### 2-2. 디버깅 & 보정
 
 | 예상 이슈 | 원인 | 대응 |
 |-----------|------|------|
@@ -217,9 +348,12 @@ def detect_category(blend_path):
    a. 카테고리 자동 판별
    b. 해당 .bmap 프리셋 선택
    c. rigify_to_arp.py 로직 실행
-   d. FBX 익스포트 테스트
-   e. 결과 로깅
+   d. validate_conversion.py 자동 검증 실행
+   e. FBX 익스포트 테스트
+   f. 결과 로깅 (검증 등급 포함)
 3. 최종 리포트 생성
+   - 전체 성공률, 등급별 분포
+   - F등급 파일 목록 (수동 검토 필요)
 ```
 
 ### 실행 명령
@@ -242,7 +376,8 @@ BlenderRigConvert/
 │   ├── diagnose_arp_operators.py    # Phase 0: ARP API 조사
 │   ├── bone_mapping.py              # Rigify↔ARP 매핑
 │   ├── rigify_to_arp.py             # 단일 파일 변환
-│   └── batch_convert.py             # 배치 처리
+│   ├── validate_conversion.py       # 자동 검증 (구조+수치)
+│   └── batch_convert.py             # 배치 처리 (검증 통합)
 ├── remap_presets/
 │   ├── rigify_quadruped.bmap        # 사족보행 매핑
 │   └── rigify_bird.bmap             # 조류 매핑
@@ -261,8 +396,11 @@ BlenderRigConvert/
 - [ ] Phase 1: Cat/Fox 1마리 변환 성공
 - [ ] Phase 1: 변환 파일 애니메이션 재생 정상
 - [ ] Phase 1: FBX 익스포트 성공
+- [ ] Phase 2: 자동 검증 스크립트 정상 동작 (구조+수치)
+- [ ] Phase 2: PoC 검증 결과 B등급 이상
 - [ ] Phase 3: 조류 1마리 변환 성공
 - [ ] Phase 4: 전체 배치 실행 → 성공률 90%+
+- [ ] Phase 4: 전체 검증 리포트 생성 (F등급 파일 목록 분리)
 
 ---
 
