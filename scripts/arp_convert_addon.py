@@ -573,108 +573,66 @@ class ARPCONV_OT_BuildRig(Operator):
             return {'CANCELLED'}
 
         # --- 위치 설정 (같은 Edit 세션에서) ---
-        # 원칙: head = 프리뷰 본의 head, tail = 하위 본의 head
-        # 체인 마지막 본만 tail = 프리뷰 본의 tail 사용
+        # 원칙: ARP 기본 parent/use_connect 구조를 보존하고 위치만 설정
+        # - connected 본: tail만 설정 (head는 부모.tail에 자동 고정)
+        # - disconnected 본: head + tail 설정
+        # - 하이어라키 깊이 순서(부모→자식)로 처리
 
         resolved = {}
         for src_name, ref_name in deform_to_ref.items():
             if src_name in preview_positions:
                 resolved[ref_name] = preview_positions[src_name]
 
-        # 체인별 ref 본 순서 구성 (leg→foot 연결 포함)
-        CHAIN_LINKS = [
-            ('back_leg_l', 'back_foot_l'),
-            ('back_leg_r', 'back_foot_r'),
-            ('front_leg_l', 'front_foot_l'),
-            ('front_leg_r', 'front_foot_r'),
-        ]
-        # 연결된 체인을 하나로 합침
-        merged_chains = {}
-        linked_down = set()
-        for up_role, down_role in CHAIN_LINKS:
-            if up_role in arp_chains and down_role in arp_chains:
-                merged_chains[up_role] = arp_chains[up_role] + arp_chains[down_role]
-                linked_down.add(down_role)
+        # 하이어라키 깊이 계산 → 부모(얕은)부터 자식(깊은) 순서
+        def get_depth(bone_name):
+            eb = edit_bones.get(bone_name)
+            depth = 0
+            while eb and eb.parent:
+                depth += 1
+                eb = eb.parent
+            return depth
 
-        # 나머지 체인 추가 (이미 합쳐진 하위 체인 제외)
-        for role, ref_bones in arp_chains.items():
-            if role not in merged_chains and role not in linked_down:
-                merged_chains[role] = ref_bones
-
-        # 모든 매핑 대상 임시 disconnect
-        all_mapped = set()
-        for ref_bones in merged_chains.values():
-            for rn in ref_bones:
-                if rn in resolved:
-                    all_mapped.add(rn)
-
-        saved_connects = {}
-        for ref_name in all_mapped:
-            ebone = edit_bones.get(ref_name)
-            if ebone:
-                saved_connects[ref_name] = ebone.use_connect
-                ebone.use_connect = False
-
+        sorted_refs = sorted(resolved.keys(), key=get_depth)
         aligned = 0
 
-        # 체인별 위치 설정
-        for role, ref_bones in merged_chains.items():
-            # resolved에 있는 본만 필터
-            active = [rn for rn in ref_bones if rn in resolved]
-            if not active:
+        for ref_name in sorted_refs:
+            world_head, world_tail, roll = resolved[ref_name]
+            ebone = edit_bones.get(ref_name)
+            if ebone is None:
+                log(f"  '{ref_name}' 미발견 (skip)", "WARN")
                 continue
 
-            for i, ref_name in enumerate(active):
-                world_head, world_tail, roll = resolved[ref_name]
-                ebone = edit_bones.get(ref_name)
-                if ebone is None:
-                    log(f"  '{ref_name}' 미발견 (skip)", "WARN")
-                    continue
+            local_head = arp_matrix_inv @ world_head
+            local_tail = arp_matrix_inv @ world_tail
 
-                local_head = arp_matrix_inv @ world_head
+            if (local_tail - local_head).length < 0.0001:
+                local_tail = local_head + Vector((0, 0.01, 0))
 
-                # tail = 다음 본의 head (마지막 본이면 자기 tail 사용)
-                if i + 1 < len(active):
-                    next_head_world = resolved[active[i + 1]][0]  # 다음 본의 world_head
-                    local_tail = arp_matrix_inv @ next_head_world
-                else:
-                    local_tail = arp_matrix_inv @ world_tail
-
-                if (local_tail - local_head).length < 0.0001:
-                    local_tail = local_head + Vector((0, 0.01, 0))
-
+            # ARP 원래 연결 구조 보존
+            if ebone.use_connect and ebone.parent:
+                # connected 본: head가 부모.tail에 고정 → tail만 설정
+                ebone.tail = local_tail
+                log(f"  {ref_name}: tail만 설정 (connected to {ebone.parent.name})")
+            else:
+                # disconnected 본: head + tail 모두 설정
                 ebone.head = local_head
                 ebone.tail = local_tail
-                ebone.roll = roll
-                aligned += 1
-                log(f"  {ref_name}: head=프리뷰, tail={'다음본.head' if i+1 < len(active) else '프리뷰.tail'}")
+                log(f"  {ref_name}: head+tail 설정")
 
-        # reconnect: 체인 내 연속된 본끼리 강제 reconnect
-        # 위치 설정에서 bone[i].tail == bone[i+1].head 보장됨
-        # ARP 하이어라키 조건(parent==prev) 제거 — 위치가 맞으면 무조건 연결
-        for role, ref_bones in merged_chains.items():
-            active = [rn for rn in ref_bones if rn in resolved]
-            for i in range(1, len(active)):
-                curr_eb = edit_bones.get(active[i])
-                prev_eb = edit_bones.get(active[i - 1])
-                if curr_eb and prev_eb:
-                    # 부모를 체인의 이전 본으로 재설정
-                    curr_eb.parent = prev_eb
-                    curr_eb.use_connect = True
-                    log(f"  reconnect: {active[i]} → parent={active[i-1]}, connected=True")
+            ebone.roll = roll
+            aligned += 1
 
         # 진단: 최종 ref 본 상태 로그
         log("=== ref 본 최종 상태 ===")
-        for role, ref_bones in merged_chains.items():
-            active = [rn for rn in ref_bones if rn in resolved]
-            for rn in active:
-                eb = edit_bones.get(rn)
-                if eb:
-                    h = eb.head
-                    t = eb.tail
-                    log(f"  {rn}: head=({h.x:.4f},{h.y:.4f},{h.z:.4f}) "
-                        f"tail=({t.x:.4f},{t.y:.4f},{t.z:.4f}) "
-                        f"connected={eb.use_connect}")
+        for ref_name in sorted_refs:
+            eb = edit_bones.get(ref_name)
+            if eb:
+                h = eb.head
+                t = eb.tail
+                parent_name = eb.parent.name if eb.parent else "None"
+                log(f"  {ref_name}: head=({h.x:.4f},{h.y:.4f},{h.z:.4f}) "
+                    f"tail=({t.x:.4f},{t.y:.4f},{t.z:.4f}) "
+                    f"connected={eb.use_connect} parent={parent_name}")
 
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
