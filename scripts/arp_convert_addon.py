@@ -615,23 +615,23 @@ class ARPCONV_OT_BuildRig(Operator):
             ebone.roll = roll
             aligned += 1
 
-        # Phase 3: reconnect — 부모.tail을 자식.head로 맞춘 뒤 연결
-        # 매핑된 본끼리만 reconnect (비매핑 ARP 내부 본 건드리지 않음)
+        # Phase 3: 매핑된 본끼리 gap 제거 + reconnect
+        # 부모도 매핑된 본이면 parent.tail → child.head로 맞춤
+        # was_connected 여부와 관계없이 항상 gap 제거
         mapped_set = set(sorted_refs)
         for ref_name in sorted_refs:
-            was_connected = saved_connects.get(ref_name, False)
             ebone = edit_bones.get(ref_name)
-            if not (ebone and ebone.parent and was_connected):
+            if not (ebone and ebone.parent):
                 continue
 
             parent_name = ebone.parent.name
             if parent_name in mapped_set:
-                # 부모도 매핑됨 → 부모.tail을 이 본.head로 맞추고 연결
+                # 부모.tail을 이 본.head로 맞춤 (gap 제거)
                 ebone.parent.tail = ebone.head.copy()
-                ebone.use_connect = True
-            else:
-                # 부모가 비매핑 ARP 본 → 건드리지 않고 disconnect 유지
-                log(f"  '{ref_name}' 부모 '{parent_name}'는 비매핑 → disconnect 유지")
+                # 원래 connected였으면 복원
+                if saved_connects.get(ref_name, False):
+                    ebone.use_connect = True
+                log(f"  체인 연결: {parent_name}.tail → {ref_name}.head")
 
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
