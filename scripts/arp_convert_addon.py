@@ -615,10 +615,14 @@ class ARPCONV_OT_BuildRig(Operator):
             ebone.roll = roll
             aligned += 1
 
-        # Phase 3: 원래 connected 상태 복원
-        for ref_name, was_connected in saved_connects.items():
+        # Phase 3: reconnect — 부모.tail을 자식.head로 맞춘 뒤 연결
+        # 깊이가 얕은 것(부모)부터 처리하면 체인이 자연스럽게 이어짐
+        for ref_name in sorted_refs:
+            was_connected = saved_connects.get(ref_name, False)
             ebone = edit_bones.get(ref_name)
-            if ebone and was_connected:
+            if ebone and ebone.parent and was_connected:
+                # 부모 tail을 이 본의 head로 이동 → 끊김 없이 연결
+                ebone.parent.tail = ebone.head.copy()
                 ebone.use_connect = True
 
         bpy.ops.object.mode_set(mode='OBJECT')
