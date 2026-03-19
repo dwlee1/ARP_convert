@@ -417,24 +417,15 @@ class ARPCONV_OT_BuildRig(Operator):
             self.report({'ERROR'}, "ARP 아마추어를 찾을 수 없습니다.")
             return {'CANCELLED'}
 
-        # Step 2: 동적 매핑 — ARP 실제 ref 본 검색 + Preview 역할 매칭
-        log("동적 매핑 생성 (ARP ref 본 자동 검색)")
-        ensure_object_mode()
-
-        deform_to_ref = build_preview_to_ref_mapping(preview_obj, arp_obj)
-        log(f"매핑 결과: {len(deform_to_ref)}개 본")
-
-        if not deform_to_ref:
-            self.report({'ERROR'}, "매핑 생성 실패: Preview 역할과 ARP ref 본이 매칭되지 않음")
-            return {'CANCELLED'}
-
-        # Step 3: Preview 본 위치를 ARP ref 본에 복사
-        log("ref 본 위치 정렬 (Preview → ARP)")
+        # Step 2: Preview 본 위치 추출 (Edit 모드 1회)
+        log("Preview 본 위치 추출")
         from mathutils import Vector
+        from skeleton_analyzer import (
+            read_preview_roles, match_chain_lengths,
+        )
 
         ensure_object_mode()
 
-        # Preview 본 위치 추출
         bpy.ops.object.select_all(action='DESELECT')
         preview_obj.select_set(True)
         bpy.context.view_layer.objects.active = preview_obj
@@ -447,21 +438,146 @@ class ARPCONV_OT_BuildRig(Operator):
             preview_positions[ebone.name] = (world_head, world_tail, ebone.roll)
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        # ARP ref 본 정렬
+        # Preview 역할 읽기 (Pose 모드 데이터, Edit 불필요)
+        roles = read_preview_roles(preview_obj)
+
+        # Step 3: ARP Edit 모드 1회 진입 → ref 검색 + 매핑 + 위치 설정
+        log("ARP ref 본 검색 + 위치 정렬 (단일 Edit 세션)")
+        ensure_object_mode()
+
         bpy.ops.object.select_all(action='DESELECT')
         arp_obj.select_set(True)
         bpy.context.view_layer.objects.active = arp_obj
         bpy.ops.object.mode_set(mode='EDIT')
-        arp_matrix_inv = arp_obj.matrix_world.inverted()
-        edit_bones = arp_obj.data.edit_bones
 
-        # resolved: {ref_name: (world_head, world_tail, roll)}
+        edit_bones = arp_obj.data.edit_bones
+        arp_matrix_inv = arp_obj.matrix_world.inverted()
+
+        # --- ref 본 인라인 검색 (Edit 모드 안에서) ---
+        ref_names = set()
+        ref_depth = {}
+        for eb in edit_bones:
+            if '_ref' in eb.name:
+                ref_names.add(eb.name)
+                d = 0
+                p = eb.parent
+                while p:
+                    d += 1
+                    p = p.parent
+                ref_depth[eb.name] = d
+
+        log(f"  ARP ref 본 발견: {len(ref_names)}개")
+
+        # 역할별 ref 본 분류 (인라인)
+        LEG_PREFIXES = ['thigh', 'leg']
+        FOOT_PREFIXES = ['foot', 'toes']
+        FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
+
+        arp_chains = {}
+
+        # Root/Spine/Neck/Head/Tail
+        for name in ref_names:
+            if name.startswith('root_ref'):
+                arp_chains.setdefault('root', []).append(name)
+            elif 'spine_' in name and '_ref' in name:
+                arp_chains.setdefault('spine', []).append(name)
+            elif 'neck' in name and '_ref' in name:
+                arp_chains.setdefault('neck', []).append(name)
+            elif name.startswith('head_ref'):
+                arp_chains.setdefault('head', []).append(name)
+            elif 'tail_' in name and '_ref' in name:
+                arp_chains.setdefault('tail', []).append(name)
+
+        # 정렬
+        for key in ['root', 'spine', 'neck', 'head', 'tail']:
+            if key in arp_chains:
+                arp_chains[key] = sorted(arp_chains[key],
+                    key=lambda x: ref_depth.get(x, 0))
+
+        # Legs/Feet/Ear (side별)
+        for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
+            for is_dupli, leg_prefix in [(False, 'back'), (True, 'front')]:
+                # Leg
+                leg_bones = []
+                for pfx in LEG_PREFIXES:
+                    cands = [n for n in ref_names
+                             if n.startswith(pfx) and '_ref' in n
+                             and n.endswith(side_suffix)
+                             and ('dupli' in n) == is_dupli
+                             and 'bank' not in n and 'heel' not in n]
+                    if cands:
+                        cands.sort(key=lambda x: ref_depth.get(x, 0))
+                        leg_bones.append(cands[0])
+                if leg_bones:
+                    leg_bones.sort(key=lambda x: ref_depth.get(x, 0))
+                    arp_chains[f'{leg_prefix}_leg_{side_key}'] = leg_bones
+
+                # Foot
+                foot_bones = []
+                for pfx in FOOT_PREFIXES:
+                    cands = [n for n in ref_names
+                             if n.startswith(pfx) and '_ref' in n
+                             and n.endswith(side_suffix)
+                             and ('dupli' in n) == is_dupli
+                             and 'bank' not in n and 'heel' not in n]
+                    if cands:
+                        cands.sort(key=lambda x: ref_depth.get(x, 0))
+                        foot_bones.append(cands[0])
+                if foot_bones:
+                    foot_bones.sort(key=lambda x: ref_depth.get(x, 0))
+                    arp_chains[f'{leg_prefix}_foot_{side_key}'] = foot_bones
+
+                # Bank/Heel
+                for aux_pfx in FOOT_AUX_PREFIXES:
+                    aux_key = aux_pfx.replace('foot_', '')
+                    cands = [n for n in ref_names
+                             if n.startswith(aux_pfx) and '_ref' in n
+                             and n.endswith(side_suffix)
+                             and ('dupli' in n) == is_dupli]
+                    if cands:
+                        arp_chains[f'{leg_prefix}_{aux_key}_{side_key}'] = cands
+
+            # Ear
+            ear_cands = sorted([n for n in ref_names
+                                if 'ear' in n and '_ref' in n
+                                and n.endswith(side_suffix)],
+                               key=lambda x: ref_depth.get(x, 0))
+            if ear_cands:
+                arp_chains[f'ear_{side_key}'] = ear_cands
+
+        # 검색 결과 로그
+        log("  --- ARP ref 체인 ---")
+        for role, bones in arp_chains.items():
+            log(f"  {role:20s}: {' → '.join(bones)}")
+
+        # --- 매핑 생성 ---
+        deform_to_ref = {}
+        for role, preview_bones in roles.items():
+            if role in ('face', 'unmapped'):
+                continue
+            target_refs = arp_chains.get(role, [])
+            if not target_refs:
+                if 'heel' not in role and 'bank' not in role:
+                    log(f"  [WARN] 역할 '{role}' → ARP ref 없음")
+                continue
+            chain_map = match_chain_lengths(preview_bones, target_refs)
+            deform_to_ref.update(chain_map)
+
+        log(f"  매핑 결과: {len(deform_to_ref)}개")
+        for src, ref in deform_to_ref.items():
+            log(f"  {src:25s} → {ref}")
+
+        if not deform_to_ref:
+            bpy.ops.object.mode_set(mode='OBJECT')
+            self.report({'ERROR'}, "매핑 생성 실패")
+            return {'CANCELLED'}
+
+        # --- 위치 설정 (같은 Edit 세션에서) ---
         resolved = {}
         for src_name, ref_name in deform_to_ref.items():
             if src_name in preview_positions:
                 resolved[ref_name] = preview_positions[src_name]
 
-        # 하이어라키 깊이순 정렬 (부모 먼저)
         def get_depth(bone_name):
             eb = edit_bones.get(bone_name)
             depth = 0
@@ -473,7 +589,7 @@ class ARPCONV_OT_BuildRig(Operator):
         sorted_refs = sorted(resolved.keys(), key=get_depth)
         aligned = 0
 
-        # Phase 1: 매핑 대상 ref 본을 임시 disconnect
+        # Phase 1: 매핑 대상만 임시 disconnect
         saved_connects = {}
         for ref_name in sorted_refs:
             ebone = edit_bones.get(ref_name)
@@ -481,7 +597,7 @@ class ARPCONV_OT_BuildRig(Operator):
                 saved_connects[ref_name] = ebone.use_connect
                 ebone.use_connect = False
 
-        # Phase 2: 모든 ref 본 위치를 자유롭게 설정
+        # Phase 2: 위치 설정
         for ref_name in sorted_refs:
             world_head, world_tail, roll = resolved[ref_name]
             ebone = edit_bones.get(ref_name)
@@ -498,23 +614,17 @@ class ARPCONV_OT_BuildRig(Operator):
             ebone.tail = local_tail
             ebone.roll = roll
             aligned += 1
-            log(f"  ✓ {ref_name}")
 
-        # Phase 3: head ≈ parent.tail인 경우에만 reconnect
+        # Phase 3: 원래 connected 상태 복원
         for ref_name, was_connected in saved_connects.items():
             ebone = edit_bones.get(ref_name)
-            if ebone and ebone.parent and was_connected:
-                if (ebone.head - ebone.parent.tail).length < 0.001:
-                    ebone.use_connect = True
-                else:
-                    log(f"  ⚠ {ref_name}: disconnect 유지 "
-                        f"(head↔parent.tail 거리: "
-                        f"{(ebone.head - ebone.parent.tail).length:.4f})")
+            if ebone and was_connected:
+                ebone.use_connect = True
 
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
 
-        # Step 3: match_to_rig
+        # Step 4: match_to_rig
         log("match_to_rig 실행")
         ensure_object_mode()
         select_only(arp_obj)
