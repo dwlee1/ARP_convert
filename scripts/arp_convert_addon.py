@@ -616,26 +616,50 @@ class ARPCONV_OT_BuildRig(Operator):
             aligned += 1
 
         # Phase 3: reconnect — 부모.tail을 자식.head로 맞춘 뒤 연결
-        # 깊이가 얕은 것(부모)부터 처리하면 체인이 자연스럽게 이어짐
+        # 매핑된 본끼리만 reconnect (비매핑 ARP 내부 본 건드리지 않음)
+        mapped_set = set(sorted_refs)
         for ref_name in sorted_refs:
             was_connected = saved_connects.get(ref_name, False)
             ebone = edit_bones.get(ref_name)
-            if ebone and ebone.parent and was_connected:
-                # 부모 tail을 이 본의 head로 이동 → 끊김 없이 연결
+            if not (ebone and ebone.parent and was_connected):
+                continue
+
+            parent_name = ebone.parent.name
+            if parent_name in mapped_set:
+                # 부모도 매핑됨 → 부모.tail을 이 본.head로 맞추고 연결
                 ebone.parent.tail = ebone.head.copy()
                 ebone.use_connect = True
+            else:
+                # 부모가 비매핑 ARP 본 → 건드리지 않고 disconnect 유지
+                log(f"  '{ref_name}' 부모 '{parent_name}'는 비매핑 → disconnect 유지")
 
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
 
         # Step 4: match_to_rig
         log("match_to_rig 실행")
+
+        # 진단: match_to_rig 전 주요 ref 본 존재 확인
+        ensure_object_mode()
+        select_only(arp_obj)
+        bpy.ops.object.mode_set(mode='EDIT')
+        diag_bones = arp_obj.data.edit_bones
+        for check_name in ['foot_ref.l', 'foot_ref.r',
+                           'foot_b_ref.l', 'foot_b_ref.r',
+                           'foot_ref_dupli_001.l', 'foot_ref_dupli_001.r',
+                           'foot_b_ref_dupli_001.l', 'foot_b_ref_dupli_001.r']:
+            eb = diag_bones.get(check_name)
+            if eb:
+                log(f"  [DIAG] {check_name}: head={eb.head[:]} connected={eb.use_connect}")
+        bpy.ops.object.mode_set(mode='OBJECT')
+
         ensure_object_mode()
         select_only(arp_obj)
         try:
             run_arp_operator(bpy.ops.arp.match_to_rig)
         except Exception as e:
             self.report({'ERROR'}, f"match_to_rig 실패: {e}")
+            log(f"  match_to_rig 에러: {e}", "ERROR")
             return {'CANCELLED'}
 
         # Step 4: 얼굴 cc_ 커스텀 본 추가
