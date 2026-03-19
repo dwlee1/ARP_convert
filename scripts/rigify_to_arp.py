@@ -1,90 +1,29 @@
 """
-Rigify → AutoRig Pro 변환 스크립트 (PoC)
-==========================================
+Source Rig → AutoRig Pro 변환 스크립트 (v5 — 프로필 기반)
+=========================================================
 Blender 4.5 LTS + AutoRig Pro 에서 실행
 
 사용법:
-  1. 변환할 Rigify 리그가 있는 .blend 파일을 Blender에서 열기
+  1. 변환할 리그가 있는 .blend 파일을 Blender에서 열기
   2. Scripting 탭에서 이 스크립트 열기
-  3. 아래 CONFIG 섹션의 경로 설정 확인
+  3. 아래 CONFIG 섹션의 MAPPING_PROFILE 설정 확인
   4. ▶ Run Script 실행
 
 또는 커맨드라인:
   blender myfile.blend --python rigify_to_arp.py
 """
 
-import bpy
 import os
-import sys
 import json
 import traceback
 from datetime import datetime
 
-
-# ═══════════════════════════════════════════════════════════════
-# 본 매핑 데이터 (내장)
-# 출처: https://github.com/israelandrewbrown/AutoRigPro-to-Rigify
-# ═══════════════════════════════════════════════════════════════
-
-# ─── 커스텀 리그 → ARP 변형 본 매핑 ───
-# fox_AllAni_240311.blend 분석 결과 기반
-# 변형(deform) 본만 매핑, IK컨트롤/폴벡터는 제외
-DEFORM_BONE_MAPPING = {
-    # 스파인 / 몸통
-    "root":       "root_ref.x",
-    "center":     "root_ref.x",       # center가 실질적 루트일 수 있음
-    "pelvis":     "spine_01_ref.x",
-    "spine01":    "spine_02_ref.x",
-    "spine02":    "spine_03_ref.x",
-    "chest":      "spine_03_ref.x",    # chest ↔ spine 상위 (중복 시 조정)
-    "neck":       "neck_ref.x",
-    "head":       "head_ref.x",
-    "jaw":        "head_ref.x",        # jaw는 head에 매핑 (별도 jaw 본 없을 때)
-    # 앞다리 (사족보행 = arm 계열)
-    "shoulder_L": "shoulder_ref.l",
-    "upperarm_L": "arm_ref.l",
-    "arm_L":      "forearm_ref.l",
-    "hand_L":     "hand_ref.l",
-    "shoulder_R": "shoulder_ref.r",
-    "upperarm_R": "arm_ref.r",
-    "arm_R":      "forearm_ref.r",
-    "hand_R":     "hand_ref.r",
-    # 뒷다리
-    "thigh_L":    "thigh_ref.l",
-    "leg_L":      "leg_ref.l",
-    "foot_L":     "foot_ref.l",
-    "toe_L":      "toes_ref.l",
-    "thigh_R":    "thigh_ref.r",
-    "leg_R":      "leg_ref.r",
-    "foot_R":     "foot_ref.r",
-    "toe_R":      "toes_ref.r",
-    # 꼬리
-    "tail_01":    "tail_00_ref.x",
-    "tail02":     "tail_01_ref.x",
-    "tail03":     "tail_02_ref.x",
-    "tail04":     "tail_03_ref.x",
-}
-
-# IK/컨트롤 본 — 변환 시 무시 (ARP가 자체 IK 생성)
-IK_CONTROL_BONES = [
-    "L_backfoot_ctrl", "R_backfoot_ctrl",
-    "L_foot_IK", "R_foot_IK",
-    "L_leg_IK", "R_leg_IK",
-    "L_thigh_PV", "R_thigh_PV",
-    "L_leg_PV", "R_leg_PV",
-    "toe_heel_L", "toe_heel_R",
-    "toe_up_L", "toe_up_R",
-    "Larm_IK", "Rarm_IK",
-]
-
-
-def source_to_arp_name(bone_name):
-    """소스 본 이름 → ARP 레퍼런스 본 이름 변환. 매핑 없으면 None."""
-    if bone_name in DEFORM_BONE_MAPPING:
-        return DEFORM_BONE_MAPPING[bone_name]
-    if bone_name in IK_CONTROL_BONES:
-        return None  # IK/컨트롤은 무시
-    return None  # 매핑 없음
+try:
+    import bpy
+    from mathutils import Vector
+    _IN_BLENDER = True
+except ImportError:
+    _IN_BLENDER = False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -92,15 +31,14 @@ def source_to_arp_name(bone_name):
 # ═══════════════════════════════════════════════════════════════
 
 # 프로젝트 루트 (자동 감지)
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if '__file__' in dir() else os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
+if _IN_BLENDER:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if '__file__' in dir() else os.path.dirname(bpy.data.filepath) if bpy.data.filepath else ""
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# ARP 아마추어 프리셋 (armature_presets 폴더 내 .blend 파일명, 확장자 제외)
-# 사용 가능: dog, horse, bird, human, free, cs, master, horse_ik_spine
-ARP_RIG_PRESET = "dog"
-
-# .bmap 프리셋 이름 (확장자 제외)
-# custom_quadruped = Fox 등 커스텀 리그용, rigify_quadruped = DEF- 기반
-BMAP_PRESET_NAME = "custom_quadruped"
+# 매핑 프로필 이름 (mapping_profiles/ 폴더 내 JSON 파일명, 확장자 제외)
+# 리그 타입별로 프로필 교체: custom_quadruped, rigify_quadruped 등
+MAPPING_PROFILE = "custom_quadruped"
 
 # 변환 결과 저장 경로 (None이면 원본 옆에 _arp 접미사로 저장)
 OUTPUT_PATH = None
@@ -113,6 +51,79 @@ VERBOSE = True
 
 
 # ═══════════════════════════════════════════════════════════════
+# 프로필 로더
+# ═══════════════════════════════════════════════════════════════
+
+def load_mapping_profile(profile_name):
+    """
+    mapping_profiles/{profile_name}.json 로드.
+    L사이드 매핑에서 R사이드 자동 생성 (미러링).
+
+    Returns:
+        dict: {
+            'name', 'description',
+            'arp_preset': ARP 아마추어 프리셋 이름,
+            'bmap_preset': .bmap 리타게팅 프리셋 이름,
+            'deform_to_ref': {소스본: ARP ref본} (L+R 포함),
+            'ref_to_source': {ARP ref본: 소스본} (역매핑),
+            'ref_alignment': {'priority': {...}, 'avg_lr': {...}},
+        }
+    """
+    profile_dir = os.path.join(PROJECT_ROOT, "mapping_profiles")
+    profile_path = os.path.join(profile_dir, f"{profile_name}.json")
+
+    if not os.path.exists(profile_path):
+        raise FileNotFoundError(f"매핑 프로필 미발견: {profile_path}")
+
+    with open(profile_path, 'r', encoding='utf-8') as f:
+        raw = json.load(f)
+
+    # L→R 미러링
+    mirror = raw.get("mirror_suffix", {})
+    src_suffixes = mirror.get("source", ["_L", "_R"])
+    arp_suffixes = mirror.get("arp", [".l", ".r"])
+
+    deform_to_ref = dict(raw["deform_to_ref"])
+
+    # L사이드 매핑에서 R사이드 자동 생성
+    for src_name, ref_name in list(raw["deform_to_ref"].items()):
+        if isinstance(src_suffixes, list) and len(src_suffixes) == 2:
+            l_suffix, r_suffix = src_suffixes
+        else:
+            continue
+        if isinstance(arp_suffixes, list) and len(arp_suffixes) == 2:
+            l_arp, r_arp = arp_suffixes
+        else:
+            continue
+
+        if src_name.endswith(l_suffix) and ref_name.endswith(l_arp):
+            r_src = src_name[:-len(l_suffix)] + r_suffix
+            r_ref = ref_name[:-len(l_arp)] + r_arp
+            if r_src not in deform_to_ref:
+                deform_to_ref[r_src] = r_ref
+
+    # 역매핑
+    ref_to_source = {}
+    for src, ref in deform_to_ref.items():
+        # 중복 ref (priority 처리는 ref_alignment에서)
+        if ref not in ref_to_source:
+            ref_to_source[ref] = src
+
+    log(f"프로필 로드: '{raw['name']}' — {raw.get('description', '')}")
+    log(f"  매핑: {len(deform_to_ref)}개 (미러링 포함)")
+
+    return {
+        'name': raw['name'],
+        'description': raw.get('description', ''),
+        'arp_preset': raw.get('arp_preset', 'dog'),
+        'bmap_preset': raw.get('bmap_preset', ''),
+        'deform_to_ref': deform_to_ref,
+        'ref_to_source': ref_to_source,
+        'ref_alignment': raw.get('ref_alignment', {}),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
 # 유틸리티 함수
 # ═══════════════════════════════════════════════════════════════
 
@@ -122,12 +133,13 @@ def log(msg, level="INFO"):
     print(f"[{timestamp}] [{level}] {msg}")
 
 
-def find_source_armature():
+def find_source_armature(profile):
     """
     씬에서 변환 대상 아마추어를 찾는다.
     ARP 아마추어(c_ 본)가 아닌 아마추어 중에서
-    매핑 가능한 본이 가장 많은 것을 선택.
+    프로필 매핑 키와 일치하는 본이 가장 많은 것을 선택.
     """
+    mapping_keys = set(profile['deform_to_ref'].keys())
     best_obj = None
     best_match = 0
 
@@ -141,27 +153,24 @@ def find_source_armature():
         if len(c_bones) > 5:
             continue
 
-        # 매핑 가능한 본 수 계산
-        mapped = [b for b in arm.bones if source_to_arp_name(b.name) is not None]
-        if len(mapped) > best_match:
-            best_match = len(mapped)
+        # 프로필 매핑 키와 일치하는 본 수
+        matched = len([b for b in arm.bones if b.name in mapping_keys])
+        if matched > best_match:
+            best_match = matched
             best_obj = obj
 
     if best_obj:
         arm = best_obj.data
         total = len(arm.bones)
-        log(f"소스 아마추어 발견: '{best_obj.name}' (본 {total}개, 매핑 가능 {best_match}개)")
-        unmapped = [b.name for b in arm.bones if source_to_arp_name(b.name) is None and b.name not in IK_CONTROL_BONES]
+        log(f"소스 아마추어 발견: '{best_obj.name}' (본 {total}개, 프로필 매칭 {best_match}개)")
+        unmapped = [b.name for b in arm.bones if b.name not in mapping_keys and b.use_deform]
         if unmapped:
-            log(f"  매핑 안 되는 본: {unmapped}", "WARN")
+            log(f"  프로필에 없는 deform 본: {unmapped}", "WARN")
     return best_obj
 
 
 def find_arp_armature():
-    """
-    씬에서 ARP 아마추어를 찾는다.
-    'rig' 이름이거나 c_ 접두사 본이 있는 아마추어.
-    """
+    """씬에서 ARP 아마추어를 찾는다."""
     for obj in bpy.data.objects:
         if obj.type != 'ARMATURE':
             continue
@@ -174,10 +183,7 @@ def find_arp_armature():
 
 
 def find_mesh_objects(armature_obj):
-    """
-    특정 아마추어에 바인딩된 메시 오브젝트들을 찾는다.
-    Armature 모디파이어가 있는 메시를 검색.
-    """
+    """특정 아마추어에 바인딩된 메시 오브젝트들을 찾는다."""
     meshes = []
     for obj in bpy.data.objects:
         if obj.type != 'MESH':
@@ -207,53 +213,8 @@ def get_all_actions():
     return actions_info
 
 
-def extract_bone_data(armature_obj):
-    """
-    소스 아마추어의 본 위치 데이터를 추출하여
-    ARP import_rig_data 형식 (.py dict)으로 변환.
-    """
-    arm = armature_obj.data
-    arp_data = {}
-
-    # Edit 모드에서 본 데이터 접근 (head, tail, roll)
-    bpy.context.view_layer.objects.active = armature_obj
-    bpy.ops.object.mode_set(mode='EDIT')
-
-    for ebone in arm.edit_bones:
-        arp_name = source_to_arp_name(ebone.name)
-        if arp_name is None:
-            if VERBOSE:
-                log(f"  매핑 없음 (패스스루 대상): {ebone.name}", "WARN")
-            continue
-
-        # ARP 리그 데이터 형식: (head_xyz, tail_xyz, roll)
-        head = list(ebone.head)
-        tail = list(ebone.tail)
-        roll = ebone.roll
-        arp_data[arp_name] = (head, tail, roll)
-
-        if VERBOSE:
-            log(f"  매핑: {ebone.name} → {arp_name}")
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    log(f"본 매핑 완료: {len(arp_data)}개 매핑됨")
-    return arp_data
-
-
-def save_arp_rig_data(arp_data, filepath):
-    """ARP 리그 데이터를 .py 파일로 저장 (import_rig_data 형식)"""
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(repr(arp_data))
-    log(f"ARP 리그 데이터 저장: {filepath}")
-
-
 def get_3d_viewport_context():
-    """
-    3D Viewport의 컨텍스트를 가져온다.
-    ARP 오퍼레이터는 3D Viewport 컨텍스트에서 실행해야 함.
-    (Scripting 탭에서 실행 시 SpaceTextEditor라서 overlay 에러 발생)
-    """
+    """3D Viewport의 컨텍스트를 가져온다."""
     for window in bpy.context.window_manager.windows:
         for area in window.screen.areas:
             if area.type == 'VIEW_3D':
@@ -267,15 +228,12 @@ def get_3d_viewport_context():
                             'scene': bpy.context.scene,
                             'view_layer': bpy.context.view_layer,
                         }
-    log("3D Viewport를 찾을 수 없습니다! 3D Viewport가 열려있어야 합니다.", "ERROR")
+    log("3D Viewport를 찾을 수 없습니다!", "ERROR")
     return None
 
 
 def run_arp_operator(op_func, **kwargs):
-    """
-    ARP 오퍼레이터를 3D Viewport 컨텍스트에서 실행.
-    Blender 4.x의 temp_override 사용.
-    """
+    """ARP 오퍼레이터를 3D Viewport 컨텍스트에서 실행."""
     ctx = get_3d_viewport_context()
     if ctx is None:
         raise RuntimeError("3D Viewport 컨텍스트를 찾을 수 없습니다.")
@@ -297,6 +255,160 @@ def ensure_object_mode():
 
 
 # ═══════════════════════════════════════════════════════════════
+# Step 3.5: ARP 레퍼런스 본 위치 정렬
+# ═══════════════════════════════════════════════════════════════
+
+def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
+    """
+    ARP 레퍼런스 본을 소스 아마추어 본 위치에 맞게 이동.
+    프로필의 매핑 + ref_alignment 기반.
+
+    Args:
+        source_obj: 소스 아마추어 오브젝트
+        arp_obj: ARP 아마추어 오브젝트
+        profile: load_mapping_profile() 결과
+        copy_roll: True면 소스 본의 roll도 복사
+
+    Returns:
+        dict: {'aligned_count', 'skipped_count', 'averaged_bones', 'errors'}
+    """
+    ensure_object_mode()
+
+    result = {
+        'aligned_count': 0,
+        'skipped_count': 0,
+        'averaged_bones': [],
+        'errors': [],
+    }
+
+    deform_to_ref = profile['deform_to_ref']
+    ref_alignment = profile.get('ref_alignment', {})
+    priority_map = ref_alignment.get('priority', {})
+    avg_lr_map = ref_alignment.get('avg_lr', {})
+
+    # ── Phase A: 소스 본 위치 추출 (월드 좌표) ──
+    log("  Phase A: 소스 본 위치 추출 (월드 좌표)")
+    source_positions = {}
+
+    bpy.context.view_layer.objects.active = source_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    src_matrix = source_obj.matrix_world
+    for ebone in source_obj.data.edit_bones:
+        world_head = src_matrix @ ebone.head.copy()
+        world_tail = src_matrix @ ebone.tail.copy()
+        source_positions[ebone.name] = (world_head, world_tail, ebone.roll)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    log(f"    추출된 소스 본: {len(source_positions)}개")
+
+    # ── Phase B: ARP ref 본 목표 위치 결정 ──
+    log("  Phase B: ARP ref 본 목표 위치 결정 (프로필 기반)")
+    resolved = {}  # arp_ref_name → (world_head, world_tail, roll)
+
+    # 처리 완료된 ref 본 추적 (중복 방지)
+    processed_refs = set()
+
+    # B-1: priority 매핑 (여러 소스 중 첫 발견 사용)
+    for ref_name, src_candidates in priority_map.items():
+        for src_name in src_candidates:
+            if src_name in source_positions:
+                resolved[ref_name] = source_positions[src_name]
+                processed_refs.add(ref_name)
+                break
+        if ref_name not in processed_refs:
+            msg = f"우선순위 소스 본 {src_candidates} 모두 미발견 → {ref_name} 스킵"
+            log(f"    {msg}", "WARN")
+            result['errors'].append(msg)
+
+    # B-2: avg_lr 매핑 (L/R 평균 → 중앙 본)
+    for ref_name, lr_pair in avg_lr_map.items():
+        src_l, src_r = lr_pair[0], lr_pair[1]
+        has_l = src_l in source_positions
+        has_r = src_r in source_positions
+
+        if has_l and has_r:
+            l_head, l_tail, l_roll = source_positions[src_l]
+            r_head, r_tail, r_roll = source_positions[src_r]
+            avg_head = (l_head + r_head) / 2.0
+            avg_tail = (l_tail + r_tail) / 2.0
+            avg_head.x = 0.0
+            avg_tail.x = 0.0
+            avg_roll = (l_roll + r_roll) / 2.0
+            resolved[ref_name] = (avg_head, avg_tail, avg_roll)
+            result['averaged_bones'].append(ref_name)
+        elif has_l:
+            h, t, r = source_positions[src_l]
+            h = h.copy(); t = t.copy()
+            h.x = 0.0; t.x = 0.0
+            resolved[ref_name] = (h, t, r)
+            log(f"    '{src_r}' 미발견, '{src_l}'만 사용 → {ref_name}", "WARN")
+        elif has_r:
+            h, t, r = source_positions[src_r]
+            h = h.copy(); t = t.copy()
+            h.x = 0.0; t.x = 0.0
+            resolved[ref_name] = (h, t, r)
+            log(f"    '{src_l}' 미발견, '{src_r}'만 사용 → {ref_name}", "WARN")
+        else:
+            msg = f"'{src_l}' + '{src_r}' 모두 미발견 → {ref_name} 스킵"
+            log(f"    {msg}", "WARN")
+            result['errors'].append(msg)
+        processed_refs.add(ref_name)
+
+    # B-3: 일반 1:1 매핑
+    for src_name, ref_name in deform_to_ref.items():
+        if ref_name in processed_refs:
+            continue  # priority/avg_lr에서 이미 처리됨
+        if src_name in source_positions:
+            resolved[ref_name] = source_positions[src_name]
+        else:
+            if VERBOSE:
+                log(f"    소스 본 '{src_name}' 미발견 → {ref_name} 스킵")
+
+    log(f"    결정된 ref 본: {len(resolved)}개")
+
+    # ── Phase C: ARP ref 본에 위치 적용 ──
+    log("  Phase C: ARP ref 본에 위치 적용")
+
+    bpy.context.view_layer.objects.active = arp_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    arp_matrix_inv = arp_obj.matrix_world.inverted()
+    aligned = 0
+
+    for ref_name, (world_head, world_tail, roll) in resolved.items():
+        ebone = arp_obj.data.edit_bones.get(ref_name)
+        if ebone is None:
+            msg = f"ARP ref 본 '{ref_name}' 미발견 (프리셋에 없음)"
+            log(f"    {msg}", "WARN")
+            result['errors'].append(msg)
+            continue
+
+        local_head = arp_matrix_inv @ world_head
+        local_tail = arp_matrix_inv @ world_tail
+
+        # 본 길이 0 방지
+        if (local_tail - local_head).length < 0.0001:
+            local_tail = local_head + Vector((0, 0.01, 0))
+            log(f"    '{ref_name}': 본 길이 0 방지 보정", "WARN")
+
+        ebone.head = local_head
+        ebone.tail = local_tail
+        if copy_roll:
+            ebone.roll = roll
+
+        aligned += 1
+        if VERBOSE:
+            log(f"    정렬: {ref_name}")
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    result['aligned_count'] = aligned
+    result['skipped_count'] = len(deform_to_ref) - aligned
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════
 # 메인 변환 파이프라인
 # ═══════════════════════════════════════════════════════════════
 
@@ -304,17 +416,15 @@ def convert_to_arp():
     """
     소스 리그 → ARP 변환 메인 함수.
 
-    수정된 파이프라인 (v2):
-    1. 소스 아마추어 식별
+    파이프라인 (v5 — 프로필 기반):
+    1. 프로필 로드 + 소스 아마추어 식별
     2. 변환 전 상태 기록
-    3. ARP 리그 추가 (dog 프리셋, 기본 위치)
+    3. ARP 리그 추가 (프로필의 arp_preset)
+    3.5. ARP 레퍼런스 본 위치 정렬 (프로필 매핑 기반)
     4. ARP 리그 생성 (match_to_rig)
-    5. Remap으로 애니메이션 리타게팅 (auto_scale이 크기 차이 처리)
+    4.5. IK→FK 전환 시도
+    5. Remap 애니메이션 리타게팅 (프로필의 bmap_preset)
     6. FBX 익스포트 테스트
-
-    핵심 변경: import_rig_data 제거 — ARP를 기본 위치로 생성하고
-    Remap이 크기/위치 차이를 자동 처리하게 함.
-    메시 리바인딩은 별도 단계로 분리 (Phase 2에서 처리).
     """
 
     result = {
@@ -327,12 +437,19 @@ def convert_to_arp():
     try:
         ensure_object_mode()
 
-        # ─── Step 1: 소스 아마추어 식별 ───
+        # ─── Step 1: 프로필 로드 + 소스 아마추어 식별 ───
         log("=" * 50)
-        log("Step 1: 소스 아마추어 식별")
+        log(f"Step 1: 프로필 '{MAPPING_PROFILE}' 로드 + 소스 아마추어 식별")
         log("=" * 50)
 
-        source_obj = find_source_armature()
+        try:
+            profile = load_mapping_profile(MAPPING_PROFILE)
+        except FileNotFoundError as e:
+            result['errors'].append(str(e))
+            log(str(e), "ERROR")
+            return result
+
+        source_obj = find_source_armature(profile)
         if source_obj is None:
             result['errors'].append("소스 아마추어를 찾을 수 없습니다.")
             return result
@@ -347,15 +464,19 @@ def convert_to_arp():
         log("Step 2: 변환 전 상태 기록")
         log("=" * 50)
 
+        mapping_keys = set(profile['deform_to_ref'].keys())
+        matched_count = len([b for b in source_obj.data.bones if b.name in mapping_keys])
         pre_state = {
             'source_name': source_obj.name,
-            'mapped_bone_count': len([b for b in source_obj.data.bones if source_to_arp_name(b.name) is not None]),
+            'profile': profile['name'],
+            'matched_bone_count': matched_count,
             'total_bone_count': len(source_obj.data.bones),
             'mesh_count': len(mesh_objects),
             'action_count': len(pre_actions),
         }
         result['pre_state'] = pre_state
-        log(f"  매핑 가능 본: {pre_state['mapped_bone_count']}개")
+        log(f"  프로필 매칭 본: {matched_count}개")
+        log(f"  전체 본: {pre_state['total_bone_count']}개")
         log(f"  메시: {pre_state['mesh_count']}개")
         log(f"  액션: {pre_state['action_count']}개")
         result['steps_completed'].append('state_recorded')
@@ -365,12 +486,13 @@ def convert_to_arp():
         log("Step 3: ARP 리그 추가 (기본 위치)")
         log("=" * 50)
 
+        arp_preset = profile['arp_preset']
         ensure_object_mode()
         select_only(source_obj)
 
         try:
-            run_arp_operator(bpy.ops.arp.append_arp, rig_preset=ARP_RIG_PRESET)
-            log(f"ARP 리그 추가 완료 (프리셋: {ARP_RIG_PRESET})")
+            run_arp_operator(bpy.ops.arp.append_arp, rig_preset=arp_preset)
+            log(f"ARP 리그 추가 완료 (프리셋: {arp_preset})")
             result['steps_completed'].append('arp_appended')
         except Exception as e:
             result['errors'].append(f"ARP 리그 추가 실패: {e}")
@@ -380,6 +502,29 @@ def convert_to_arp():
         arp_obj = find_arp_armature()
         if arp_obj is None:
             result['errors'].append("ARP 아마추어를 찾을 수 없습니다.")
+            return result
+
+        # ─── Step 3.5: ARP 레퍼런스 본 위치 정렬 ───
+        log("=" * 50)
+        log("Step 3.5: ARP 레퍼런스 본을 소스 메시에 맞게 정렬")
+        log("=" * 50)
+
+        try:
+            align_result = align_ref_bones_to_source(source_obj, arp_obj, profile)
+            log(f"  정렬 완료: {align_result['aligned_count']}개 본 정렬")
+            if align_result['skipped_count'] > 0:
+                log(f"  스킵: {align_result['skipped_count']}개")
+            if align_result['averaged_bones']:
+                log(f"  L/R 평균 처리: {align_result['averaged_bones']}")
+            if align_result['errors']:
+                for err in align_result['errors']:
+                    log(f"  {err}", "WARN")
+                result['warnings'].extend(align_result['errors'])
+            result['steps_completed'].append('ref_bones_aligned')
+        except Exception as e:
+            result['errors'].append(f"레퍼런스 본 정렬 실패: {e}")
+            log(f"레퍼런스 본 정렬 실패: {e}", "ERROR")
+            log(traceback.format_exc(), "ERROR")
             return result
 
         # ─── Step 4: ARP 리그 생성 ───
@@ -398,7 +543,7 @@ def convert_to_arp():
             log(f"ARP 리그 생성 실패: {e}", "ERROR")
             return result
 
-        # ─── Step 4.5: ARP 팔(앞다리) IK→FK 전환 ───
+        # ─── Step 4.5: ARP 앞다리 IK→FK 전환 ───
         log("=" * 50)
         log("Step 4.5: ARP 앞다리 IK→FK 전환")
         log("=" * 50)
@@ -408,41 +553,27 @@ def convert_to_arp():
             select_only(arp_obj)
             bpy.ops.object.mode_set(mode='POSE')
 
-            # ARP의 모든 커스텀 프로퍼티를 탐색하여 IK/FK 관련 프로퍼티 찾기
             ik_fk_switched = 0
-            ik_fk_props_found = []
-
             for pbone in arp_obj.pose.bones:
                 for prop_name in pbone.keys():
-                    # rna_type 등 내부 프로퍼티 무시
                     if prop_name.startswith('_') or prop_name == 'rna_type':
                         continue
                     prop_lower = prop_name.lower()
-                    # IK/FK 관련 프로퍼티 찾기
                     if 'ik' in prop_lower and 'fk' in prop_lower:
                         old_val = pbone[prop_name]
-                        ik_fk_props_found.append(f"{pbone.name}['{prop_name}'] = {old_val}")
-                        # FK로 전환 (ARP에서 보통 1.0 = FK, 0.0 = IK)
                         try:
                             pbone[prop_name] = 1.0
                             ik_fk_switched += 1
                             log(f"  {pbone.name}['{prop_name}']: {old_val} → 1.0 (FK)")
                         except:
-                            log(f"  {pbone.name}['{prop_name}']: 변경 실패 (읽기 전용?)", "WARN")
+                            log(f"  {pbone.name}['{prop_name}']: 변경 실패", "WARN")
 
             bpy.ops.object.mode_set(mode='OBJECT')
 
             if ik_fk_switched > 0:
                 log(f"  IK→FK 전환 완료: {ik_fk_switched}개 스위치")
-            elif ik_fk_props_found:
-                log(f"  프로퍼티 발견했으나 전환 실패: {ik_fk_props_found}", "WARN")
             else:
-                # IK/FK 프로퍼티 못 찾으면 전체 커스텀 프로퍼티 덤프
-                log("  IK/FK 프로퍼티 못 찾음. 커스텀 프로퍼티 탐색:", "WARN")
-                for pbone in arp_obj.pose.bones:
-                    custom_props = [k for k in pbone.keys() if not k.startswith('_')]
-                    if custom_props and ('hand' in pbone.name.lower() or 'foot' in pbone.name.lower() or 'arm' in pbone.name.lower() or 'leg' in pbone.name.lower()):
-                        log(f"    {pbone.name}: {custom_props}")
+                log("  IK/FK 프로퍼티 못 찾음", "WARN")
                 result['warnings'].append("IK/FK 스위치를 자동 전환하지 못함")
 
         except Exception as e:
@@ -454,42 +585,38 @@ def convert_to_arp():
         log("Step 5: Remap 애니메이션 리타게팅")
         log("=" * 50)
 
+        bmap_preset = profile.get('bmap_preset', '')
+
         if len(pre_actions) > 0:
             try:
                 ensure_object_mode()
 
-                # 소스/타겟 설정
                 bpy.context.scene.source_rig = source_obj.name
                 bpy.context.scene.target_rig = arp_obj.name
                 log(f"  소스: {source_obj.name}")
                 log(f"  타겟: {arp_obj.name}")
 
-                # auto_scale — 소스↔타겟 크기 자동 맞춤
                 run_arp_operator(bpy.ops.arp.auto_scale)
                 log("  auto_scale 완료")
 
-                # 본 매핑 구축
                 run_arp_operator(bpy.ops.arp.build_bones_list)
                 log("  build_bones_list 완료")
 
-                # .bmap 프리셋 로드 시도
-                bmap_loaded = False
-                try:
-                    run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=BMAP_PRESET_NAME)
-                    log(f"  .bmap 프리셋 로드 성공: {BMAP_PRESET_NAME}")
-                    bmap_loaded = True
-                except Exception as e:
-                    log(f"  .bmap 프리셋 로드 실패 — ARP 자동 매핑 사용: {e}", "WARN")
-                    result['warnings'].append(f".bmap 프리셋 미사용, ARP 자동 매핑")
+                # .bmap 프리셋 로드
+                if bmap_preset:
+                    try:
+                        run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=bmap_preset)
+                        log(f"  .bmap 프리셋 로드 성공: {bmap_preset}")
+                    except Exception as e:
+                        log(f"  .bmap 프리셋 로드 실패: {e}", "WARN")
+                        result['warnings'].append(f".bmap 프리셋 미사용")
 
-                # 레스트 포즈 조정 (소스 포즈를 타겟에 맞춤)
                 run_arp_operator(bpy.ops.arp.redefine_rest_pose, preserve=True)
                 run_arp_operator(bpy.ops.arp.save_pose_rest)
                 ensure_object_mode()
                 log("  레스트 포즈 조정 완료")
 
-                # ── 액션별 리타게팅 ──
-                # 소스 아마추어에 각 액션을 활성화하고 리타게팅
+                # 액션별 리타게팅
                 retarget_success = 0
                 retarget_fail = 0
 
@@ -501,7 +628,6 @@ def convert_to_arp():
                     log(f"  [{i+1}/{len(pre_actions)}] 리타게팅: '{action_name}' ({frame_start}~{frame_end})")
 
                     try:
-                        # 소스 아마추어에 액션 설정
                         action = bpy.data.actions.get(action_name)
                         if action is None:
                             log(f"    액션 '{action_name}' 찾을 수 없음", "WARN")
@@ -522,13 +648,13 @@ def convert_to_arp():
                             interpolation_type='LINEAR',
                         )
                         retarget_success += 1
-                        log(f"    ✓ 성공")
+                        log(f"    OK")
 
                     except Exception as e:
                         retarget_fail += 1
-                        log(f"    ✗ 실패: {e}", "WARN")
+                        log(f"    실패: {e}", "WARN")
 
-                log(f"  리타게팅 완료: {retarget_success}/{len(pre_actions)} 성공, {retarget_fail} 실패")
+                log(f"  리타게팅 완료: {retarget_success}/{len(pre_actions)} 성공")
                 result['retarget_success'] = retarget_success
                 result['retarget_fail'] = retarget_fail
                 result['steps_completed'].append('retargeted')
@@ -556,7 +682,6 @@ def convert_to_arp():
                 for mesh_obj in mesh_objects:
                     mesh_obj.select_set(True)
 
-                # Blender 기본 FBX 익스포터 사용 (ARP 익스포터는 shape_keys 버그)
                 bpy.ops.export_scene.fbx(
                     filepath=fbx_path,
                     use_selection=True,
@@ -606,25 +731,67 @@ def convert_to_arp():
 
 
 # ═══════════════════════════════════════════════════════════════
+# 검증: 프로필 로드 테스트 (Blender 없이 실행 가능)
+# ═══════════════════════════════════════════════════════════════
+
+def _test_profile_load():
+    """프로필 로드 및 미러링 검증"""
+    profile = load_mapping_profile("custom_quadruped")
+
+    d2r = profile['deform_to_ref']
+
+    # L 매핑 확인
+    assert d2r.get("shoulder_L") == "shoulder_ref.l", f"shoulder_L 매핑 실패: {d2r.get('shoulder_L')}"
+    assert d2r.get("thigh_L") == "thigh_ref.l", f"thigh_L 매핑 실패: {d2r.get('thigh_L')}"
+    assert d2r.get("arm_L") == "forearm_ref.l", f"arm_L 매핑 실패: {d2r.get('arm_L')}"
+
+    # R 미러 자동 생성 확인
+    assert d2r.get("shoulder_R") == "shoulder_ref.r", f"shoulder_R 미러 실패: {d2r.get('shoulder_R')}"
+    assert d2r.get("thigh_R") == "thigh_ref.r", f"thigh_R 미러 실패: {d2r.get('thigh_R')}"
+    assert d2r.get("arm_R") == "forearm_ref.r", f"arm_R 미러 실패: {d2r.get('arm_R')}"
+    assert d2r.get("upperarm_R") == "arm_ref.r", f"upperarm_R 미러 실패: {d2r.get('upperarm_R')}"
+    assert d2r.get("ear01_R") == "ear_01_ref.r", f"ear01_R 미러 실패: {d2r.get('ear01_R')}"
+    assert d2r.get("eye_R") == "eye_ref.r", f"eye_R 미러 실패: {d2r.get('eye_R')}"
+
+    # 중앙 본 (미러 대상 아님)
+    assert d2r.get("pelvis") == "spine_01_ref.x", f"pelvis 매핑 실패: {d2r.get('pelvis')}"
+    assert d2r.get("jaw") == "jawbone_ref.x", f"jaw 매핑 실패: {d2r.get('jaw')}"
+
+    # ref_alignment 확인
+    ra = profile['ref_alignment']
+    assert "root_ref.x" in ra.get("priority", {}), "priority 매핑 누락"
+    assert "ear_01_ref.x" in ra.get("avg_lr", {}), "avg_lr 매핑 누락"
+
+    # 총 매핑 수 (L 23 + R 미러 ~12 = ~35)
+    print(f"프로필 매핑 수: {len(d2r)}개 (L+R 미러 포함)")
+    print(f"프로필 로드 테스트: 전체 통과")
+    return True
+
+
+# ═══════════════════════════════════════════════════════════════
 # 실행
 # ═══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    log("=" * 60)
-    log("Source Rig → AutoRig Pro 변환 시작")
-    log(f"Blender: {bpy.app.version_string}")
-    log(f"파일: {bpy.data.filepath or '(저장되지 않음)'}")
-    log("=" * 60)
-
-    result = convert_to_arp()
-
-    if result['success']:
-        log("✅ 변환 성공!", "SUCCESS")
+    if not _IN_BLENDER:
+        print("Blender 외부 실행 — 프로필 로드 테스트")
+        _test_profile_load()
     else:
-        log("❌ 변환 실패 — 오류 확인 필요", "ERROR")
-        for err in result['errors']:
-            log(f"  → {err}", "ERROR")
+        log("=" * 60)
+        log(f"Source Rig → AutoRig Pro 변환 시작 (v5 — 프로필: {MAPPING_PROFILE})")
+        log(f"Blender: {bpy.app.version_string}")
+        log(f"파일: {bpy.data.filepath or '(저장되지 않음)'}")
+        log("=" * 60)
 
-    log("=" * 60)
-    log("변환 완료")
-    log("=" * 60)
+        result = convert_to_arp()
+
+        if result['success']:
+            log("변환 성공!", "SUCCESS")
+        else:
+            log("변환 실패 — 오류 확인 필요", "ERROR")
+            for err in result['errors']:
+                log(f"  → {err}", "ERROR")
+
+        log("=" * 60)
+        log("변환 완료")
+        log("=" * 60)

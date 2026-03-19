@@ -1,0 +1,49 @@
+{
+  "name": "custom_quadruped",
+  "description": "Fox, Cat, Wolf 등 커스텀 사족보행 리그",
+  "arp_preset": "dog",
+  "bmap_preset": "custom_quadruped",
+
+  "deform_to_ref": {
+    "root":        "root_ref.x",
+    "center":      "root_ref.x",
+    "pelvis":      "root_ref.x",
+    "spine01":     "spine_01_ref.x",
+    "spine02":     "spine_02_ref.x",
+    "chest":       "spine_03_ref.x",
+    "neck":        "neck_ref.x",
+    "head":        "head_ref.x",
+    "jaw":         "jaw_ref.x",
+
+    "thigh_L":     "thigh_ref.l",
+    "leg_L":       "leg_ref.l",
+    "foot_L":      "foot_ref.l",
+    "toe_L":       "toes_ref.l",
+
+    "shoulder_L":  "thigh_ref_dupli_001.l",
+    "upperarm_L":  "leg_ref_dupli_001.l",
+    "arm_L":       "foot_ref_dupli_001.l",
+    "hand_L":      "toes_ref_dupli_001.l",
+
+    "tail_01":     "tail_00_ref.x",
+    "tail02":      "tail_01_ref.x",
+    "tail03":      "tail_02_ref.x",
+    "tail04":      "tail_03_ref.x",
+
+    "ear01_L":     "ear_01_ref.l",
+    "ear02_L":     "ear_02_ref.l",
+    "eye_L":       "c_eye_ref.l"
+  },
+
+  "mirror_suffix": {
+    "source": ["_L", "_R"],
+    "arp": [".l", ".r"]
+  },
+
+  "ref_alignment": {
+    "priority": {
+      "root_ref.x": ["center", "root"]
+    },
+    "avg_lr": {}
+  }
+}
