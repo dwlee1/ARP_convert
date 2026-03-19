@@ -649,26 +649,36 @@ class ARPCONV_OT_BuildRig(Operator):
                 aligned += 1
                 log(f"  {ref_name}: head=프리뷰, tail={'다음본.head' if i+1 < len(active) else '프리뷰.tail'}")
 
+        # reconnect 복원: 체인 내 연속된 본끼리 reconnect
+        # 위치 설정에서 bone[i].tail == bone[i+1].head 보장됨
+        for role, ref_bones in merged_chains.items():
+            active = [rn for rn in ref_bones if rn in resolved]
+            for i in range(1, len(active)):
+                curr_eb = edit_bones.get(active[i])
+                prev_eb = edit_bones.get(active[i - 1])
+                if curr_eb and prev_eb and curr_eb.parent == prev_eb:
+                    if saved_connects.get(active[i], False):
+                        curr_eb.use_connect = True
+                        log(f"  reconnect: {active[i]} → {active[i-1]}")
+
+        # 진단: 최종 ref 본 상태 로그
+        log("=== ref 본 최종 상태 ===")
+        for role, ref_bones in merged_chains.items():
+            active = [rn for rn in ref_bones if rn in resolved]
+            for rn in active:
+                eb = edit_bones.get(rn)
+                if eb:
+                    h = eb.head
+                    t = eb.tail
+                    log(f"  {rn}: head=({h.x:.4f},{h.y:.4f},{h.z:.4f}) "
+                        f"tail=({t.x:.4f},{t.y:.4f},{t.z:.4f}) "
+                        f"connected={eb.use_connect}")
+
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
 
-        # Step 4: match_to_rig
+        # Step 4: match_to_rig (Edit 모드 재진입 없이 바로 실행)
         log("match_to_rig 실행")
-
-        # 진단: match_to_rig 전 주요 ref 본 존재 확인
-        ensure_object_mode()
-        select_only(arp_obj)
-        bpy.ops.object.mode_set(mode='EDIT')
-        diag_bones = arp_obj.data.edit_bones
-        for check_name in ['foot_ref.l', 'foot_ref.r',
-                           'foot_b_ref.l', 'foot_b_ref.r',
-                           'foot_ref_dupli_001.l', 'foot_ref_dupli_001.r',
-                           'foot_b_ref_dupli_001.l', 'foot_b_ref_dupli_001.r']:
-            eb = diag_bones.get(check_name)
-            if eb:
-                log(f"  [DIAG] {check_name}: head={eb.head[:]} connected={eb.use_connect}")
-        bpy.ops.object.mode_set(mode='OBJECT')
-
         ensure_object_mode()
         select_only(arp_obj)
         try:
