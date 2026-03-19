@@ -649,17 +649,19 @@ class ARPCONV_OT_BuildRig(Operator):
                 aligned += 1
                 log(f"  {ref_name}: head=프리뷰, tail={'다음본.head' if i+1 < len(active) else '프리뷰.tail'}")
 
-        # reconnect 복원: 체인 내 연속된 본끼리 reconnect
+        # reconnect: 체인 내 연속된 본끼리 강제 reconnect
         # 위치 설정에서 bone[i].tail == bone[i+1].head 보장됨
+        # ARP 하이어라키 조건(parent==prev) 제거 — 위치가 맞으면 무조건 연결
         for role, ref_bones in merged_chains.items():
             active = [rn for rn in ref_bones if rn in resolved]
             for i in range(1, len(active)):
                 curr_eb = edit_bones.get(active[i])
                 prev_eb = edit_bones.get(active[i - 1])
-                if curr_eb and prev_eb and curr_eb.parent == prev_eb:
-                    if saved_connects.get(active[i], False):
-                        curr_eb.use_connect = True
-                        log(f"  reconnect: {active[i]} → {active[i-1]}")
+                if curr_eb and prev_eb:
+                    # 부모를 체인의 이전 본으로 재설정
+                    curr_eb.parent = prev_eb
+                    curr_eb.use_connect = True
+                    log(f"  reconnect: {active[i]} → parent={active[i-1]}, connected=True")
 
         # 진단: 최종 ref 본 상태 로그
         log("=== ref 본 최종 상태 ===")
