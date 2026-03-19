@@ -615,23 +615,36 @@ class ARPCONV_OT_BuildRig(Operator):
             ebone.roll = roll
             aligned += 1
 
-        # Phase 3: 매핑된 본끼리 gap 제거 + reconnect
-        # 부모도 매핑된 본이면 parent.tail → child.head로 맞춤
-        # was_connected 여부와 관계없이 항상 gap 제거
-        mapped_set = set(sorted_refs)
-        for ref_name in sorted_refs:
-            ebone = edit_bones.get(ref_name)
-            if not (ebone and ebone.parent):
+        # Phase 3: 체인 기반 gap 제거 (ARP 하이어라키 무시, 우리 체인 순서 사용)
+        # 체인 내부: 앞 본.tail → 뒷 본.head
+        for role, ref_bones in arp_chains.items():
+            if len(ref_bones) < 2:
                 continue
+            for i in range(len(ref_bones) - 1):
+                curr_name = ref_bones[i]
+                next_name = ref_bones[i + 1]
+                curr_eb = edit_bones.get(curr_name)
+                next_eb = edit_bones.get(next_name)
+                if curr_eb and next_eb and curr_name in resolved and next_name in resolved:
+                    curr_eb.tail = next_eb.head.copy()
+                    log(f"  체인 내 연결: {curr_name}.tail → {next_name}.head")
 
-            parent_name = ebone.parent.name
-            if parent_name in mapped_set:
-                # 부모.tail을 이 본.head로 맞춤 (gap 제거)
-                ebone.parent.tail = ebone.head.copy()
-                # 원래 connected였으면 복원
-                if saved_connects.get(ref_name, False):
-                    ebone.use_connect = True
-                log(f"  체인 연결: {parent_name}.tail → {ref_name}.head")
+        # 체인 간 연결: leg 마지막 → foot 첫 번째
+        CHAIN_LINKS = [
+            ('back_leg_l', 'back_foot_l'),
+            ('back_leg_r', 'back_foot_r'),
+            ('front_leg_l', 'front_foot_l'),
+            ('front_leg_r', 'front_foot_r'),
+        ]
+        for up_role, down_role in CHAIN_LINKS:
+            up_refs = arp_chains.get(up_role, [])
+            down_refs = arp_chains.get(down_role, [])
+            if up_refs and down_refs:
+                last_up = edit_bones.get(up_refs[-1])
+                first_down = edit_bones.get(down_refs[0])
+                if last_up and first_down and up_refs[-1] in resolved and down_refs[0] in resolved:
+                    last_up.tail = first_down.head.copy()
+                    log(f"  체인 간 연결: {up_refs[-1]}.tail → {down_refs[0]}.head")
 
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
