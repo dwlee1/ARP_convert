@@ -1086,6 +1086,7 @@ def discover_arp_ref_chains(arp_obj):
                 'head': (arp_obj.matrix_world @ eb.head.copy()),
                 'tail': (arp_obj.matrix_world @ eb.tail.copy()),
                 'parent': eb.parent.name if eb.parent else None,
+                'children': [child.name for child in eb.children],
                 'depth': 0,
             }
             # 깊이 계산
@@ -1129,101 +1130,76 @@ def discover_arp_ref_chains(arp_obj):
     if tail_candidates:
         result['tail'] = tail_candidates
 
+    def collect_connected_ref_chain(root_name):
+        """시작 ref 본에서 connected 자식 체인을 따라 limb 전체 ref 체인을 수집."""
+        chain = []
+        current_name = root_name
+        visited = set()
+
+        while current_name and current_name not in visited and current_name in ref_bones:
+            visited.add(current_name)
+            chain.append(current_name)
+
+            child_candidates = [
+                child_name for child_name in ref_bones[current_name].get('children', [])
+                if child_name in ref_bones
+                and 'bank' not in child_name
+                and 'heel' not in child_name
+            ]
+            if not child_candidates:
+                break
+
+            child_candidates.sort(key=lambda x: ref_bones[x]['depth'])
+            next_name = None
+            for child_name in child_candidates:
+                if ref_bones.get(child_name, {}).get('parent') == current_name:
+                    next_name = child_name
+                    break
+            if next_name is None:
+                break
+            current_name = next_name
+
+        return chain
+
     # --- Legs (leg/foot 분리) ---
-    # leg: thigh + leg ref 본 (상단 다리)
-    # foot: foot + toes ref 본 (발)
-    LEG_PREFIXES = ['thigh', 'leg']
-    FOOT_PREFIXES = ['foot', 'toes']
+    # leg: thigh_b/thigh/leg ref 본
+    # foot: foot/toes ref 본
     # bank/heel: 발 보조 ref 본
     FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
 
     for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
+        for is_dupli, limb_prefix in [(False, 'back'), (True, 'front')]:
+            thigh_roots = [n for n in all_names
+                           if n.startswith('thigh_b_ref')
+                           and n.endswith(side_suffix)
+                           and ('dupli' in n) == is_dupli]
+            if not thigh_roots:
+                thigh_roots = [n for n in all_names
+                               if n.startswith('thigh_ref')
+                               and n.endswith(side_suffix)
+                               and ('dupli' in n) == is_dupli]
 
-        # --- 뒷다리 (dupli 아닌 것) ---
-        back_leg = []
-        for prefix in LEG_PREFIXES:
-            candidates = [n for n in all_names
-                          if n.startswith(prefix)
-                          and '_ref' in n
-                          and n.endswith(side_suffix)
-                          and 'dupli' not in n
-                          and 'bank' not in n and 'heel' not in n]
-            if candidates:
-                candidates.sort(key=lambda x: ref_bones[x]['depth'])
-                back_leg.append(candidates[0])
-        if back_leg:
-            back_leg.sort(key=lambda x: ref_bones[x]['depth'])
-            result[f'back_leg_{side_key}'] = back_leg
+            if thigh_roots:
+                thigh_roots.sort(key=lambda x: ref_bones[x]['depth'])
+                limb_chain = collect_connected_ref_chain(thigh_roots[0])
+                leg_bones = [n for n in limb_chain if n.startswith('thigh') or n.startswith('leg')]
+                foot_bones = [n for n in limb_chain if n.startswith('foot') or n.startswith('toes')]
 
-        # 뒷발
-        back_foot = []
-        for prefix in FOOT_PREFIXES:
-            candidates = [n for n in all_names
-                          if n.startswith(prefix)
-                          and '_ref' in n
-                          and n.endswith(side_suffix)
-                          and 'dupli' not in n
-                          and 'bank' not in n and 'heel' not in n]
-            if candidates:
-                candidates.sort(key=lambda x: ref_bones[x]['depth'])
-                back_foot.append(candidates[0])
-        if back_foot:
-            back_foot.sort(key=lambda x: ref_bones[x]['depth'])
-            result[f'back_foot_{side_key}'] = back_foot
+                if leg_bones:
+                    result[f'{limb_prefix}_leg_{side_key}'] = leg_bones
+                if foot_bones:
+                    result[f'{limb_prefix}_foot_{side_key}'] = foot_bones
 
-        # 뒷발 보조 (bank/heel)
-        for aux_prefix in FOOT_AUX_PREFIXES:
-            aux_key = aux_prefix.replace('foot_', '')  # 'bank' or 'heel'
-            candidates = [n for n in all_names
-                          if n.startswith(aux_prefix)
-                          and '_ref' in n
-                          and n.endswith(side_suffix)
-                          and 'dupli' not in n]
-            if candidates:
-                result[f'back_{aux_key}_{side_key}'] = candidates
-
-        # --- 앞다리 (dupli 포함) ---
-        front_leg = []
-        for prefix in LEG_PREFIXES:
-            candidates = [n for n in all_names
-                          if n.startswith(prefix)
-                          and '_ref' in n
-                          and n.endswith(side_suffix)
-                          and 'dupli' in n
-                          and 'bank' not in n and 'heel' not in n]
-            if candidates:
-                candidates.sort(key=lambda x: ref_bones[x]['depth'])
-                front_leg.append(candidates[0])
-        if front_leg:
-            front_leg.sort(key=lambda x: ref_bones[x]['depth'])
-            result[f'front_leg_{side_key}'] = front_leg
-
-        # 앞발
-        front_foot = []
-        for prefix in FOOT_PREFIXES:
-            candidates = [n for n in all_names
-                          if n.startswith(prefix)
-                          and '_ref' in n
-                          and n.endswith(side_suffix)
-                          and 'dupli' in n
-                          and 'bank' not in n and 'heel' not in n]
-            if candidates:
-                candidates.sort(key=lambda x: ref_bones[x]['depth'])
-                front_foot.append(candidates[0])
-        if front_foot:
-            front_foot.sort(key=lambda x: ref_bones[x]['depth'])
-            result[f'front_foot_{side_key}'] = front_foot
-
-        # 앞발 보조 (bank/heel)
-        for aux_prefix in FOOT_AUX_PREFIXES:
-            aux_key = aux_prefix.replace('foot_', '')
-            candidates = [n for n in all_names
-                          if n.startswith(aux_prefix)
-                          and '_ref' in n
-                          and n.endswith(side_suffix)
-                          and 'dupli' in n]
-            if candidates:
-                result[f'front_{aux_key}_{side_key}'] = candidates
+            for aux_prefix in FOOT_AUX_PREFIXES:
+                aux_key = aux_prefix.replace('foot_', '')
+                candidates = [n for n in all_names
+                              if n.startswith(aux_prefix)
+                              and '_ref' in n
+                              and n.endswith(side_suffix)
+                              and ('dupli' in n) == is_dupli]
+                if candidates:
+                    candidates.sort(key=lambda x: ref_bones[x]['depth'])
+                    result[f'{limb_prefix}_{aux_key}_{side_key}'] = candidates
 
     # --- Ear ---
     for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
@@ -1268,31 +1244,26 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
     print("  Preview → ARP ref 매핑")
     print("=" * 55)
 
+    def map_chain(role_label, preview_bones, target_refs):
+        if not preview_bones:
+            return
+
+        if not target_refs:
+            if 'heel' in role_label or 'bank' in role_label:
+                print(f"  [WARN] 가이드 '{role_label}'에 대응하는 ARP ref 없음 (match_to_rig에서 처리)")
+            else:
+                print(f"  [WARN] 역할 '{role_label}'에 대응하는 ARP ref 체인 없음")
+            return
+
+        chain_mapping = match_chain_lengths(preview_bones, target_refs)
+        mapping.update(chain_mapping)
+        for src, ref in chain_mapping.items():
+            print(f"  {src:25s} → {ref}")
+
     for role, preview_bones in roles.items():
         if role in ('face', 'unmapped'):
             continue
-
-        target_refs = arp_chains.get(role, [])
-        if not target_refs:
-            # bank/heel 가이드는 역할 이름이 'back_heel_l' 등으로 되어있음
-            # 이름에 _heel 또는 _bank 접미사가 붙은 본은 1:1 매핑
-            if 'heel' in role or 'bank' in role:
-                # 가이드 본 1:1 매핑 (preview 본 1개 → ARP ref 1개)
-                if len(preview_bones) == 1 and len(target_refs) == 0:
-                    # discover_arp_ref_chains에서 검색된 것 확인
-                    pass
-                print(f"  [WARN] 가이드 '{role}'에 대응하는 ARP ref 없음 (match_to_rig에서 처리)")
-            else:
-                print(f"  [WARN] 역할 '{role}'에 대응하는 ARP ref 체인 없음")
-            continue
-
-        # 체인 길이 매칭
-        chain_mapping = match_chain_lengths(preview_bones, target_refs)
-        mapping.update(chain_mapping)
-
-        # 매칭 로그
-        for src, ref in chain_mapping.items():
-            print(f"  {src:25s} → {ref}")
+        map_chain(role, preview_bones, arp_chains.get(role, []))
 
     print("=" * 55)
     return mapping

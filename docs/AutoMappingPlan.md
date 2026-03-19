@@ -55,10 +55,10 @@
 | spine | spine_01~03_ref.x | 파랑 |
 | neck | neck_ref.x | 파랑 |
 | head | head_ref.x | 파랑 |
-| **back_leg_l/r** | thigh_b_ref → leg_b_ref | 빨강 |
-| **back_foot_l/r** | foot_b_ref (+ toes_b_ref 있으면 포함) | 진빨강 |
-| **front_leg_l/r** | thigh_ref_dupli_001 → leg_ref_dupli_001 | 초록 |
-| **front_foot_l/r** | foot_ref_dupli_001 (+ toes_ref_dupli_001) | 진초록 |
+| **back_leg_l/r** | thigh_b_ref → thigh_ref → leg_ref | 빨강 |
+| **back_foot_l/r** | foot_ref (+ toes_ref 있으면 포함) | 진빨강 |
+| **front_leg_l/r** | thigh_b_ref_dupli_001 → thigh_ref_dupli_001 → leg_ref_dupli_001 | 초록 |
+| **front_foot_l/r** | foot_ref_dupli_001 (+ toes_ref_dupli_001 있으면 포함) | 진초록 |
 | **ear_l/r** | ear_01_ref → ear_02_ref | 시안 |
 | tail | tail_00~03_ref.x | 주황 |
 | face | cc_ 커스텀 본 (eye, jaw, mouth, tongue) | 보라 |
@@ -72,26 +72,37 @@
 - 스파인 분기점~끝까지 전체를 **leg 역할**으로 배정
 - foot 분리는 사용자가 Preview에서 **수동**으로 수행
 
+### 적용 규칙
+- `leg` 역할 본이 3개면 ARP도 **반드시 3본 다리 체인**으로 매핑
+  - 예: `thigh_b_ref → thigh_ref → leg_ref`
+- `foot` 역할 본이 1개면 ARP `foot_ref + toes_ref`로 **분할 생성**
+  - 소스 toe 본이 없으면 `virtual toe`를 생성
+  - 소스 foot의 `tail`은 `toes_ref.tail` 끝점으로 사용
+- `foot` 역할 본이 2개면 `foot_ref`, `toes_ref`에 1:1 매핑
+
 ### Fox 예시 (뒷다리)
 | 소스 본 | 역할 | ARP ref |
 |---------|------|---------|
 | thigh_L | back_leg_l | thigh_b_ref.l |
-| leg_L | back_leg_l | (3→2 보간) |
-| foot_L | back_leg_l | leg_b_ref.l |
-| toe_L | **back_foot_l** | foot_b_ref.l |
+| leg_L | back_leg_l | thigh_ref.l |
+| foot_L | back_leg_l | leg_ref.l |
+| toe_L | **back_foot_l** | foot_ref.l |
+| toe tip | **back_foot_l** | toes_ref.l |
 
 ### Fox 예시 (앞다리)
 | 소스 본 | 역할 | ARP ref |
 |---------|------|---------|
-| shoulder_L | front_leg_l | thigh_ref_dupli_001.l |
-| upperarm_L | front_leg_l | (3→2 보간) |
+| shoulder_L | front_leg_l | thigh_b_ref_dupli_001.l |
+| upperarm_L | front_leg_l | thigh_ref_dupli_001.l |
 | arm_L | front_leg_l | leg_ref_dupli_001.l |
 | hand_L | **front_foot_l** | foot_ref_dupli_001.l |
+| hand tip | **front_foot_l** | toes_ref_dupli_001.l |
 
-### toes가 있는 리그
-- `back_foot` = [발, toes] → 동적 검색 결과에 따라:
-  - ARP 3-bone (foot_ref만): 2→1 매핑 (첫 본 기준)
-  - ARP 4-bone (foot_ref + toes_ref): 2→2 매핑
+### toe가 없는 리그
+- `back_foot` 또는 `front_foot` 역할이 1본이면:
+  - `foot_ref.head` = 소스 foot.head
+  - `foot_ref.tail = toes_ref.head` = 소스 foot 길이의 중간 분할점
+  - `toes_ref.tail` = 소스 foot.tail
 
 ---
 

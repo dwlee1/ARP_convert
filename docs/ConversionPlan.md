@@ -54,14 +54,16 @@
 | 가슴 | chest | `spine_03_ref.x` |
 | 목 | neck | `neck_ref.x` |
 | 머리 | head | `head_ref.x` |
-| **뒷다리** (3-bone leg) | thigh_L | `thigh_b_ref.l` |
-| | leg_L | `leg_b_ref.l` |
-| | foot_L | `foot_b_ref.l` |
-| | toe_L | `toes_b_ref.l` |
-| **앞다리** (3-bone leg) | shoulder_L (시작본) | `thigh_b_ref_dupli_001.l` |
-| | upperarm_L | `leg_b_ref_dupli_001.l` |
-| | arm_L | `foot_b_ref_dupli_001.l` |
-| | hand_L | `toes_b_ref_dupli_001.l` |
+| **뒷다리** (leg 역할 3본) | thigh_L | `thigh_b_ref.l` |
+| | leg_L | `thigh_ref.l` |
+| | foot_L | `leg_ref.l` |
+| **뒷발** (foot 역할) | toe_L | `foot_ref.l` |
+| | toe tip 또는 virtual toe | `toes_ref.l` |
+| **앞다리** (leg 역할 3본) | shoulder_L (시작본) | `thigh_b_ref_dupli_001.l` |
+| | upperarm_L | `thigh_ref_dupli_001.l` |
+| | arm_L | `leg_ref_dupli_001.l` |
+| **앞발** (foot 역할) | hand_L | `foot_ref_dupli_001.l` |
+| | hand tip 또는 virtual toe | `toes_ref_dupli_001.l` |
 | 꼬리 | tail_01~04 | `tail_00~03_ref.x` |
 | 턱 | jaw | `jaw_ref.x` |
 | 눈 | eye_L | `c_eye_ref.l` |
@@ -70,6 +72,8 @@
 ### 주의사항
 - dog 프리셋은 3-bone leg 모드 사용 → ref 본에 `_b_` 접미사 (예: `thigh_b_ref.l`)
 - 앞다리는 `_dupli_001` 접미사 추가 (예: `thigh_b_ref_dupli_001.l`)
+- `leg` 역할 본이 3개면 ARP도 `thigh_b_ref → thigh_ref → leg_ref` 3본으로 고정
+- `foot` 역할 본이 1개면 `foot_ref + toes_ref`로 분할 생성 (virtual toe)
 - face rig 불필요 — ear/eye/jaw만 사용, 나머지는 FBX 익스포트에서 제외
 - `c_eye_ref`는 `c_` 접두사 있음
 - ear ref는 `.l`/`.r`만 존재 (`.x` 없음)

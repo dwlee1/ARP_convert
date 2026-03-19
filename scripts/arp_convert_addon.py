@@ -468,9 +468,41 @@ class ARPCONV_OT_BuildRig(Operator):
 
         log(f"  ARP ref 본 발견: {len(ref_names)}개")
 
+        def collect_connected_ref_chain(root_name):
+            chain = []
+            current_name = root_name
+            visited = set()
+
+            while current_name and current_name not in visited:
+                eb = edit_bones.get(current_name)
+                if eb is None:
+                    break
+                visited.add(current_name)
+                chain.append(current_name)
+
+                child_candidates = [
+                    child.name for child in eb.children
+                    if '_ref' in child.name
+                    and 'bank' not in child.name
+                    and 'heel' not in child.name
+                ]
+                if not child_candidates:
+                    break
+
+                child_candidates.sort(key=lambda x: ref_depth.get(x, 0))
+                next_name = None
+                for child_name in child_candidates:
+                    child_eb = edit_bones.get(child_name)
+                    if child_eb and child_eb.parent and child_eb.parent.name == current_name:
+                        next_name = child_name
+                        break
+                if next_name is None:
+                    break
+                current_name = next_name
+
+            return chain
+
         # 역할별 ref 본 분류 (인라인)
-        LEG_PREFIXES = ['thigh', 'leg']
-        FOOT_PREFIXES = ['foot', 'toes']
         FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
 
         arp_chains = {}
@@ -497,35 +529,25 @@ class ARPCONV_OT_BuildRig(Operator):
         # Legs/Feet/Ear (side별)
         for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
             for is_dupli, leg_prefix in [(False, 'back'), (True, 'front')]:
-                # Leg
-                leg_bones = []
-                for pfx in LEG_PREFIXES:
-                    cands = [n for n in ref_names
-                             if n.startswith(pfx) and '_ref' in n
-                             and n.endswith(side_suffix)
-                             and ('dupli' in n) == is_dupli
-                             and 'bank' not in n and 'heel' not in n]
-                    if cands:
-                        cands.sort(key=lambda x: ref_depth.get(x, 0))
-                        leg_bones.append(cands[0])
-                if leg_bones:
-                    leg_bones.sort(key=lambda x: ref_depth.get(x, 0))
-                    arp_chains[f'{leg_prefix}_leg_{side_key}'] = leg_bones
+                thigh_roots = [n for n in ref_names
+                               if n.startswith('thigh_b_ref')
+                               and n.endswith(side_suffix)
+                               and ('dupli' in n) == is_dupli]
+                if not thigh_roots:
+                    thigh_roots = [n for n in ref_names
+                                   if n.startswith('thigh_ref')
+                                   and n.endswith(side_suffix)
+                                   and ('dupli' in n) == is_dupli]
 
-                # Foot
-                foot_bones = []
-                for pfx in FOOT_PREFIXES:
-                    cands = [n for n in ref_names
-                             if n.startswith(pfx) and '_ref' in n
-                             and n.endswith(side_suffix)
-                             and ('dupli' in n) == is_dupli
-                             and 'bank' not in n and 'heel' not in n]
-                    if cands:
-                        cands.sort(key=lambda x: ref_depth.get(x, 0))
-                        foot_bones.append(cands[0])
-                if foot_bones:
-                    foot_bones.sort(key=lambda x: ref_depth.get(x, 0))
-                    arp_chains[f'{leg_prefix}_foot_{side_key}'] = foot_bones
+                if thigh_roots:
+                    thigh_roots.sort(key=lambda x: ref_depth.get(x, 0))
+                    limb_chain = collect_connected_ref_chain(thigh_roots[0])
+                    leg_bones = [n for n in limb_chain if n.startswith('thigh') or n.startswith('leg')]
+                    foot_bones = [n for n in limb_chain if n.startswith('foot') or n.startswith('toes')]
+                    if leg_bones:
+                        arp_chains[f'{leg_prefix}_leg_{side_key}'] = leg_bones
+                    if foot_bones:
+                        arp_chains[f'{leg_prefix}_foot_{side_key}'] = foot_bones
 
                 # Bank/Heel
                 for aux_pfx in FOOT_AUX_PREFIXES:
@@ -535,6 +557,7 @@ class ARPCONV_OT_BuildRig(Operator):
                              and n.endswith(side_suffix)
                              and ('dupli' in n) == is_dupli]
                     if cands:
+                        cands.sort(key=lambda x: ref_depth.get(x, 0))
                         arp_chains[f'{leg_prefix}_{aux_key}_{side_key}'] = cands
 
             # Ear
@@ -552,16 +575,22 @@ class ARPCONV_OT_BuildRig(Operator):
 
         # --- 매핑 생성 ---
         deform_to_ref = {}
+
+        def add_chain_mapping(role_label, preview_bones, target_refs):
+            if not preview_bones:
+                return
+            if not target_refs:
+                if 'heel' not in role_label and 'bank' not in role_label:
+                    log(f"  [WARN] 역할 '{role_label}' → ARP ref 없음")
+                return
+
+            chain_map = match_chain_lengths(preview_bones, target_refs)
+            deform_to_ref.update(chain_map)
+
         for role, preview_bones in roles.items():
             if role in ('face', 'unmapped'):
                 continue
-            target_refs = arp_chains.get(role, [])
-            if not target_refs:
-                if 'heel' not in role and 'bank' not in role:
-                    log(f"  [WARN] 역할 '{role}' → ARP ref 없음")
-                continue
-            chain_map = match_chain_lengths(preview_bones, target_refs)
-            deform_to_ref.update(chain_map)
+            add_chain_mapping(role, preview_bones, arp_chains.get(role, []))
 
         log(f"  매핑 결과: {len(deform_to_ref)}개")
         for src, ref in deform_to_ref.items():
@@ -595,6 +624,45 @@ class ARPCONV_OT_BuildRig(Operator):
         sorted_refs = sorted(resolved.keys(), key=get_depth)
         aligned = 0
 
+        def find_connected_descendant_chain(start_ebone):
+            """
+            현재 ref 본에서 connected 자식 체인을 따라가며
+            다음으로 위치가 결정된(resolved) ref 본을 찾는다.
+
+            Returns:
+                tuple[list[EditBone], EditBone | None]
+                - helpers: start와 next_resolved 사이의 미매핑 connected 본들
+                - next_resolved: 다음으로 위치가 결정된 connected 자식 본
+            """
+            helpers = []
+            current = start_ebone
+            visited = set()
+
+            while current:
+                candidates = [
+                    child for child in current.children
+                    if child.use_connect
+                    and '_ref' in child.name
+                    and 'bank' not in child.name
+                    and 'heel' not in child.name
+                ]
+                if not candidates:
+                    return helpers, None
+
+                candidates.sort(key=lambda child: ref_depth.get(child.name, 0))
+                child = candidates[0]
+                if child.name in visited:
+                    return helpers, None
+                visited.add(child.name)
+
+                if child.name in resolved:
+                    return helpers, child
+
+                helpers.append(child)
+                current = child
+
+            return helpers, None
+
         for ref_name in sorted_refs:
             world_head, world_tail, roll = resolved[ref_name]
             ebone = edit_bones.get(ref_name)
@@ -604,20 +672,56 @@ class ARPCONV_OT_BuildRig(Operator):
 
             local_head = arp_matrix_inv @ world_head
             local_tail = arp_matrix_inv @ world_tail
+            tail_source = "프리뷰.tail"
 
-            if (local_tail - local_head).length < 0.0001:
-                local_tail = local_head + Vector((0, 0.01, 0))
+            current_head = ebone.head.copy() if (ebone.use_connect and ebone.parent) else local_head
+            helper_chain, next_resolved_child = find_connected_descendant_chain(ebone)
+            if next_resolved_child:
+                next_head = arp_matrix_inv @ resolved[next_resolved_child.name][0]
+                segment_count = len(helper_chain) + 1
+
+                if segment_count == 1:
+                    local_tail = next_head
+                    tail_source = f"{next_resolved_child.name}.head"
+                else:
+                    # ARP helper ref(thigh_ref 등)가 끼어 있는 경우
+                    # 현재 본 ~ 다음 매핑 본 head 사이를 균등 분할해 helper 체인도 함께 정렬한다.
+                    local_tail = current_head.lerp(next_head, 1.0 / segment_count)
+                    tail_source = f"{next_resolved_child.name}.head/{segment_count}분할"
+
+                    for idx, helper_eb in enumerate(helper_chain):
+                        factor = float(idx + 2) / float(segment_count)
+                        helper_tail = current_head.lerp(next_head, factor)
+                        helper_eb.tail = helper_tail
+                        log(f"  {helper_eb.name}: helper tail 설정 ({next_resolved_child.name}.head/{segment_count}분할)")
+            elif helper_chain and ref_name.startswith('foot'):
+                # 소스 발 본만 있고 toe 본이 없는 경우:
+                # 마지막 소스 본의 tail까지를 ARP foot/toes 체인으로 분할해
+                # virtual toe 구간을 만든다.
+                segment_count = len(helper_chain) + 1
+                source_end = local_tail
+                local_tail = current_head.lerp(source_end, 1.0 / segment_count)
+                tail_source = f"프리뷰.tail/{segment_count}분할"
+
+                for idx, helper_eb in enumerate(helper_chain):
+                    factor = float(idx + 2) / float(segment_count)
+                    helper_tail = current_head.lerp(source_end, factor)
+                    helper_eb.tail = helper_tail
+                    log(f"  {helper_eb.name}: virtual toe tail 설정 (프리뷰.tail/{segment_count}분할)")
+
+            if (local_tail - current_head).length < 0.0001:
+                local_tail = current_head + Vector((0, 0.01, 0))
 
             # ARP 원래 연결 구조 보존
             if ebone.use_connect and ebone.parent:
                 # connected 본: head가 부모.tail에 고정 → tail만 설정
                 ebone.tail = local_tail
-                log(f"  {ref_name}: tail만 설정 (connected to {ebone.parent.name})")
+                log(f"  {ref_name}: tail만 설정 ({tail_source}, connected to {ebone.parent.name})")
             else:
                 # disconnected 본: head + tail 모두 설정
                 ebone.head = local_head
                 ebone.tail = local_tail
-                log(f"  {ref_name}: head+tail 설정")
+                log(f"  {ref_name}: head+tail 설정 ({tail_source})")
 
             ebone.roll = roll
             aligned += 1
