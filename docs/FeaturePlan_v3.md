@@ -23,7 +23,7 @@
 | foot 1본 → foot+toe 분할 | 완료 | toe 본이 없으면 virtual toe 생성 |
 | bank/heel Preview 가이드 생성 | 완료 | `foot` 역할 지정 시 자동 생성 |
 | 얼굴 `face` 본 cc_ 추가 시도 | 부분 완료 | 현재는 `bpy.ops.arp.add_custom_bone` 직접 호출 방식 유지 |
-| spine/tail/ear 본 개수 조절 | 미구현 | ARP 기본 개수 유지 |
+| spine/neck/tail/ear 본 개수 조절 | 미구현 | ARP 기본 개수 유지 |
 | virtual neck 생성 | 미구현 | neck 역할 미검출 시 fallback 없음 |
 | `unmapped` 본 cc_ 전환 | 미구현 | 현재는 무시 |
 | 소스 컨스트레인트 복제 | 미구현 | cc_ 본 생성 이후 후속 작업 필요 |
@@ -32,14 +32,14 @@
 
 ## 남은 기능
 
-### F1. spine / tail / ear 본 개수 매칭
+### F1. spine / neck / tail / ear 본 개수 매칭
 
 문제:
 - 현재 ARP dog 프리셋 기본 개수에 맞춘 상태로 `match_to_rig()`를 사용
-- 소스 spine, tail, ear 개수가 더 적거나 많아도 ref 본 개수 자체는 조정하지 않음
+- 소스 spine, neck, tail, ear 개수가 더 적거나 많아도 ref 본 개수 자체는 조정하지 않음
 
 목표:
-- `spine`, `tail`, `ear_l`, `ear_r` 역할에 대해 소스 개수에 맞춰 ref 본 개수 조정
+- `spine`, `neck`, `tail`, `ear_l`, `ear_r` 역할에 대해 소스 개수에 맞춰 ref 본 개수 조정
 - 실패 시 fallback 규칙 필요
 
 후보 방식:
@@ -144,7 +144,7 @@
 4. F2: neck fallback
 5. F3: unmapped 본 cc_ 전환
 6. F4: 컨스트레인트 복제
-7. F1: spine / tail / ear 본 개수 매칭
+7. F1: spine / neck / tail / ear 본 개수 매칭
 
 ## BuildRig 현재 흐름
 

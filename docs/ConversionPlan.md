@@ -65,7 +65,7 @@ Preview 생성/수정
 
 ## 현재 미완료
 
-- spine / tail / ear ref 개수 동적 조절
+- spine / neck / tail / ear ref 개수 동적 조절
 - neck fallback 생성
 - `unmapped` 본 cc_ 전환
 - cc_ 본 생성 안정화

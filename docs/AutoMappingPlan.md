@@ -105,7 +105,7 @@
 
 ## 현재 한계
 
-- spine / tail / ear는 소스 개수에 맞춰 ref 개수를 조절하지 않음
+- spine / neck / tail / ear는 소스 개수에 맞춰 ref 개수를 조절하지 않음
 - `face` 외 `unmapped` 본은 자동 cc_ 생성 대상이 아님
 - Remap `.bmap` 규칙은 BuildRig 규칙과 추가 정렬 필요
 

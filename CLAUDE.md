@@ -41,7 +41,7 @@
 
 ## 현재 한계
 
-- spine / tail / ear 본 개수 자동 조절 미구현
+- spine / neck / tail / ear 본 개수 자동 조절 미구현
 - `unmapped` 본 cc_ 전환 미구현
 - cc_ 본 생성 안정화 필요
 - bank / heel 자동 오프셋 보정 미구현
