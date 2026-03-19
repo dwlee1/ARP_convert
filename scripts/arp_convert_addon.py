@@ -473,6 +473,15 @@ class ARPCONV_OT_BuildRig(Operator):
         sorted_refs = sorted(resolved.keys(), key=get_depth)
         aligned = 0
 
+        # Phase 1: 매핑 대상 ref 본을 임시 disconnect
+        saved_connects = {}
+        for ref_name in sorted_refs:
+            ebone = edit_bones.get(ref_name)
+            if ebone:
+                saved_connects[ref_name] = ebone.use_connect
+                ebone.use_connect = False
+
+        # Phase 2: 모든 ref 본 위치를 자유롭게 설정
         for ref_name in sorted_refs:
             world_head, world_tail, roll = resolved[ref_name]
             ebone = edit_bones.get(ref_name)
@@ -485,15 +494,22 @@ class ARPCONV_OT_BuildRig(Operator):
             if (local_tail - local_head).length < 0.0001:
                 local_tail = local_head + Vector((0, 0.01, 0))
 
-            # Connected 본은 head가 부모.tail에 고정 → tail만 설정
-            if ebone.use_connect and ebone.parent:
-                ebone.tail = local_tail
-            else:
-                ebone.head = local_head
-                ebone.tail = local_tail
+            ebone.head = local_head
+            ebone.tail = local_tail
             ebone.roll = roll
             aligned += 1
             log(f"  ✓ {ref_name}")
+
+        # Phase 3: head ≈ parent.tail인 경우에만 reconnect
+        for ref_name, was_connected in saved_connects.items():
+            ebone = edit_bones.get(ref_name)
+            if ebone and ebone.parent and was_connected:
+                if (ebone.head - ebone.parent.tail).length < 0.001:
+                    ebone.use_connect = True
+                else:
+                    log(f"  ⚠ {ref_name}: disconnect 유지 "
+                        f"(head↔parent.tail 거리: "
+                        f"{(ebone.head - ebone.parent.tail).length:.4f})")
 
         bpy.ops.object.mode_set(mode='OBJECT')
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
