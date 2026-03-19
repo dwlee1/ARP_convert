@@ -39,12 +39,12 @@ ARP_REF_MAP = {
     "spine":       ["spine_01_ref.x", "spine_02_ref.x", "spine_03_ref.x"],
     "neck":        ["neck_ref.x"],
     "head":        ["head_ref.x"],
-    "back_leg_l":  ["thigh_b_ref.l", "leg_b_ref.l", "foot_b_ref.l", "toes_b_ref.l"],
-    "back_leg_r":  ["thigh_b_ref.r", "leg_b_ref.r", "foot_b_ref.r", "toes_b_ref.r"],
-    "front_leg_l": ["thigh_b_ref_dupli_001.l", "leg_b_ref_dupli_001.l",
-                    "foot_b_ref_dupli_001.l", "toes_b_ref_dupli_001.l"],
-    "front_leg_r": ["thigh_b_ref_dupli_001.r", "leg_b_ref_dupli_001.r",
-                    "foot_b_ref_dupli_001.r", "toes_b_ref_dupli_001.r"],
+    "back_leg_l":  ["thigh_b_ref.l", "thigh_ref.l", "leg_ref.l", "foot_ref.l"],
+    "back_leg_r":  ["thigh_b_ref.r", "thigh_ref.r", "leg_ref.r", "foot_ref.r"],
+    "front_leg_l": ["thigh_b_ref_dupli_001.l", "thigh_ref_dupli_001.l",
+                    "leg_ref_dupli_001.l", "foot_ref_dupli_001.l"],
+    "front_leg_r": ["thigh_b_ref_dupli_001.r", "thigh_ref_dupli_001.r",
+                    "leg_ref_dupli_001.r", "foot_ref_dupli_001.r"],
     "tail":        ["tail_00_ref.x", "tail_01_ref.x", "tail_02_ref.x", "tail_03_ref.x"],
 }
 

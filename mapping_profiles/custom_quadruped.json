@@ -16,14 +16,14 @@
     "jaw":         "jaw_ref.x",
 
     "thigh_L":     "thigh_b_ref.l",
-    "leg_L":       "leg_b_ref.l",
-    "foot_L":      "foot_b_ref.l",
-    "toe_L":       "toes_b_ref.l",
+    "leg_L":       "thigh_ref.l",
+    "foot_L":      "leg_ref.l",
+    "toe_L":       "foot_ref.l",
 
     "shoulder_L":  "thigh_b_ref_dupli_001.l",
-    "upperarm_L":  "leg_b_ref_dupli_001.l",
-    "arm_L":       "foot_b_ref_dupli_001.l",
-    "hand_L":      "toes_b_ref_dupli_001.l",
+    "upperarm_L":  "thigh_ref_dupli_001.l",
+    "arm_L":       "leg_ref_dupli_001.l",
+    "hand_L":      "foot_ref_dupli_001.l",
 
     "tail_01":     "tail_00_ref.x",
     "tail02":      "tail_01_ref.x",
