@@ -33,6 +33,7 @@ BlenderRigConvert/
 - 상세 계획: `docs/ConversionPlan.md`
 
 ## 주요 규칙
-- ARP dog 프리셋 앞다리는 `_dupli_001` 접미사 사용
+- ARP dog 프리셋은 3-bone leg 모드 → ref 본에 `_b_` 포함 (예: `thigh_b_ref.l`)
+- 앞다리는 `_dupli_001` 접미사 추가 (예: `thigh_b_ref_dupli_001.l`)
 - face rig 불필요 — ear/eye/jaw만 커스텀 본으로 처리
 - JSON 프로필에 L사이드만 정의 → R사이드 자동 미러링

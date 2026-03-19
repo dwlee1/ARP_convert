@@ -184,17 +184,30 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
         for m in mapped_fail:
             log(f"    FAIL: {m}", "WARN")
 
-    # ARP ref 본에 위치 적용
+    # ARP ref 본에 위치 적용 (하이어라키 순서: 부모 → 자식)
     log(f"  위치 적용: {len(resolved)}개 ref 본")
 
     bpy.context.view_layer.objects.active = arp_obj
     bpy.ops.object.mode_set(mode='EDIT')
 
     arp_matrix_inv = arp_obj.matrix_world.inverted()
+    edit_bones = arp_obj.data.edit_bones
     aligned = 0
 
-    for ref_name, (world_head, world_tail, roll) in resolved.items():
-        ebone = arp_obj.data.edit_bones.get(ref_name)
+    # 하이어라키 깊이 계산 → 부모(얕은)부터 자식(깊은) 순서로 처리
+    def get_depth(bone_name):
+        eb = edit_bones.get(bone_name)
+        depth = 0
+        while eb and eb.parent:
+            depth += 1
+            eb = eb.parent
+        return depth
+
+    sorted_refs = sorted(resolved.keys(), key=get_depth)
+
+    for ref_name in sorted_refs:
+        world_head, world_tail, roll = resolved[ref_name]
+        ebone = edit_bones.get(ref_name)
         if ebone is None:
             if VERBOSE:
                 log(f"    '{ref_name}' 미발견 (프리셋에 없음)", "WARN")
@@ -206,8 +219,15 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
         if (local_tail - local_head).length < 0.0001:
             local_tail = local_head + Vector((0, 0.01, 0))
 
-        ebone.head = local_head
-        ebone.tail = local_tail
+        # Connected 본: head가 부모.tail에 고정 → tail만 설정
+        if ebone.use_connect and ebone.parent:
+            ebone.tail = local_tail
+            if VERBOSE:
+                log(f"    {ref_name}: tail만 설정 (connected)")
+        else:
+            ebone.head = local_head
+            ebone.tail = local_tail
+
         if copy_roll:
             ebone.roll = roll
         aligned += 1

@@ -7,6 +7,7 @@ ARP 변환 공유 유틸리티
 import bpy
 import os
 import json
+import shutil
 from datetime import datetime
 
 
@@ -53,8 +54,77 @@ def run_arp_operator(op_func, **kwargs):
     ctx = get_3d_viewport_context()
     if ctx is None:
         raise RuntimeError("3D Viewport 컨텍스트를 찾을 수 없습니다.")
-    with bpy.context.temp_override(**ctx):
-        return op_func(**kwargs)
+    try:
+        with bpy.context.temp_override(**ctx):
+            return op_func(**kwargs)
+    except RuntimeError as e:
+        active = bpy.context.view_layer.objects.active
+        mode = bpy.context.mode
+        op_name = getattr(op_func, 'idname_py', lambda: str(op_func))()
+        log(f"오퍼레이터 실패: {op_name} (active={active.name if active else None}, mode={mode})", "ERROR")
+        raise
+
+
+def ensure_retarget_context(source_obj, arp_obj):
+    """리타게팅 전 컨텍스트 설정 (auto_scale 호출 전에 사용)"""
+    ensure_object_mode()
+    bpy.context.scene.source_rig = source_obj.name
+    bpy.context.scene.target_rig = arp_obj.name
+    select_only(source_obj)
+    log(f"리타게팅 컨텍스트: 소스={source_obj.name}, 타겟={arp_obj.name}")
+
+
+def install_bmap_preset(preset_name, project_root=None):
+    """
+    프로젝트의 .bmap 파일을 ARP remap_presets 경로로 복사.
+    이미 존재하면 스킵.
+
+    Returns:
+        bool: 설치 성공 여부
+    """
+    if project_root is None:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    src_path = os.path.join(project_root, "remap_presets", f"{preset_name}.bmap")
+    if not os.path.exists(src_path):
+        log(f".bmap 파일 미발견: {src_path}", "WARN")
+        return False
+
+    # ARP remap_presets 경로 탐색
+    arp_presets_dir = None
+    blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
+
+    # extensions 경로 (Blender 4.x)
+    candidates = [
+        os.path.join(
+            os.environ.get("APPDATA", ""),
+            "Blender Foundation", "Blender", blender_ver,
+            "extensions", "user_default", "auto_rig_pro", "remap_presets"
+        ),
+        os.path.join(
+            os.environ.get("APPDATA", ""),
+            "Blender Foundation", "Blender", blender_ver,
+            "config", "addons", "auto_rig_pro-master", "remap_presets"
+        ),
+    ]
+
+    for c in candidates:
+        if os.path.isdir(c):
+            arp_presets_dir = c
+            break
+
+    if arp_presets_dir is None:
+        log("ARP remap_presets 경로를 찾을 수 없습니다.", "WARN")
+        return False
+
+    dst_path = os.path.join(arp_presets_dir, f"{preset_name}.bmap")
+    if os.path.exists(dst_path):
+        log(f".bmap 이미 설치됨: {dst_path}")
+        return True
+
+    shutil.copy2(src_path, dst_path)
+    log(f".bmap 설치 완료: {dst_path}")
+    return True
 
 
 def find_arp_armature():

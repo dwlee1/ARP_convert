@@ -1,0 +1,630 @@
+"""
+ARP Rig Convert 애드온
+======================
+소스 deform 본 → Preview Armature 생성 → 역할 배정/수정 → ARP 리그 생성.
+
+설치:
+  Edit > Preferences > Add-ons > Install > 이 파일 선택
+  또는 Blender Scripting 탭에서 직접 실행 (Run Script)
+"""
+
+bl_info = {
+    "name": "ARP Rig Convert",
+    "author": "BlenderRigConvert",
+    "version": (2, 0, 0),
+    "blender": (4, 5, 0),
+    "location": "View3D > Sidebar > ARP Convert",
+    "description": "Preview Armature 기반 ARP 리그 변환",
+    "category": "Rigging",
+}
+
+import bpy
+import os
+import sys
+import traceback
+from bpy.props import (
+    StringProperty, FloatProperty, IntProperty,
+    BoolProperty, EnumProperty, PointerProperty,
+)
+from bpy.types import PropertyGroup, Operator, Panel
+
+
+# ═══════════════════════════════════════════════════════════════
+# scripts/ 경로 설정
+# ═══════════════════════════════════════════════════════════════
+
+def _ensure_scripts_path():
+    """scripts/ 폴더를 sys.path에 추가"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.exists(os.path.join(script_dir, "skeleton_analyzer.py")):
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        return script_dir
+
+    if bpy.data.filepath:
+        d = os.path.dirname(bpy.data.filepath)
+        for _ in range(10):
+            candidate = os.path.join(d, "scripts")
+            if os.path.exists(os.path.join(candidate, "skeleton_analyzer.py")):
+                if candidate not in sys.path:
+                    sys.path.insert(0, candidate)
+                return candidate
+            parent = os.path.dirname(d)
+            if parent == d:
+                break
+            d = parent
+    return ""
+
+
+def _reload_modules():
+    """개발 중 모듈 리로드"""
+    import importlib
+    for mod_name in ['skeleton_analyzer', 'arp_utils']:
+        if mod_name in sys.modules:
+            importlib.reload(sys.modules[mod_name])
+
+
+# ═══════════════════════════════════════════════════════════════
+# 역할 드롭다운
+# ═══════════════════════════════════════════════════════════════
+
+ROLE_ITEMS = [
+    ('root', "Root", "루트 본"),
+    ('spine', "Spine", "스파인 체인"),
+    ('neck', "Neck", "목"),
+    ('head', "Head", "머리"),
+    ('back_leg_l', "Back Leg L", "뒷다리 좌"),
+    ('back_leg_r', "Back Leg R", "뒷다리 우"),
+    ('front_leg_l', "Front Leg L", "앞다리 좌"),
+    ('front_leg_r', "Front Leg R", "앞다리 우"),
+    ('tail', "Tail", "꼬리"),
+    ('face', "Face (cc_)", "얼굴 커스텀 본"),
+    ('unmapped', "Unmapped", "미매핑"),
+]
+
+
+# ═══════════════════════════════════════════════════════════════
+# 프로퍼티
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_Props(PropertyGroup):
+    """전역 프로퍼티"""
+    preview_armature: StringProperty(name="Preview Armature", default="")
+    source_armature: StringProperty(name="소스 Armature", default="")
+    is_analyzed: BoolProperty(name="분석 완료", default=False)
+    confidence: FloatProperty(name="신뢰도", default=0.0)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: Step 1 — 분석 + Preview 생성
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_OT_CreatePreview(Operator):
+    """소스 deform 본 추출 → Preview Armature 생성"""
+    bl_idname = "arp_convert.create_preview"
+    bl_label = "리그 분석 + Preview 생성"
+    bl_description = "소스 deform 본을 분석하여 역할별 색상이 적용된 Preview Armature를 생성"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        _ensure_scripts_path()
+        _reload_modules()
+
+        try:
+            from skeleton_analyzer import (
+                analyze_skeleton, create_preview_armature,
+                generate_verification_report,
+            )
+        except ImportError as e:
+            self.report({'ERROR'}, f"skeleton_analyzer 임포트 실패: {e}")
+            return {'CANCELLED'}
+
+        # 소스 아마추어 찾기
+        source_obj = self._find_source(context)
+        if source_obj is None:
+            self.report({'ERROR'}, "소스 아마추어를 찾을 수 없습니다.")
+            return {'CANCELLED'}
+
+        # 기존 Preview 제거
+        props = context.scene.arp_convert_props
+        old_preview = bpy.data.objects.get(props.preview_armature)
+        if old_preview:
+            bpy.data.objects.remove(old_preview, do_unlink=True)
+
+        # Object 모드 확보
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 분석
+        analysis = analyze_skeleton(source_obj)
+        if 'error' in analysis:
+            self.report({'ERROR'}, analysis['error'])
+            return {'CANCELLED'}
+
+        # 검증 리포트 출력
+        print(generate_verification_report(analysis))
+
+        # Preview Armature 생성
+        preview_obj = create_preview_armature(source_obj, analysis)
+        if preview_obj is None:
+            self.report({'ERROR'}, "Preview Armature 생성 실패")
+            return {'CANCELLED'}
+
+        # 프로퍼티 저장
+        props.source_armature = source_obj.name
+        props.preview_armature = preview_obj.name
+        props.is_analyzed = True
+        props.confidence = analysis.get('confidence', 0)
+
+        # Preview 선택
+        bpy.ops.object.select_all(action='DESELECT')
+        preview_obj.select_set(True)
+        context.view_layer.objects.active = preview_obj
+
+        self.report({'INFO'},
+            f"Preview 생성 완료 (신뢰도: {props.confidence:.0%}). "
+            f"본 선택 → 사이드바에서 역할 변경 가능.")
+        return {'FINISHED'}
+
+    def _find_source(self, context):
+        """소스 아마추어 찾기: 선택된 것 우선, 없으면 자동"""
+        if context.active_object and context.active_object.type == 'ARMATURE':
+            c_count = len([b for b in context.active_object.data.bones
+                          if b.name.startswith('c_')])
+            if c_count <= 5 and '_preview' not in context.active_object.name:
+                return context.active_object
+
+        best_obj = None
+        best_count = 0
+        for obj in bpy.data.objects:
+            if obj.type != 'ARMATURE':
+                continue
+            if '_preview' in obj.name:
+                continue
+            c_count = len([b for b in obj.data.bones if b.name.startswith('c_')])
+            if c_count > 5:
+                continue
+            total = len(obj.data.bones)
+            if total > best_count:
+                best_count = total
+                best_obj = obj
+        return best_obj
+
+
+# ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: 역할 변경
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_OT_SetRole(Operator):
+    """선택된 본의 역할을 변경"""
+    bl_idname = "arp_convert.set_role"
+    bl_label = "역할 설정"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    role: EnumProperty(name="역할", items=ROLE_ITEMS)
+
+    def execute(self, context):
+        _ensure_scripts_path()
+        from skeleton_analyzer import ROLE_COLORS, ROLE_PROP_KEY
+
+        preview_obj = context.active_object
+        if not preview_obj or preview_obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "Preview Armature를 선택하세요.")
+            return {'CANCELLED'}
+
+        # 선택된 본에 역할 적용
+        changed = 0
+        if context.mode == 'POSE':
+            selected = context.selected_pose_bones
+        else:
+            selected = []
+            # Edit/Object 모드에서도 선택 반영
+            for bone in preview_obj.data.bones:
+                if bone.select:
+                    pbone = preview_obj.pose.bones.get(bone.name)
+                    if pbone:
+                        selected.append(pbone)
+
+        for pbone in selected:
+            pbone[ROLE_PROP_KEY] = self.role
+            color = ROLE_COLORS.get(self.role, ROLE_COLORS['unmapped'])
+            pbone.color.palette = 'CUSTOM'
+            pbone.color.custom.normal = color
+            pbone.color.custom.select = tuple(min(c + 0.3, 1.0) for c in color)
+            pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
+            changed += 1
+
+        if changed == 0:
+            self.report({'WARNING'}, "본이 선택되지 않았습니다.")
+        else:
+            self.report({'INFO'}, f"{changed}개 본 → {self.role}")
+        return {'FINISHED'}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: Step 3 — ARP 리그 생성
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_OT_BuildRig(Operator):
+    """Preview Armature 기반으로 ARP 리그 생성"""
+    bl_idname = "arp_convert.build_rig"
+    bl_label = "ARP 리그 생성"
+    bl_description = "Preview → append_arp → ref 본 위치 복사 → match_to_rig"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        _ensure_scripts_path()
+        _reload_modules()
+
+        try:
+            from skeleton_analyzer import (
+                preview_to_analysis, build_preview_to_ref_mapping,
+                ROLE_PROP_KEY,
+            )
+            from arp_utils import (
+                log, ensure_object_mode, select_only,
+                run_arp_operator, find_arp_armature,
+            )
+        except ImportError as e:
+            self.report({'ERROR'}, f"모듈 임포트 실패: {e}")
+            return {'CANCELLED'}
+
+        props = context.scene.arp_convert_props
+        preview_obj = bpy.data.objects.get(props.preview_armature)
+
+        if preview_obj is None:
+            self.report({'ERROR'}, "Preview Armature가 없습니다. 먼저 [리그 분석]을 실행하세요.")
+            return {'CANCELLED'}
+
+        ensure_object_mode()
+
+        # Step 1: ARP 리그 추가 (먼저 추가해야 실제 ref 본 이름을 알 수 있음)
+        log("ARP 리그 추가 (dog 프리셋)")
+
+        source_obj = bpy.data.objects.get(props.source_armature)
+        if source_obj is None:
+            self.report({'ERROR'}, f"소스 아마추어 '{props.source_armature}'를 찾을 수 없습니다.")
+            return {'CANCELLED'}
+
+        select_only(source_obj)
+        try:
+            run_arp_operator(bpy.ops.arp.append_arp, rig_preset='dog')
+        except Exception as e:
+            self.report({'ERROR'}, f"ARP 리그 추가 실패: {e}")
+            return {'CANCELLED'}
+
+        arp_obj = find_arp_armature()
+        if arp_obj is None:
+            self.report({'ERROR'}, "ARP 아마추어를 찾을 수 없습니다.")
+            return {'CANCELLED'}
+
+        # Step 2: 동적 매핑 — ARP 실제 ref 본 검색 + Preview 역할 매칭
+        log("동적 매핑 생성 (ARP ref 본 자동 검색)")
+        ensure_object_mode()
+
+        deform_to_ref = build_preview_to_ref_mapping(preview_obj, arp_obj)
+        log(f"매핑 결과: {len(deform_to_ref)}개 본")
+
+        if not deform_to_ref:
+            self.report({'ERROR'}, "매핑 생성 실패: Preview 역할과 ARP ref 본이 매칭되지 않음")
+            return {'CANCELLED'}
+
+        # Step 3: Preview 본 위치를 ARP ref 본에 복사
+        log("ref 본 위치 정렬 (Preview → ARP)")
+        from mathutils import Vector
+
+        ensure_object_mode()
+
+        # Preview 본 위치 추출
+        bpy.ops.object.select_all(action='DESELECT')
+        preview_obj.select_set(True)
+        bpy.context.view_layer.objects.active = preview_obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        preview_matrix = preview_obj.matrix_world
+        preview_positions = {}
+        for ebone in preview_obj.data.edit_bones:
+            world_head = preview_matrix @ ebone.head.copy()
+            world_tail = preview_matrix @ ebone.tail.copy()
+            preview_positions[ebone.name] = (world_head, world_tail, ebone.roll)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # ARP ref 본 정렬
+        bpy.ops.object.select_all(action='DESELECT')
+        arp_obj.select_set(True)
+        bpy.context.view_layer.objects.active = arp_obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        arp_matrix_inv = arp_obj.matrix_world.inverted()
+        edit_bones = arp_obj.data.edit_bones
+
+        # resolved: {ref_name: (world_head, world_tail, roll)}
+        resolved = {}
+        for src_name, ref_name in deform_to_ref.items():
+            if src_name in preview_positions:
+                resolved[ref_name] = preview_positions[src_name]
+
+        # 하이어라키 깊이순 정렬 (부모 먼저)
+        def get_depth(bone_name):
+            eb = edit_bones.get(bone_name)
+            depth = 0
+            while eb and eb.parent:
+                depth += 1
+                eb = eb.parent
+            return depth
+
+        sorted_refs = sorted(resolved.keys(), key=get_depth)
+        aligned = 0
+
+        for ref_name in sorted_refs:
+            world_head, world_tail, roll = resolved[ref_name]
+            ebone = edit_bones.get(ref_name)
+            if ebone is None:
+                log(f"  '{ref_name}' 미발견 (skip)", "WARN")
+                continue
+
+            local_head = arp_matrix_inv @ world_head
+            local_tail = arp_matrix_inv @ world_tail
+            if (local_tail - local_head).length < 0.0001:
+                local_tail = local_head + Vector((0, 0.01, 0))
+
+            # Connected 본은 head가 부모.tail에 고정 → tail만 설정
+            if ebone.use_connect and ebone.parent:
+                ebone.tail = local_tail
+            else:
+                ebone.head = local_head
+                ebone.tail = local_tail
+            ebone.roll = roll
+            aligned += 1
+            log(f"  ✓ {ref_name}")
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+        log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
+
+        # Step 3: match_to_rig
+        log("match_to_rig 실행")
+        ensure_object_mode()
+        select_only(arp_obj)
+        try:
+            run_arp_operator(bpy.ops.arp.match_to_rig)
+        except Exception as e:
+            self.report({'ERROR'}, f"match_to_rig 실패: {e}")
+            return {'CANCELLED'}
+
+        # Step 4: 얼굴 cc_ 커스텀 본 추가
+        from skeleton_analyzer import read_preview_roles
+        roles = read_preview_roles(preview_obj)
+        face_bones = roles.get('face', [])
+        if face_bones:
+            log(f"얼굴 cc_ 커스텀 본 추가: {len(face_bones)}개")
+            ensure_object_mode()
+            select_only(arp_obj)
+            for bone_name in face_bones:
+                if bone_name not in preview_positions:
+                    continue
+                try:
+                    run_arp_operator(bpy.ops.arp.add_custom_bone)
+                except Exception as e:
+                    log(f"  cc_ 추가 실패 ({bone_name}): {e}", "WARN")
+
+        self.report({'INFO'}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
+        return {'FINISHED'}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: Step 4 — 리타게팅
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_OT_Retarget(Operator):
+    """동적 .bmap 생성 + 애니메이션 리타게팅"""
+    bl_idname = "arp_convert.retarget"
+    bl_label = "애니메이션 리타게팅"
+    bl_description = "Preview 매핑으로 .bmap 자동 생성 후 리타게팅"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        _ensure_scripts_path()
+        _reload_modules()
+
+        try:
+            from skeleton_analyzer import (
+                preview_to_analysis, generate_bmap_content,
+            )
+            from arp_utils import (
+                log, ensure_object_mode, select_only,
+                run_arp_operator, find_arp_armature,
+                ensure_retarget_context,
+            )
+        except ImportError as e:
+            self.report({'ERROR'}, f"모듈 임포트 실패: {e}")
+            return {'CANCELLED'}
+
+        props = context.scene.arp_convert_props
+        preview_obj = bpy.data.objects.get(props.preview_armature)
+        source_obj = bpy.data.objects.get(props.source_armature)
+        arp_obj = find_arp_armature()
+
+        if not all([preview_obj, source_obj, arp_obj]):
+            self.report({'ERROR'}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
+            return {'CANCELLED'}
+
+        ensure_object_mode()
+
+        # 동적 .bmap 생성
+        log("동적 .bmap 생성")
+        analysis = preview_to_analysis(preview_obj)
+        bmap_content = generate_bmap_content(analysis)
+
+        bmap_name = "auto_generated"
+        blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
+
+        for presets_dir in [
+            os.path.join(os.environ.get("APPDATA", ""),
+                "Blender Foundation", "Blender", blender_ver,
+                "extensions", "user_default", "auto_rig_pro", "remap_presets"),
+            os.path.join(os.environ.get("APPDATA", ""),
+                "Blender Foundation", "Blender", blender_ver,
+                "config", "addons", "auto_rig_pro-master", "remap_presets"),
+        ]:
+            if os.path.isdir(presets_dir):
+                bmap_path = os.path.join(presets_dir, f"{bmap_name}.bmap")
+                with open(bmap_path, 'w', encoding='utf-8') as f:
+                    f.write(bmap_content)
+                log(f".bmap 저장: {bmap_path}")
+                break
+
+        # 리타게팅 설정
+        log("리타게팅 설정")
+        try:
+            ensure_retarget_context(source_obj, arp_obj)
+            run_arp_operator(bpy.ops.arp.auto_scale)
+            ensure_object_mode()
+            run_arp_operator(bpy.ops.arp.build_bones_list)
+
+            try:
+                run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=bmap_name)
+                log(f".bmap 로드 성공: {bmap_name}")
+            except Exception as e:
+                log(f".bmap 로드 실패: {e}", "WARN")
+
+            run_arp_operator(bpy.ops.arp.redefine_rest_pose, preserve=True)
+            run_arp_operator(bpy.ops.arp.save_pose_rest)
+            ensure_object_mode()
+        except Exception as e:
+            self.report({'ERROR'}, f"리타게팅 설정 실패: {e}")
+            log(traceback.format_exc(), "ERROR")
+            return {'CANCELLED'}
+
+        # 액션별 리타게팅
+        log("액션별 리타게팅")
+        actions = list(bpy.data.actions)
+        success = 0
+        fail = 0
+
+        for i, action in enumerate(actions):
+            f_start = int(action.frame_range[0])
+            f_end = int(action.frame_range[1])
+            log(f"  [{i+1}/{len(actions)}] '{action.name}' ({f_start}~{f_end})")
+
+            try:
+                if source_obj.animation_data is None:
+                    source_obj.animation_data_create()
+                source_obj.animation_data.action = action
+
+                ensure_object_mode()
+                select_only(arp_obj)
+                run_arp_operator(
+                    bpy.ops.arp.retarget,
+                    frame_start=f_start,
+                    frame_end=f_end,
+                    fake_user_action=True,
+                    interpolation_type='LINEAR',
+                )
+                success += 1
+            except Exception as e:
+                fail += 1
+                log(f"    실패: {e}", "WARN")
+
+        self.report({'INFO'}, f"리타게팅 완료: {success}/{len(actions)} 성공")
+        return {'FINISHED'}
+
+
+# ═══════════════════════════════════════════════════════════════
+# UI 패널
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_PT_MainPanel(Panel):
+    """ARP 리그 변환 메인 패널"""
+    bl_label = "ARP 리그 변환"
+    bl_idname = "ARPCONV_PT_main"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "ARP Convert"
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.arp_convert_props
+
+        # Step 1: 분석 + Preview
+        box = layout.box()
+        box.label(text="Step 1: 분석", icon='VIEWZOOM')
+        if props.source_armature:
+            box.label(text=f"소스: {props.source_armature}")
+        row = box.row()
+        row.scale_y = 1.5
+        row.operator("arp_convert.create_preview", icon='ARMATURE_DATA')
+
+        if not props.is_analyzed:
+            layout.separator()
+            layout.label(text="소스 아마추어를 선택하고 분석을 실행하세요.", icon='INFO')
+            return
+
+        # 신뢰도
+        layout.label(text=f"신뢰도: {props.confidence:.0%}", icon='CHECKMARK')
+        if props.preview_armature:
+            layout.label(text=f"Preview: {props.preview_armature}")
+
+        layout.separator()
+
+        # Step 2: 역할 수정
+        box = layout.box()
+        box.label(text="Step 2: 역할 수정", icon='BONE_DATA')
+        box.label(text="본 선택 후 역할을 변경하세요:")
+
+        # 역할 버튼 그리드
+        col = box.column(align=True)
+        grid = col.grid_flow(columns=2, align=True)
+        for role_id, role_name, role_desc in ROLE_ITEMS:
+            op = grid.operator("arp_convert.set_role", text=role_name)
+            op.role = role_id
+
+        # 현재 선택된 본의 역할 표시
+        if context.active_object and context.active_object.type == 'ARMATURE':
+            active_bone = context.active_bone
+            if active_bone:
+                pbone = context.active_object.pose.bones.get(active_bone.name)
+                if pbone:
+                    _ensure_scripts_path()
+                    from skeleton_analyzer import ROLE_PROP_KEY
+                    current_role = pbone.get(ROLE_PROP_KEY, 'unmapped')
+                    box.separator()
+                    box.label(text=f"선택: {active_bone.name}", icon='BONE_DATA')
+                    box.label(text=f"현재 역할: {current_role}")
+
+        layout.separator()
+
+        # Step 3: 리그 생성
+        box = layout.box()
+        box.label(text="Step 3: 적용", icon='PLAY')
+        col = box.column(align=True)
+        col.scale_y = 1.3
+        col.operator("arp_convert.build_rig", icon='MOD_ARMATURE')
+        col.operator("arp_convert.retarget", icon='ACTION')
+
+
+# ═══════════════════════════════════════════════════════════════
+# 등록
+# ═══════════════════════════════════════════════════════════════
+
+classes = [
+    ARPCONV_Props,
+    ARPCONV_OT_CreatePreview,
+    ARPCONV_OT_SetRole,
+    ARPCONV_OT_BuildRig,
+    ARPCONV_OT_Retarget,
+    ARPCONV_PT_MainPanel,
+]
+
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    bpy.types.Scene.arp_convert_props = PointerProperty(type=ARPCONV_Props)
+
+
+def unregister():
+    del bpy.types.Scene.arp_convert_props
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+
+
+if __name__ == "__main__":
+    register()

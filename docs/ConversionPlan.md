@@ -54,21 +54,22 @@
 | 가슴 | chest | `spine_03_ref.x` |
 | 목 | neck | `neck_ref.x` |
 | 머리 | head | `head_ref.x` |
-| **뒷다리** | thigh_L | `thigh_ref.l` |
-| | leg_L | `leg_ref.l` |
-| | foot_L | `foot_ref.l` |
-| | toe_L | `toes_ref.l` |
-| **앞다리** (3-bone leg) | shoulder_L (시작본) | `thigh_ref_dupli_001.l` |
-| | upperarm_L | `leg_ref_dupli_001.l` |
-| | arm_L | `foot_ref_dupli_001.l` |
-| | hand_L | `toes_ref_dupli_001.l` |
+| **뒷다리** (3-bone leg) | thigh_L | `thigh_b_ref.l` |
+| | leg_L | `leg_b_ref.l` |
+| | foot_L | `foot_b_ref.l` |
+| | toe_L | `toes_b_ref.l` |
+| **앞다리** (3-bone leg) | shoulder_L (시작본) | `thigh_b_ref_dupli_001.l` |
+| | upperarm_L | `leg_b_ref_dupli_001.l` |
+| | arm_L | `foot_b_ref_dupli_001.l` |
+| | hand_L | `toes_b_ref_dupli_001.l` |
 | 꼬리 | tail_01~04 | `tail_00~03_ref.x` |
 | 턱 | jaw | `jaw_ref.x` |
 | 눈 | eye_L | `c_eye_ref.l` |
 | 귀 | ear01_L, ear02_L | `ear_01_ref.l`, `ear_02_ref.l` |
 
 ### 주의사항
-- dog 프리셋의 앞다리는 `_dupli_001` 접미사 사용 (별도 arm/shoulder ref 없음)
+- dog 프리셋은 3-bone leg 모드 사용 → ref 본에 `_b_` 접미사 (예: `thigh_b_ref.l`)
+- 앞다리는 `_dupli_001` 접미사 추가 (예: `thigh_b_ref_dupli_001.l`)
 - face rig 불필요 — ear/eye/jaw만 사용, 나머지는 FBX 익스포트에서 제외
 - `c_eye_ref`는 `c_` 접두사 있음
 - ear ref는 `.l`/`.r`만 존재 (`.x` 없음)
@@ -81,12 +82,34 @@
 | `rigify_quadruped.json` | Rigify DEF- 기반 사족보행 | 미작성 |
 | `bird.json` | 조류 (Eagle, Pelican 등) | 미작성 |
 
+## 파이프라인 스크립트
+
+| 스크립트 | 역할 | 실행 환경 |
+|----------|------|-----------|
+| `01_create_arp_rig.py` | ARP 리그 생성 | Blender 내부 |
+| `02_retarget_animation.py` | 애니메이션 리타게팅 | Blender 내부 |
+| `pipeline_runner.py` | 01+02 순차 실행 래퍼 | Blender 내부 (--background) |
+| `03_batch_convert.py` | 배치 처리 | Python (Blender 외부) |
+| `arp_utils.py` | 공유 유틸리티 | Blender 내부 |
+
+### 배치 처리 사용법
+```
+python scripts/03_batch_convert.py                    # dry-run (대상 목록)
+python scripts/03_batch_convert.py --run              # 전체 실행
+python scripts/03_batch_convert.py --run --filter normal/fox  # 폴더 필터
+python scripts/03_batch_convert.py --run --workers 2  # 병렬 처리
+```
+
 ## 현재 상태
 
 - [x] Phase 0: ARP 오퍼레이터 파라미터 조사
 - [x] 2단계 스크립트 분리 (01 + 02)
 - [x] JSON 프로필 시스템 구축
 - [x] custom_quadruped 프로필 ref 본 이름 수정
-- [ ] Fox 파일 end-to-end 테스트 (01 → 02)
+- [x] auto_scale 컨텍스트 버그 수정 (select_only 누락)
+- [x] 에러 진단 강화 (run_arp_operator)
+- [x] .bmap 자동 설치 (install_bmap_preset)
+- [x] 배치 처리 시스템 (pipeline_runner + 03_batch_convert)
+- [ ] Fox 파일 end-to-end 테스트 (Blender에서 실행)
 - [ ] 추가 프로필 작성 (Rigify, 조류)
-- [ ] 배치 처리
+- [ ] .bmap 스파인 매핑 검토 (chest 본 누락)

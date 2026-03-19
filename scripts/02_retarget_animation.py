@@ -43,6 +43,7 @@ if _SCRIPT_DIR and _SCRIPT_DIR not in sys.path:
 from arp_utils import (
     log, ensure_object_mode, select_only,
     run_arp_operator, find_arp_armature, find_source_armature,
+    ensure_retarget_context, install_bmap_preset,
 )
 
 
@@ -102,19 +103,16 @@ def main():
     # Step 2: ARP Remap 설정
     log("Step 2: ARP Remap 설정")
     try:
-        ensure_object_mode()
-        bpy.context.scene.source_rig = source_obj.name
-        bpy.context.scene.target_rig = arp_obj.name
-        log(f"  소스: {source_obj.name}")
-        log(f"  타겟: {arp_obj.name}")
-
+        ensure_retarget_context(source_obj, arp_obj)
         run_arp_operator(bpy.ops.arp.auto_scale)
         log("  auto_scale 완료")
 
+        ensure_object_mode()
         run_arp_operator(bpy.ops.arp.build_bones_list)
         log("  build_bones_list 완료")
 
         if BMAP_PRESET:
+            install_bmap_preset(BMAP_PRESET)
             try:
                 run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=BMAP_PRESET)
                 log(f"  .bmap 로드 성공: {BMAP_PRESET}")
@@ -154,6 +152,7 @@ def main():
             source_obj.animation_data.action = action
 
             ensure_object_mode()
+            select_only(arp_obj)  # retarget은 타겟 아마추어가 active여야 함
             run_arp_operator(
                 bpy.ops.arp.retarget,
                 frame_start=f_start,
