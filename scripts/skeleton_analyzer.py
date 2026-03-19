@@ -448,13 +448,21 @@ def find_tail_chain(root_name, spine_chain, deform_bones):
     return best_chain
 
 
+EAR_KEYWORDS = ["ear"]
+# ear를 제외한 face 키워드
+FACE_ONLY_KEYWORDS = ["eye", "jaw", "mouth", "tongue"]
+
+
 def find_head_features(head_name, deform_bones):
     """
-    head 본의 자식에서 얼굴 특징(귀, 눈, 턱) 식별.
-    키워드 기반 + 방향/위치 보조.
+    head 본의 자식에서 얼굴 특징 식별.
+    ear는 독립 역할로 분리 (ARP ear_ref 직접 매핑).
+    나머지(eye, jaw, mouth, tongue)는 cc_ 커스텀 본.
     """
     features = {
-        'face_bones': [],  # cc_ 커스텀 본으로 등록할 얼굴 본
+        'face_bones': [],   # cc_ 커스텀 본 (eye, jaw, mouth, tongue)
+        'ear_l': [],        # 귀 좌 체인
+        'ear_r': [],        # 귀 우 체인
     }
 
     if head_name not in deform_bones:
@@ -462,30 +470,41 @@ def find_head_features(head_name, deform_bones):
 
     head = deform_bones[head_name]
 
-    def collect_face_subtree(bone_name):
-        """얼굴 본과 그 하위 본 모두 수집"""
+    def collect_subtree(bone_name):
+        """본과 그 하위 본 모두 수집"""
         result = [bone_name]
         if bone_name in deform_bones:
             for child in deform_bones[bone_name]['children']:
-                result.extend(collect_face_subtree(child))
+                result.extend(collect_subtree(child))
         return result
 
     for child_name in head['children']:
+        if child_name not in deform_bones:
+            continue
         child = deform_bones[child_name]
         name_lower = child_name.lower()
 
-        # 얼굴 키워드 체크
-        is_face = any(kw in name_lower for kw in FACE_BONE_KEYWORDS)
+        # ear 키워드 체크 → 독립 역할
+        is_ear = any(kw in name_lower for kw in EAR_KEYWORDS)
+        if is_ear:
+            subtree = collect_subtree(child_name)
+            # X 좌표로 좌우 판별
+            avg_x = child['head'][0]
+            if avg_x > 0:
+                features['ear_l'].extend(subtree)
+            else:
+                features['ear_r'].extend(subtree)
+            continue
 
+        # face 키워드 체크 → cc_ 커스텀 본
+        is_face = any(kw in name_lower for kw in FACE_ONLY_KEYWORDS)
         if is_face:
-            # 얼굴 본 전체 서브트리 수집
-            subtree = collect_face_subtree(child_name)
+            subtree = collect_subtree(child_name)
             features['face_bones'].extend(subtree)
         else:
             # 키워드 없지만 짧은 체인이면 얼굴 가능성
             chain = trace_chain(child_name, deform_bones, set())
             if len(chain) <= MAX_EAR_CHAIN_LENGTH:
-                # 위로 향하면 귀, 옆이면 눈, 아래면 턱 가능성
                 features['face_bones'].extend(chain)
 
     return features
@@ -553,8 +572,10 @@ def analyze_skeleton(armature_obj):
     # 5. 꼬리 찾기
     tail_chain = find_tail_chain(root_name, spine_chain, deform_bones)
 
-    # 6. 얼굴 특징 찾기
-    face_features = find_head_features(head_name, deform_bones) if head_name else {'face_bones': []}
+    # 6. 얼굴 특징 찾기 (ear 분리)
+    face_features = find_head_features(head_name, deform_bones) if head_name else {
+        'face_bones': [], 'ear_l': [], 'ear_r': []
+    }
 
     # 7. 매핑된/미매핑 본 분류
     mapped_bones = set()
@@ -569,6 +590,8 @@ def analyze_skeleton(armature_obj):
     if tail_chain:
         mapped_bones.update(tail_chain)
     mapped_bones.update(face_features.get('face_bones', []))
+    mapped_bones.update(face_features.get('ear_l', []))
+    mapped_bones.update(face_features.get('ear_r', []))
 
     unmapped = [name for name in deform_bones if name not in mapped_bones]
 
@@ -589,6 +612,12 @@ def analyze_skeleton(armature_obj):
 
     if tail_chain:
         chains['tail'] = {'bones': tail_chain, 'confidence': 0.85}
+
+    # ear 독립 역할
+    if face_features.get('ear_l'):
+        chains['ear_l'] = {'bones': face_features['ear_l'], 'confidence': 0.9}
+    if face_features.get('ear_r'):
+        chains['ear_r'] = {'bones': face_features['ear_r'], 'confidence': 0.9}
 
     # 전체 신뢰도
     if chains:
@@ -816,17 +845,23 @@ def load_auto_mapping(input_dir):
 
 # 역할별 본 그룹 색상 (Blender 테마 색상 인덱스)
 ROLE_COLORS = {
-    'root':        (1.0, 0.9, 0.0),    # 노랑
-    'spine':       (0.2, 0.4, 1.0),    # 파랑
-    'neck':        (0.2, 0.4, 1.0),    # 파랑
-    'head':        (0.2, 0.4, 1.0),    # 파랑
-    'back_leg_l':  (1.0, 0.2, 0.2),    # 빨강
-    'back_leg_r':  (1.0, 0.2, 0.2),    # 빨강
-    'front_leg_l': (0.2, 0.8, 0.2),    # 초록
-    'front_leg_r': (0.2, 0.8, 0.2),    # 초록
-    'tail':        (1.0, 0.5, 0.0),    # 주황
-    'face':        (0.7, 0.3, 0.9),    # 보라
-    'unmapped':    (0.5, 0.5, 0.5),    # 회색
+    'root':         (1.0, 0.9, 0.0),    # 노랑
+    'spine':        (0.2, 0.4, 1.0),    # 파랑
+    'neck':         (0.2, 0.4, 1.0),    # 파랑
+    'head':         (0.2, 0.4, 1.0),    # 파랑
+    'back_leg_l':   (1.0, 0.2, 0.2),    # 빨강
+    'back_leg_r':   (1.0, 0.2, 0.2),    # 빨강
+    'back_foot_l':  (0.7, 0.1, 0.1),    # 진빨강
+    'back_foot_r':  (0.7, 0.1, 0.1),    # 진빨강
+    'front_leg_l':  (0.2, 0.8, 0.2),    # 초록
+    'front_leg_r':  (0.2, 0.8, 0.2),    # 초록
+    'front_foot_l': (0.1, 0.5, 0.1),    # 진초록
+    'front_foot_r': (0.1, 0.5, 0.1),    # 진초록
+    'ear_l':        (0.0, 0.8, 0.8),    # 시안
+    'ear_r':        (0.0, 0.8, 0.8),    # 시안
+    'tail':         (1.0, 0.5, 0.0),    # 주황
+    'face':         (0.7, 0.3, 0.9),    # 보라
+    'unmapped':     (0.5, 0.5, 0.5),    # 회색
 }
 
 # 역할 커스텀 프로퍼티 키
@@ -1094,37 +1129,68 @@ def discover_arp_ref_chains(arp_obj):
     if tail_candidates:
         result['tail'] = tail_candidates
 
-    # --- Legs ---
-    # 뒷다리: thigh/leg/foot/toes + _ref + .l/.r (dupli 제외)
-    # 앞다리: thigh/leg/foot/toes + _ref + dupli + .l/.r
-    LEG_PREFIXES = ['thigh', 'leg', 'foot', 'toes']
+    # --- Legs (leg/foot 분리) ---
+    # leg: thigh + leg ref 본 (상단 다리)
+    # foot: foot + toes ref 본 (발)
+    LEG_PREFIXES = ['thigh', 'leg']
+    FOOT_PREFIXES = ['foot', 'toes']
+    # bank/heel: 발 보조 ref 본
+    FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
 
     for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
-        # 뒷다리 (dupli 아닌 것)
+
+        # --- 뒷다리 (dupli 아닌 것) ---
         back_leg = []
         for prefix in LEG_PREFIXES:
             candidates = [n for n in all_names
                           if n.startswith(prefix)
                           and '_ref' in n
                           and n.endswith(side_suffix)
-                          and 'dupli' not in n]
+                          and 'dupli' not in n
+                          and 'bank' not in n and 'heel' not in n]
             if candidates:
-                # 여러 후보 중 depth가 가장 작은 것 (체인 순서대로)
                 candidates.sort(key=lambda x: ref_bones[x]['depth'])
                 back_leg.append(candidates[0])
         if back_leg:
-            # depth 순 정렬
             back_leg.sort(key=lambda x: ref_bones[x]['depth'])
             result[f'back_leg_{side_key}'] = back_leg
 
-        # 앞다리 (dupli 포함)
+        # 뒷발
+        back_foot = []
+        for prefix in FOOT_PREFIXES:
+            candidates = [n for n in all_names
+                          if n.startswith(prefix)
+                          and '_ref' in n
+                          and n.endswith(side_suffix)
+                          and 'dupli' not in n
+                          and 'bank' not in n and 'heel' not in n]
+            if candidates:
+                candidates.sort(key=lambda x: ref_bones[x]['depth'])
+                back_foot.append(candidates[0])
+        if back_foot:
+            back_foot.sort(key=lambda x: ref_bones[x]['depth'])
+            result[f'back_foot_{side_key}'] = back_foot
+
+        # 뒷발 보조 (bank/heel)
+        for aux_prefix in FOOT_AUX_PREFIXES:
+            aux_key = aux_prefix.replace('foot_', '')  # 'bank' or 'heel'
+            candidates = [n for n in all_names
+                          if n.startswith(aux_prefix)
+                          and '_ref' in n
+                          and n.endswith(side_suffix)
+                          and 'dupli' not in n]
+            if candidates:
+                result[f'back_{aux_key}_{side_key}'] = candidates
+
+        # --- 앞다리 (dupli 포함) ---
         front_leg = []
         for prefix in LEG_PREFIXES:
             candidates = [n for n in all_names
                           if n.startswith(prefix)
                           and '_ref' in n
                           and n.endswith(side_suffix)
-                          and 'dupli' in n]
+                          and 'dupli' in n
+                          and 'bank' not in n and 'heel' not in n]
             if candidates:
                 candidates.sort(key=lambda x: ref_bones[x]['depth'])
                 front_leg.append(candidates[0])
@@ -1132,12 +1198,48 @@ def discover_arp_ref_chains(arp_obj):
             front_leg.sort(key=lambda x: ref_bones[x]['depth'])
             result[f'front_leg_{side_key}'] = front_leg
 
+        # 앞발
+        front_foot = []
+        for prefix in FOOT_PREFIXES:
+            candidates = [n for n in all_names
+                          if n.startswith(prefix)
+                          and '_ref' in n
+                          and n.endswith(side_suffix)
+                          and 'dupli' in n
+                          and 'bank' not in n and 'heel' not in n]
+            if candidates:
+                candidates.sort(key=lambda x: ref_bones[x]['depth'])
+                front_foot.append(candidates[0])
+        if front_foot:
+            front_foot.sort(key=lambda x: ref_bones[x]['depth'])
+            result[f'front_foot_{side_key}'] = front_foot
+
+        # 앞발 보조 (bank/heel)
+        for aux_prefix in FOOT_AUX_PREFIXES:
+            aux_key = aux_prefix.replace('foot_', '')
+            candidates = [n for n in all_names
+                          if n.startswith(aux_prefix)
+                          and '_ref' in n
+                          and n.endswith(side_suffix)
+                          and 'dupli' in n]
+            if candidates:
+                result[f'front_{aux_key}_{side_key}'] = candidates
+
+    # --- Ear ---
+    for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
+        ear_candidates = sorted([n for n in all_names
+                                  if 'ear' in n and '_ref' in n
+                                  and n.endswith(side_suffix)],
+                                 key=lambda x: ref_bones[x]['depth'])
+        if ear_candidates:
+            result[f'ear_{side_key}'] = ear_candidates
+
     # 디버그 로그
     print("=" * 55)
     print("  ARP ref 본 자동 검색 결과")
     print("=" * 55)
     for role, bones in result.items():
-        print(f"  {role:16s}: {' → '.join(bones)}")
+        print(f"  {role:20s}: {' → '.join(bones)}")
     print(f"  총 ref 본 수: {len(ref_bones)}")
     print("=" * 55)
 
@@ -1148,6 +1250,7 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
     """
     Preview 역할 + ARP 실제 ref 본을 매칭하여 최종 매핑 생성.
     하드코딩 이름 대신 동적 검색 결과를 사용.
+    bank/heel 가이드 본도 포함.
 
     Args:
         preview_obj: Preview Armature 오브젝트
@@ -1161,13 +1264,26 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
 
     mapping = {}
 
+    print("=" * 55)
+    print("  Preview → ARP ref 매핑")
+    print("=" * 55)
+
     for role, preview_bones in roles.items():
         if role in ('face', 'unmapped'):
             continue
 
         target_refs = arp_chains.get(role, [])
         if not target_refs:
-            print(f"  [WARN] 역할 '{role}'에 대응하는 ARP ref 체인 없음")
+            # bank/heel 가이드는 역할 이름이 'back_heel_l' 등으로 되어있음
+            # 이름에 _heel 또는 _bank 접미사가 붙은 본은 1:1 매핑
+            if 'heel' in role or 'bank' in role:
+                # 가이드 본 1:1 매핑 (preview 본 1개 → ARP ref 1개)
+                if len(preview_bones) == 1 and len(target_refs) == 0:
+                    # discover_arp_ref_chains에서 검색된 것 확인
+                    pass
+                print(f"  [WARN] 가이드 '{role}'에 대응하는 ARP ref 없음 (match_to_rig에서 처리)")
+            else:
+                print(f"  [WARN] 역할 '{role}'에 대응하는 ARP ref 체인 없음")
             continue
 
         # 체인 길이 매칭
@@ -1176,6 +1292,7 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
 
         # 매칭 로그
         for src, ref in chain_mapping.items():
-            print(f"  {src:20s} → {ref}")
+            print(f"  {src:25s} → {ref}")
 
+    print("=" * 55)
     return mapping

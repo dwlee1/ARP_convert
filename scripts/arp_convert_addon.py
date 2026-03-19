@@ -75,10 +75,16 @@ ROLE_ITEMS = [
     ('head', "Head", "머리"),
     ('back_leg_l', "Back Leg L", "뒷다리 좌"),
     ('back_leg_r', "Back Leg R", "뒷다리 우"),
+    ('back_foot_l', "Back Foot L", "뒷발 좌"),
+    ('back_foot_r', "Back Foot R", "뒷발 우"),
     ('front_leg_l', "Front Leg L", "앞다리 좌"),
     ('front_leg_r', "Front Leg R", "앞다리 우"),
+    ('front_foot_l', "Front Foot L", "앞발 좌"),
+    ('front_foot_r', "Front Foot R", "앞발 우"),
+    ('ear_l', "Ear L", "귀 좌"),
+    ('ear_r', "Ear R", "귀 우"),
     ('tail', "Tail", "꼬리"),
-    ('face', "Face (cc_)", "얼굴 커스텀 본"),
+    ('face', "Face (cc_)", "얼굴 커스텀 본 (eye, jaw, mouth, tongue)"),
     ('unmapped', "Unmapped", "미매핑"),
 ]
 
@@ -195,6 +201,16 @@ class ARPCONV_OT_CreatePreview(Operator):
 # 오퍼레이터: 역할 변경
 # ═══════════════════════════════════════════════════════════════
 
+FOOT_ROLES = {'back_foot_l', 'back_foot_r', 'front_foot_l', 'front_foot_r'}
+# bank/heel 가이드 본 접미사
+GUIDE_SUFFIX_HEEL = "_heel"
+GUIDE_SUFFIX_BANK = "_bank"
+# 기본 오프셋 (foot 본 head 기준, 로컬 좌표)
+HEEL_OFFSET_Z = -0.02    # 바닥 방향
+HEEL_OFFSET_Y = -0.01    # 뒤쪽
+BANK_OFFSET_X = 0.015    # 좌우
+
+
 class ARPCONV_OT_SetRole(Operator):
     """선택된 본의 역할을 변경"""
     bl_idname = "arp_convert.set_role"
@@ -214,11 +230,12 @@ class ARPCONV_OT_SetRole(Operator):
 
         # 선택된 본에 역할 적용
         changed = 0
+        foot_bones = []  # foot 역할로 변경된 본 이름 수집
+
         if context.mode == 'POSE':
             selected = context.selected_pose_bones
         else:
             selected = []
-            # Edit/Object 모드에서도 선택 반영
             for bone in preview_obj.data.bones:
                 if bone.select:
                     pbone = preview_obj.pose.bones.get(bone.name)
@@ -234,11 +251,113 @@ class ARPCONV_OT_SetRole(Operator):
             pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
             changed += 1
 
+            if self.role in FOOT_ROLES:
+                foot_bones.append(pbone.name)
+
         if changed == 0:
             self.report({'WARNING'}, "본이 선택되지 않았습니다.")
+            return {'FINISHED'}
+
+        # foot 역할이면 bank/heel 가이드 본 자동 생성
+        if foot_bones:
+            guide_count = self._create_foot_guides(
+                context, preview_obj, foot_bones, self.role)
+            self.report({'INFO'},
+                f"{changed}개 본 → {self.role} + 가이드 {guide_count}개 생성")
         else:
             self.report({'INFO'}, f"{changed}개 본 → {self.role}")
+
         return {'FINISHED'}
+
+    def _create_foot_guides(self, context, preview_obj, foot_bone_names, role):
+        """
+        foot 역할 본에 대해 heel/bank 가이드 본을 Preview에 자동 생성.
+        가이드 본은 foot 본의 head 기준 오프셋 위치에 생성.
+        """
+        from skeleton_analyzer import ROLE_COLORS, ROLE_PROP_KEY
+        from mathutils import Vector
+
+        # 현재 모드 저장 + Edit Mode 진입
+        prev_mode = context.mode
+        if prev_mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        bpy.ops.object.select_all(action='DESELECT')
+        preview_obj.select_set(True)
+        context.view_layer.objects.active = preview_obj
+        bpy.ops.object.mode_set(mode='EDIT')
+
+        edit_bones = preview_obj.data.edit_bones
+        created = 0
+
+        # 역할에서 side 추출 (back_foot_l → l)
+        side = role.rsplit('_', 1)[-1]  # 'l' or 'r'
+        # 역할에서 front/back 추출
+        prefix = role.rsplit('_', 2)[0]  # 'back_foot' or 'front_foot'
+        prefix_short = prefix.replace('_foot', '')  # 'back' or 'front'
+
+        for foot_name in foot_bone_names:
+            foot_eb = edit_bones.get(foot_name)
+            if foot_eb is None:
+                continue
+
+            foot_head = foot_eb.head.copy()
+
+            # --- Heel 가이드 ---
+            heel_name = f"{foot_name}{GUIDE_SUFFIX_HEEL}"
+            # 기존 가이드 제거 후 재생성
+            old_heel = edit_bones.get(heel_name)
+            if old_heel:
+                edit_bones.remove(old_heel)
+
+            heel_eb = edit_bones.new(heel_name)
+            heel_eb.head = foot_head + Vector((0, HEEL_OFFSET_Y, HEEL_OFFSET_Z))
+            heel_eb.tail = heel_eb.head + Vector((0, 0, 0.005))
+            heel_eb.use_deform = False
+            heel_eb.parent = foot_eb
+            created += 1
+
+            # --- Bank 가이드 ---
+            bank_name = f"{foot_name}{GUIDE_SUFFIX_BANK}"
+            old_bank = edit_bones.get(bank_name)
+            if old_bank:
+                edit_bones.remove(old_bank)
+
+            bank_x = BANK_OFFSET_X if side == 'l' else -BANK_OFFSET_X
+            bank_eb = edit_bones.new(bank_name)
+            bank_eb.head = foot_head + Vector((bank_x, 0, HEEL_OFFSET_Z))
+            bank_eb.tail = bank_eb.head + Vector((0, 0, 0.005))
+            bank_eb.use_deform = False
+            bank_eb.parent = foot_eb
+            created += 1
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 가이드 본에 역할 프로퍼티 설정 (Pose Mode)
+        bpy.ops.object.mode_set(mode='POSE')
+        guide_color = (0.9, 0.9, 0.0)  # 가이드는 밝은 노랑
+
+        for foot_name in foot_bone_names:
+            for suffix, guide_role in [
+                (GUIDE_SUFFIX_HEEL, f'{prefix_short}_heel_{side}'),
+                (GUIDE_SUFFIX_BANK, f'{prefix_short}_bank_{side}'),
+            ]:
+                guide_name = f"{foot_name}{suffix}"
+                pbone = preview_obj.pose.bones.get(guide_name)
+                if pbone:
+                    pbone[ROLE_PROP_KEY] = guide_role
+                    pbone.color.palette = 'CUSTOM'
+                    pbone.color.custom.normal = guide_color
+                    pbone.color.custom.select = (1.0, 1.0, 0.3)
+                    pbone.color.custom.active = (1.0, 1.0, 0.5)
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 원래 모드로 복귀
+        if prev_mode == 'POSE':
+            bpy.ops.object.mode_set(mode='POSE')
+
+        return created
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -569,12 +688,46 @@ class ARPCONV_PT_MainPanel(Panel):
         box.label(text="Step 2: 역할 수정", icon='BONE_DATA')
         box.label(text="본 선택 후 역할을 변경하세요:")
 
-        # 역할 버튼 그리드
-        col = box.column(align=True)
-        grid = col.grid_flow(columns=2, align=True)
-        for role_id, role_name, role_desc in ROLE_ITEMS:
-            op = grid.operator("arp_convert.set_role", text=role_name)
+        # 역할 버튼 — 카테고리별 정리
+        # Body
+        sub = box.column(align=True)
+        sub.label(text="Body:")
+        grid = sub.grid_flow(columns=3, align=True)
+        for role_id in ['root', 'spine', 'neck', 'head', 'tail']:
+            op = grid.operator("arp_convert.set_role", text=role_id.capitalize())
             op.role = role_id
+
+        # Legs
+        sub = box.column(align=True)
+        sub.label(text="Legs:")
+        grid = sub.grid_flow(columns=2, align=True)
+        for role_id in ['back_leg_l', 'back_leg_r', 'front_leg_l', 'front_leg_r']:
+            label = role_id.replace('_', ' ').title().replace('Back Leg', 'BLeg').replace('Front Leg', 'FLeg')
+            op = grid.operator("arp_convert.set_role", text=label)
+            op.role = role_id
+
+        # Feet (★)
+        sub = box.column(align=True)
+        sub.label(text="Feet (★ bank/heel 자동 생성):")
+        grid = sub.grid_flow(columns=2, align=True)
+        for role_id in ['back_foot_l', 'back_foot_r', 'front_foot_l', 'front_foot_r']:
+            label = role_id.replace('_', ' ').title().replace('Back Foot', 'BFoot').replace('Front Foot', 'FFoot')
+            op = grid.operator("arp_convert.set_role", text=label)
+            op.role = role_id
+
+        # Head features
+        sub = box.column(align=True)
+        sub.label(text="Head:")
+        grid = sub.grid_flow(columns=3, align=True)
+        for role_id in ['ear_l', 'ear_r', 'face']:
+            label = {'ear_l': 'Ear L', 'ear_r': 'Ear R', 'face': 'Face(cc_)'}[role_id]
+            op = grid.operator("arp_convert.set_role", text=label)
+            op.role = role_id
+
+        # Unmapped
+        row = box.row()
+        op = row.operator("arp_convert.set_role", text="Unmapped")
+        op.role = 'unmapped'
 
         # 현재 선택된 본의 역할 표시
         if context.active_object and context.active_object.type == 'ARMATURE':
