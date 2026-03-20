@@ -33,19 +33,25 @@ MAX_EAR_CHAIN_LENGTH = 3
 # 얼굴 본 키워드 (cc_ 커스텀 본으로 분류)
 FACE_BONE_KEYWORDS = ["eye", "ear", "jaw", "mouth", "tongue"]
 
-# ARP dog 프리셋 ref 본 구조 (3-bone leg, 고정)
+# ARP dog 프리셋 ref 본 구조
 ARP_REF_MAP = {
     "root":        ["root_ref.x"],
     "spine":       ["spine_01_ref.x", "spine_02_ref.x", "spine_03_ref.x"],
     "neck":        ["neck_ref.x"],
     "head":        ["head_ref.x"],
-    "back_leg_l":  ["thigh_b_ref.l", "thigh_ref.l", "leg_ref.l", "foot_ref.l"],
-    "back_leg_r":  ["thigh_b_ref.r", "thigh_ref.r", "leg_ref.r", "foot_ref.r"],
+    "back_leg_l":  ["thigh_b_ref.l", "thigh_ref.l", "leg_ref.l"],
+    "back_leg_r":  ["thigh_b_ref.r", "thigh_ref.r", "leg_ref.r"],
+    "back_foot_l": ["foot_ref.l", "toes_ref.l"],
+    "back_foot_r": ["foot_ref.r", "toes_ref.r"],
     "front_leg_l": ["thigh_b_ref_dupli_001.l", "thigh_ref_dupli_001.l",
-                    "leg_ref_dupli_001.l", "foot_ref_dupli_001.l"],
+                    "leg_ref_dupli_001.l"],
     "front_leg_r": ["thigh_b_ref_dupli_001.r", "thigh_ref_dupli_001.r",
-                    "leg_ref_dupli_001.r", "foot_ref_dupli_001.r"],
+                    "leg_ref_dupli_001.r"],
+    "front_foot_l": ["foot_ref_dupli_001.l", "toes_ref_dupli_001.l"],
+    "front_foot_r": ["foot_ref_dupli_001.r", "toes_ref_dupli_001.r"],
     "tail":        ["tail_00_ref.x", "tail_01_ref.x", "tail_02_ref.x", "tail_03_ref.x"],
+    "ear_l":       ["ear_01_ref.l", "ear_02_ref.l"],
+    "ear_r":       ["ear_01_ref.r", "ear_02_ref.r"],
 }
 
 # ARP 컨트롤러 본 매핑 (.bmap용)
@@ -54,11 +60,17 @@ ARP_CTRL_MAP = {
     "spine":       ["c_spine_01.x", "c_spine_02.x", "c_spine_03.x"],
     "neck":        ["c_neck.x"],
     "head":        ["c_head.x"],
-    "back_leg_l":  ["c_thigh_fk.l", "c_leg_fk.l", "c_foot_fk.l", "c_toes.l"],
-    "back_leg_r":  ["c_thigh_fk.r", "c_leg_fk.r", "c_foot_fk.r", "c_toes.r"],
-    "front_leg_l": ["c_shoulder.l", "c_arm_fk.l", "c_forearm_fk.l", "c_hand_fk.l"],
-    "front_leg_r": ["c_shoulder.r", "c_arm_fk.r", "c_forearm_fk.r", "c_hand_fk.r"],
+    "back_leg_l":  ["c_thigh_fk.l", "c_leg_fk.l", "c_foot_fk.l"],
+    "back_leg_r":  ["c_thigh_fk.r", "c_leg_fk.r", "c_foot_fk.r"],
+    "back_foot_l": ["c_toes.l"],
+    "back_foot_r": ["c_toes.r"],
+    "front_leg_l": ["c_shoulder.l", "c_arm_fk.l", "c_forearm_fk.l"],
+    "front_leg_r": ["c_shoulder.r", "c_arm_fk.r", "c_forearm_fk.r"],
+    "front_foot_l": ["c_hand_fk.l"],
+    "front_foot_r": ["c_hand_fk.r"],
     "tail":        ["c_tail_00.x", "c_tail_01.x", "c_tail_02.x", "c_tail_03.x"],
+    "ear_l":       ["c_ear_01.l", "c_ear_02.l"],
+    "ear_r":       ["c_ear_01.r", "c_ear_02.r"],
 }
 
 
@@ -677,6 +689,27 @@ def match_chain_lengths(source_bones, target_refs):
     return mapping
 
 
+def map_role_chain(role, source_bones, target_bones):
+    """
+    역할별 체인 매핑.
+
+    BuildRig는 leg/foot를 분리해서 해석하므로, Remap도 같은 의미를 유지해야 한다.
+    특히 target이 1개인 역할(back_foot/front_foot 등)은 source가 여러 본이어도
+    대표 본 1개만 사용해 중복 target 엔트리가 생기지 않도록 한다.
+    foot 역할은 마지막 본을 대표로 써야 2본 체인에서는 toe 쪽, 1본 체인에서는
+    foot 본 자체가 Remap 컨트롤에 연결된다.
+    """
+    if not source_bones or not target_bones:
+        return {}
+
+    if len(target_bones) == 1:
+        if role.startswith('back_foot') or role.startswith('front_foot'):
+            return {source_bones[-1]: target_bones[0]}
+        return {source_bones[0]: target_bones[0]}
+
+    return match_chain_lengths(source_bones, target_bones)
+
+
 # ═══════════════════════════════════════════════════════════════
 # ARP 매핑 생성
 # ═══════════════════════════════════════════════════════════════
@@ -703,7 +736,7 @@ def generate_arp_mapping(analysis):
         if not target_refs:
             continue
 
-        chain_mapping = match_chain_lengths(source_bones, target_refs)
+        chain_mapping = map_role_chain(role, source_bones, target_refs)
         deform_to_ref.update(chain_mapping)
 
     return {
@@ -737,7 +770,7 @@ def generate_bmap_content(analysis):
         if not ctrl_bones:
             continue
 
-        mapping = match_chain_lengths(source_bones, ctrl_bones)
+        mapping = map_role_chain(role, source_bones, ctrl_bones)
 
         for src_bone, ctrl_bone in mapping.items():
             is_root = (role == 'root')
@@ -749,11 +782,15 @@ def generate_bmap_content(analysis):
             lines.append("False")
             lines.append("")
 
-    # 얼굴 cc_ 본 매핑 추가
-    for face_bone in analysis.get('face_bones', []):
-        cc_name = f"cc_{face_bone.lower()}"
+    # 얼굴 / unmapped cc_ 본 매핑 추가
+    custom_bones = []
+    custom_bones.extend(analysis.get('face_bones', []))
+    custom_bones.extend(analysis.get('unmapped', []))
+
+    for custom_bone in custom_bones:
+        cc_name = f"cc_{custom_bone.lower()}"
         lines.append(f"{cc_name}%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%")
-        lines.append(face_bone)
+        lines.append(custom_bone)
         lines.append("False")
         lines.append("False")
         lines.append("")
@@ -832,7 +869,7 @@ def load_auto_mapping(input_dir):
             source_bones = chain_info.get('bones', [])
             target_refs = ARP_REF_MAP.get(role, [])
             if target_refs:
-                chain_mapping = match_chain_lengths(source_bones, target_refs)
+                chain_mapping = map_role_chain(role, source_bones, target_refs)
                 deform_to_ref.update(chain_mapping)
         data['deform_to_ref'] = deform_to_ref
 
@@ -866,6 +903,8 @@ ROLE_COLORS = {
 
 # 역할 커스텀 프로퍼티 키
 ROLE_PROP_KEY = "arp_role"
+VIRTUAL_NECK_BONE = "__virtual_neck__"
+VIRTUAL_NECK_RATIO = 0.35
 
 
 def create_preview_armature(source_obj, analysis):
@@ -951,6 +990,38 @@ def create_preview_armature(source_obj, analysis):
             if (ebone.head - parent_ebone.tail).length < 0.001:
                 ebone.use_connect = True
 
+    # neck 역할이 없고 head가 spine 끝에 바로 붙어 있으면 preview에서 virtual neck 생성
+    has_neck_chain = bool(chains.get('neck', {}).get('bones'))
+    head_chain = chains.get('head', {}).get('bones', [])
+    spine_chain = chains.get('spine', {}).get('bones', [])
+    if (not has_neck_chain) and head_chain and spine_chain:
+        head_name = head_chain[0]
+        head_ebone = created_bones.get(head_name)
+        if head_ebone and head_ebone.parent:
+            original_head = head_ebone.head.copy()
+            original_tail = head_ebone.tail.copy()
+            head_vector = original_tail - original_head
+
+            if head_vector.length > 0.001:
+                split_point = original_head.lerp(original_tail, VIRTUAL_NECK_RATIO)
+                parent_ebone = head_ebone.parent
+                original_connect = head_ebone.use_connect
+
+                neck_ebone = edit_bones.new(VIRTUAL_NECK_BONE)
+                neck_ebone.head = original_head
+                neck_ebone.tail = split_point
+                neck_ebone.roll = head_ebone.roll
+                neck_ebone.use_deform = True
+                neck_ebone.parent = parent_ebone
+                neck_ebone.use_connect = original_connect
+
+                head_ebone.head = split_point
+                head_ebone.parent = neck_ebone
+                head_ebone.use_connect = True
+
+                created_bones[VIRTUAL_NECK_BONE] = neck_ebone
+                bone_to_role[VIRTUAL_NECK_BONE] = 'neck'
+
     bpy.ops.object.mode_set(mode='OBJECT')
 
     # 본 그룹 + 색상 설정 (Pose Mode에서)
@@ -963,7 +1034,7 @@ def create_preview_armature(source_obj, analysis):
         pass  # 아래에서 개별 본에 색상 직접 설정
 
     # 각 본에 역할 커스텀 프로퍼티 + 색상 설정
-    for bone_name in bone_data:
+    for bone_name in created_bones:
         pbone = preview_obj.pose.bones.get(bone_name)
         if pbone is None:
             continue

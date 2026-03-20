@@ -19,9 +19,12 @@ bl_info = {
 }
 
 import bpy
+import json
 import os
 import sys
+import time
 import traceback
+from mathutils import Vector
 from bpy.props import (
     StringProperty, FloatProperty, IntProperty,
     BoolProperty, EnumProperty, PointerProperty,
@@ -64,6 +67,221 @@ def _reload_modules():
             importlib.reload(sys.modules[mod_name])
 
 
+def _make_cc_bone_name(source_bone_name):
+    """source 본 이름을 Remap 규칙과 맞는 cc_ 이름으로 변환."""
+    return f"cc_{source_bone_name.lower()}"
+
+
+def _find_cc_parent_name(source_bone_name, preview_obj, custom_bone_names, deform_to_ref):
+    """
+    custom 체인 내부 부모가 있으면 해당 cc_ 본에 연결.
+    아니면 이미 매핑된 ARP ref 부모를 사용하고, 마지막 fallback은 root/head ref다.
+    """
+    preview_bone = preview_obj.data.bones.get(source_bone_name)
+    if preview_bone and preview_bone.parent:
+        parent_name = preview_bone.parent.name
+        if parent_name in custom_bone_names:
+            return _make_cc_bone_name(parent_name)
+        if parent_name in deform_to_ref:
+            return deform_to_ref[parent_name]
+        if "head" in parent_name.lower() or "jaw" in parent_name.lower() or "eye" in parent_name.lower():
+            return "head_ref.x"
+    return "root_ref.x"
+
+
+def _ensure_nonzero_bone_length(local_head, local_tail):
+    """길이가 0에 가까운 본은 미세 오프셋을 줘서 Blender 오류를 피한다."""
+    if (local_tail - local_head).length >= 0.0001:
+        return local_tail
+
+    offset = Vector((0.0, 0.01, 0.0))
+    if local_head.length > 0.0001:
+        offset = local_head.normalized() * 0.01
+    return local_head + offset
+
+
+def _create_cc_bones_from_preview(
+    arp_obj,
+    preview_obj,
+    preview_positions,
+    custom_bone_names,
+    deform_to_ref,
+    log,
+):
+    """
+    Preview의 face 역할 본을 기반으로 cc_ 본을 직접 생성한다.
+    ARP add_custom_bone 오퍼레이터 호출 의존성을 줄여 안정성을 확보하는 경로다.
+    """
+    if not custom_bone_names:
+        return 0
+
+    bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = arp_obj.data.edit_bones
+    arp_matrix_inv = arp_obj.matrix_world.inverted()
+
+    created = 0
+    ordered_custom_bones = []
+    pending = set(custom_bone_names)
+
+    # 부모가 먼저 생성되도록 간단한 위상 순서를 만든다.
+    while pending:
+        progressed = False
+        for bone_name in list(pending):
+            preview_bone = preview_obj.data.bones.get(bone_name)
+            parent_name = preview_bone.parent.name if preview_bone and preview_bone.parent else None
+            if parent_name not in pending:
+                ordered_custom_bones.append(bone_name)
+                pending.remove(bone_name)
+                progressed = True
+        if not progressed:
+            ordered_custom_bones.extend(sorted(pending))
+            break
+
+    for bone_name in ordered_custom_bones:
+        if bone_name not in preview_positions:
+            log(f"  cc_ 생성 스킵 ({bone_name}): Preview 위치 없음", "WARN")
+            continue
+
+        cc_name = _make_cc_bone_name(bone_name)
+        if edit_bones.get(cc_name):
+            log(f"  cc_ 이미 존재: {cc_name}")
+            continue
+
+        world_head, world_tail, roll = preview_positions[bone_name]
+        local_head = arp_matrix_inv @ world_head
+        local_tail = arp_matrix_inv @ world_tail
+        local_tail = _ensure_nonzero_bone_length(local_head, local_tail)
+
+        new_eb = edit_bones.new(cc_name)
+        new_eb.head = local_head
+        new_eb.tail = local_tail
+        new_eb.roll = roll
+        new_eb.use_connect = False
+
+        parent_name = _find_cc_parent_name(
+            bone_name,
+            preview_obj,
+            set(custom_bone_names),
+            deform_to_ref,
+        )
+        parent_eb = edit_bones.get(parent_name)
+        if parent_eb:
+            new_eb.parent = parent_eb
+        else:
+            log(f"  cc_ 부모 없음 ({cc_name}): {parent_name}", "WARN")
+
+        created += 1
+        log(f"  cc_ 생성: {bone_name} -> {cc_name} (parent={parent_name})")
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # bone.use_deform은 Object Mode에서만 설정 가능
+    for bone_name in ordered_custom_bones:
+        cc_name = _make_cc_bone_name(bone_name)
+        bone = arp_obj.data.bones.get(cc_name)
+        if bone:
+            bone.use_deform = False
+
+    return created
+
+
+SUPPORTED_CUSTOM_CONSTRAINTS = {
+    'COPY_ROTATION',
+    'COPY_LOCATION',
+    'COPY_SCALE',
+    'DAMPED_TRACK',
+    'LIMIT_ROTATION',
+}
+
+
+def _map_source_bone_to_target_bone(source_bone_name, custom_bone_names, deform_to_ref):
+    if source_bone_name in custom_bone_names:
+        return _make_cc_bone_name(source_bone_name)
+    return deform_to_ref.get(source_bone_name)
+
+
+def _copy_constraint_settings(src_constraint, dst_constraint):
+    common_props = [
+        'name', 'mute', 'influence',
+        'owner_space', 'target_space',
+        'mix_mode',
+        'use_x', 'use_y', 'use_z',
+        'invert_x', 'invert_y', 'invert_z',
+        'use_offset',
+        'head_tail',
+        'track_axis',
+        'up_axis',
+        'use_limit_x', 'use_limit_y', 'use_limit_z',
+        'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z',
+        'use_transform_limit',
+    ]
+
+    for prop_name in common_props:
+        if hasattr(src_constraint, prop_name) and hasattr(dst_constraint, prop_name):
+            try:
+                setattr(dst_constraint, prop_name, getattr(src_constraint, prop_name))
+            except Exception:
+                pass
+
+
+def _copy_custom_bone_constraints(
+    source_obj,
+    arp_obj,
+    custom_bone_names,
+    deform_to_ref,
+    log,
+):
+    """
+    source custom bone(face/unmapped) 제약 조건을 ARP의 cc_ 본으로 복제한다.
+    """
+    if not custom_bone_names:
+        return 0
+
+    created = 0
+    source_custom_bones = set(custom_bone_names)
+
+    bpy.ops.object.mode_set(mode='POSE')
+    src_pose_bones = source_obj.pose.bones
+    dst_pose_bones = arp_obj.pose.bones
+
+    for source_bone_name in custom_bone_names:
+        src_pbone = src_pose_bones.get(source_bone_name)
+        dst_pbone = dst_pose_bones.get(_make_cc_bone_name(source_bone_name))
+        if src_pbone is None or dst_pbone is None:
+            continue
+
+        for src_constraint in src_pbone.constraints:
+            if src_constraint.type not in SUPPORTED_CUSTOM_CONSTRAINTS:
+                continue
+
+            try:
+                dst_constraint = dst_pbone.constraints.new(src_constraint.type)
+                _copy_constraint_settings(src_constraint, dst_constraint)
+
+                if hasattr(src_constraint, 'target') and hasattr(dst_constraint, 'target'):
+                    target_obj = src_constraint.target
+                    if target_obj == source_obj:
+                        dst_constraint.target = arp_obj
+                    else:
+                        dst_constraint.target = target_obj
+
+                if hasattr(src_constraint, 'subtarget') and hasattr(dst_constraint, 'subtarget'):
+                    mapped_subtarget = _map_source_bone_to_target_bone(
+                        src_constraint.subtarget,
+                        source_custom_bones,
+                        deform_to_ref,
+                    )
+                    dst_constraint.subtarget = mapped_subtarget or src_constraint.subtarget
+
+                created += 1
+                log(f"  constraint 복제: {source_bone_name} / {src_constraint.type}")
+            except Exception as e:
+                log(f"  constraint 복제 실패 ({source_bone_name}, {src_constraint.type}): {e}", "WARN")
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return created
+
+
 # ═══════════════════════════════════════════════════════════════
 # 역할 드롭다운
 # ═══════════════════════════════════════════════════════════════
@@ -87,6 +305,7 @@ ROLE_ITEMS = [
     ('face', "Face (cc_)", "얼굴 커스텀 본 (eye, jaw, mouth, tongue)"),
     ('unmapped', "Unmapped", "미매핑"),
 ]
+ROLE_IDS = {item[0] for item in ROLE_ITEMS}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -99,6 +318,20 @@ class ARPCONV_Props(PropertyGroup):
     source_armature: StringProperty(name="소스 Armature", default="")
     is_analyzed: BoolProperty(name="분석 완료", default=False)
     confidence: FloatProperty(name="신뢰도", default=0.0)
+    regression_fixture: StringProperty(
+        name="Fixture JSON",
+        default="",
+        subtype='FILE_PATH',
+    )
+    regression_report_dir: StringProperty(
+        name="Report Dir",
+        default="",
+        subtype='DIR_PATH',
+    )
+    regression_run_retarget: BoolProperty(
+        name="Retarget 포함",
+        default=True,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -209,6 +442,280 @@ GUIDE_SUFFIX_BANK = "_bank"
 HEEL_OFFSET_Z = -0.02    # 바닥 방향
 HEEL_OFFSET_Y = -0.01    # 뒤쪽
 BANK_OFFSET_X = 0.015    # 좌우
+GUIDE_DEFAULT_TOLERANCE = 0.002
+AUTO_HEEL_BACK_RATIO = 0.18
+AUTO_HEEL_DOWN_RATIO = 0.08
+AUTO_BANK_SIDE_RATIO = 0.14
+AUTO_BANK_DOWN_RATIO = 0.04
+AUTO_GUIDE_MAX_OFFSET = 0.03
+
+
+def _set_preview_pose_bone_role(pbone, role, role_colors, role_prop_key):
+    color = role_colors.get(role, role_colors['unmapped'])
+    pbone[role_prop_key] = role
+    pbone.color.palette = 'CUSTOM'
+    pbone.color.custom.normal = color
+    pbone.color.custom.select = tuple(min(c + 0.3, 1.0) for c in color)
+    pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
+
+
+def _create_foot_guides_for_role(context, preview_obj, foot_bone_names, role, role_prop_key):
+    """
+    foot 역할 본에 대해 heel/bank 가이드 본을 Preview에 자동 생성.
+    SetRole 오퍼레이터와 회귀 테스트 러너에서 공통 사용한다.
+    """
+    prev_mode = context.mode
+    if prev_mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    bpy.ops.object.select_all(action='DESELECT')
+    preview_obj.select_set(True)
+    context.view_layer.objects.active = preview_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    edit_bones = preview_obj.data.edit_bones
+    created = 0
+
+    side = role.rsplit('_', 1)[-1]
+    prefix = role.rsplit('_', 2)[0]
+    prefix_short = prefix.replace('_foot', '')
+
+    for foot_name in foot_bone_names:
+        foot_eb = edit_bones.get(foot_name)
+        if foot_eb is None:
+            continue
+
+        foot_head = foot_eb.head.copy()
+
+        heel_name = f"{foot_name}{GUIDE_SUFFIX_HEEL}"
+        old_heel = edit_bones.get(heel_name)
+        if old_heel:
+            edit_bones.remove(old_heel)
+
+        heel_eb = edit_bones.new(heel_name)
+        heel_eb.head = foot_head + Vector((0, HEEL_OFFSET_Y, HEEL_OFFSET_Z))
+        heel_eb.tail = heel_eb.head + Vector((0, 0, 0.005))
+        heel_eb.use_deform = False
+        heel_eb.parent = foot_eb
+        created += 1
+
+        bank_name = f"{foot_name}{GUIDE_SUFFIX_BANK}"
+        old_bank = edit_bones.get(bank_name)
+        if old_bank:
+            edit_bones.remove(old_bank)
+
+        bank_x = BANK_OFFSET_X if side == 'l' else -BANK_OFFSET_X
+        bank_eb = edit_bones.new(bank_name)
+        bank_eb.head = foot_head + Vector((bank_x, 0, HEEL_OFFSET_Z))
+        bank_eb.tail = bank_eb.head + Vector((0, 0, 0.005))
+        bank_eb.use_deform = False
+        bank_eb.parent = foot_eb
+        created += 1
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode='POSE')
+    guide_color = (0.9, 0.9, 0.0)
+
+    for foot_name in foot_bone_names:
+        for suffix, guide_role in [
+            (GUIDE_SUFFIX_HEEL, f'{prefix_short}_heel_{side}'),
+            (GUIDE_SUFFIX_BANK, f'{prefix_short}_bank_{side}'),
+        ]:
+            guide_name = f"{foot_name}{suffix}"
+            pbone = preview_obj.pose.bones.get(guide_name)
+            if pbone:
+                pbone[role_prop_key] = guide_role
+                pbone.color.palette = 'CUSTOM'
+                pbone.color.custom.normal = guide_color
+                pbone.color.custom.select = (1.0, 1.0, 0.3)
+                pbone.color.custom.active = (1.0, 1.0, 0.5)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    if prev_mode == 'POSE':
+        bpy.ops.object.mode_set(mode='POSE')
+
+    return created
+
+
+def _resolve_project_root():
+    script_dir = _ensure_scripts_path() or os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(script_dir)
+
+
+def _resolve_regression_path(raw_path):
+    if not raw_path:
+        return ""
+    if os.path.isabs(raw_path):
+        return raw_path
+    return os.path.normpath(os.path.join(_resolve_project_root(), raw_path))
+
+
+def _default_regression_report_dir():
+    return os.path.join(_resolve_project_root(), "regression_reports")
+
+
+def _load_regression_fixture(fixture_path):
+    resolved_path = _resolve_regression_path(fixture_path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        raise FileNotFoundError(f"Fixture JSON 미발견: {resolved_path or fixture_path}")
+
+    with open(resolved_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    roles = data.get('roles')
+    if not isinstance(roles, dict):
+        raise ValueError("Fixture JSON에는 'roles' 객체가 필요합니다.")
+
+    normalized_roles = {}
+    for role, bone_names in roles.items():
+        if role not in ROLE_IDS:
+            raise ValueError(f"지원하지 않는 role: {role}")
+        if not isinstance(bone_names, list) or not all(isinstance(name, str) for name in bone_names):
+            raise ValueError(f"role '{role}'의 값은 문자열 리스트여야 합니다.")
+        normalized_roles[role] = bone_names
+
+    apply_mode = str(data.get('apply_mode', 'replace')).lower()
+    if apply_mode not in {'replace', 'overlay'}:
+        raise ValueError("apply_mode는 'replace' 또는 'overlay'여야 합니다.")
+
+    return {
+        'path': resolved_path,
+        'description': data.get('description', ''),
+        'apply_mode': apply_mode,
+        'roles': normalized_roles,
+        'run_retarget': bool(data.get('run_retarget', True)),
+    }
+
+
+def _apply_fixture_roles(context, preview_obj, fixture_data):
+    from skeleton_analyzer import ROLE_COLORS, ROLE_PROP_KEY
+
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    bpy.ops.object.select_all(action='DESELECT')
+    preview_obj.select_set(True)
+    context.view_layer.objects.active = preview_obj
+    bpy.ops.object.mode_set(mode='POSE')
+
+    if fixture_data['apply_mode'] == 'replace':
+        for pbone in preview_obj.pose.bones:
+            _set_preview_pose_bone_role(pbone, 'unmapped', ROLE_COLORS, ROLE_PROP_KEY)
+
+    assigned = {}
+    duplicate_bones = []
+    missing_bones = []
+    foot_roles = {}
+
+    for role, bone_names in fixture_data['roles'].items():
+        for bone_name in bone_names:
+            pbone = preview_obj.pose.bones.get(bone_name)
+            if pbone is None:
+                missing_bones.append(bone_name)
+                continue
+
+            previous_role = assigned.get(bone_name)
+            if previous_role and previous_role != role:
+                duplicate_bones.append({
+                    'bone': bone_name,
+                    'previous_role': previous_role,
+                    'new_role': role,
+                })
+
+            _set_preview_pose_bone_role(pbone, role, ROLE_COLORS, ROLE_PROP_KEY)
+            assigned[bone_name] = role
+
+            if role in FOOT_ROLES:
+                foot_roles.setdefault(role, []).append(bone_name)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    guide_count = 0
+    for role, foot_bones in foot_roles.items():
+        guide_count += _create_foot_guides_for_role(
+            context,
+            preview_obj,
+            foot_bones,
+            role,
+            ROLE_PROP_KEY,
+        )
+
+    role_counts = {}
+    for role in assigned.values():
+        role_counts[role] = role_counts.get(role, 0) + 1
+
+    return {
+        'assigned_count': len(assigned),
+        'guide_count': guide_count,
+        'missing_bones': missing_bones,
+        'duplicate_bones': duplicate_bones,
+        'role_counts': role_counts,
+        'apply_mode': fixture_data['apply_mode'],
+    }
+
+
+def _detect_guide_kind(role_label, bone_name):
+    if '_heel_' in role_label or bone_name.endswith(GUIDE_SUFFIX_HEEL):
+        return 'heel'
+    if '_bank_' in role_label or bone_name.endswith(GUIDE_SUFFIX_BANK):
+        return 'bank'
+    return None
+
+
+def _detect_guide_side(role_label, foot_name):
+    if role_label.endswith('_l') or foot_name.endswith('_L') or foot_name.endswith('.l'):
+        return 'l'
+    if role_label.endswith('_r') or foot_name.endswith('_R') or foot_name.endswith('.r'):
+        return 'r'
+    return 'l'
+
+
+def _guide_default_local_head(foot_head, kind, side):
+    if kind == 'heel':
+        return foot_head + Vector((0.0, HEEL_OFFSET_Y, HEEL_OFFSET_Z))
+
+    bank_x = BANK_OFFSET_X if side == 'l' else -BANK_OFFSET_X
+    return foot_head + Vector((bank_x, 0.0, HEEL_OFFSET_Z))
+
+
+def _is_default_foot_guide(preview_local_positions, guide_name, foot_name, kind, side):
+    guide_local = preview_local_positions.get(guide_name)
+    foot_local = preview_local_positions.get(foot_name)
+    if not guide_local or not foot_local:
+        return False
+
+    expected_head = _guide_default_local_head(foot_local[0], kind, side)
+    current_head = guide_local[0]
+    return (current_head - expected_head).length <= GUIDE_DEFAULT_TOLERANCE
+
+
+def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side):
+    foot_vector = foot_world_tail - foot_world_head
+    foot_length = max(foot_vector.length, 0.001)
+    forward = foot_vector.normalized()
+
+    up = Vector((0.0, 0.0, 1.0))
+    lateral = up.cross(forward)
+    if lateral.length < 0.0001:
+        lateral = Vector((1.0, 0.0, 0.0))
+    else:
+        lateral.normalize()
+
+    if side == 'r':
+        lateral.negate()
+
+    back_offset = min(foot_length * AUTO_HEEL_BACK_RATIO, AUTO_GUIDE_MAX_OFFSET)
+    down_offset = min(foot_length * AUTO_HEEL_DOWN_RATIO, AUTO_GUIDE_MAX_OFFSET * 0.7)
+    side_offset = min(foot_length * AUTO_BANK_SIDE_RATIO, AUTO_GUIDE_MAX_OFFSET)
+    bank_down = min(foot_length * AUTO_BANK_DOWN_RATIO, AUTO_GUIDE_MAX_OFFSET * 0.5)
+
+    if kind == 'heel':
+        head = foot_world_head - forward * back_offset + Vector((0.0, 0.0, -down_offset))
+    else:
+        head = foot_world_head + lateral * side_offset + Vector((0.0, 0.0, -bank_down))
+
+    tail = head + Vector((0.0, 0.0, 0.005))
+    return head, tail
 
 
 class ARPCONV_OT_SetRole(Operator):
@@ -243,12 +750,7 @@ class ARPCONV_OT_SetRole(Operator):
                         selected.append(pbone)
 
         for pbone in selected:
-            pbone[ROLE_PROP_KEY] = self.role
-            color = ROLE_COLORS.get(self.role, ROLE_COLORS['unmapped'])
-            pbone.color.palette = 'CUSTOM'
-            pbone.color.custom.normal = color
-            pbone.color.custom.select = tuple(min(c + 0.3, 1.0) for c in color)
-            pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
+            _set_preview_pose_bone_role(pbone, self.role, ROLE_COLORS, ROLE_PROP_KEY)
             changed += 1
 
             if self.role in FOOT_ROLES:
@@ -260,104 +762,14 @@ class ARPCONV_OT_SetRole(Operator):
 
         # foot 역할이면 bank/heel 가이드 본 자동 생성
         if foot_bones:
-            guide_count = self._create_foot_guides(
-                context, preview_obj, foot_bones, self.role)
+            guide_count = _create_foot_guides_for_role(
+                context, preview_obj, foot_bones, self.role, ROLE_PROP_KEY)
             self.report({'INFO'},
                 f"{changed}개 본 → {self.role} + 가이드 {guide_count}개 생성")
         else:
             self.report({'INFO'}, f"{changed}개 본 → {self.role}")
 
         return {'FINISHED'}
-
-    def _create_foot_guides(self, context, preview_obj, foot_bone_names, role):
-        """
-        foot 역할 본에 대해 heel/bank 가이드 본을 Preview에 자동 생성.
-        가이드 본은 foot 본의 head 기준 오프셋 위치에 생성.
-        """
-        from skeleton_analyzer import ROLE_COLORS, ROLE_PROP_KEY
-        from mathutils import Vector
-
-        # 현재 모드 저장 + Edit Mode 진입
-        prev_mode = context.mode
-        if prev_mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        bpy.ops.object.select_all(action='DESELECT')
-        preview_obj.select_set(True)
-        context.view_layer.objects.active = preview_obj
-        bpy.ops.object.mode_set(mode='EDIT')
-
-        edit_bones = preview_obj.data.edit_bones
-        created = 0
-
-        # 역할에서 side 추출 (back_foot_l → l)
-        side = role.rsplit('_', 1)[-1]  # 'l' or 'r'
-        # 역할에서 front/back 추출
-        prefix = role.rsplit('_', 2)[0]  # 'back_foot' or 'front_foot'
-        prefix_short = prefix.replace('_foot', '')  # 'back' or 'front'
-
-        for foot_name in foot_bone_names:
-            foot_eb = edit_bones.get(foot_name)
-            if foot_eb is None:
-                continue
-
-            foot_head = foot_eb.head.copy()
-
-            # --- Heel 가이드 ---
-            heel_name = f"{foot_name}{GUIDE_SUFFIX_HEEL}"
-            # 기존 가이드 제거 후 재생성
-            old_heel = edit_bones.get(heel_name)
-            if old_heel:
-                edit_bones.remove(old_heel)
-
-            heel_eb = edit_bones.new(heel_name)
-            heel_eb.head = foot_head + Vector((0, HEEL_OFFSET_Y, HEEL_OFFSET_Z))
-            heel_eb.tail = heel_eb.head + Vector((0, 0, 0.005))
-            heel_eb.use_deform = False
-            heel_eb.parent = foot_eb
-            created += 1
-
-            # --- Bank 가이드 ---
-            bank_name = f"{foot_name}{GUIDE_SUFFIX_BANK}"
-            old_bank = edit_bones.get(bank_name)
-            if old_bank:
-                edit_bones.remove(old_bank)
-
-            bank_x = BANK_OFFSET_X if side == 'l' else -BANK_OFFSET_X
-            bank_eb = edit_bones.new(bank_name)
-            bank_eb.head = foot_head + Vector((bank_x, 0, HEEL_OFFSET_Z))
-            bank_eb.tail = bank_eb.head + Vector((0, 0, 0.005))
-            bank_eb.use_deform = False
-            bank_eb.parent = foot_eb
-            created += 1
-
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-        # 가이드 본에 역할 프로퍼티 설정 (Pose Mode)
-        bpy.ops.object.mode_set(mode='POSE')
-        guide_color = (0.9, 0.9, 0.0)  # 가이드는 밝은 노랑
-
-        for foot_name in foot_bone_names:
-            for suffix, guide_role in [
-                (GUIDE_SUFFIX_HEEL, f'{prefix_short}_heel_{side}'),
-                (GUIDE_SUFFIX_BANK, f'{prefix_short}_bank_{side}'),
-            ]:
-                guide_name = f"{foot_name}{suffix}"
-                pbone = preview_obj.pose.bones.get(guide_name)
-                if pbone:
-                    pbone[ROLE_PROP_KEY] = guide_role
-                    pbone.color.palette = 'CUSTOM'
-                    pbone.color.custom.normal = guide_color
-                    pbone.color.custom.select = (1.0, 1.0, 0.3)
-                    pbone.color.custom.active = (1.0, 1.0, 0.5)
-
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-        # 원래 모드로 복귀
-        if prev_mode == 'POSE':
-            bpy.ops.object.mode_set(mode='POSE')
-
-        return created
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -419,7 +831,6 @@ class ARPCONV_OT_BuildRig(Operator):
 
         # Step 2: Preview 본 위치 추출 (Edit 모드 1회)
         log("Preview 본 위치 추출")
-        from mathutils import Vector
         from skeleton_analyzer import (
             read_preview_roles, match_chain_lengths,
         )
@@ -432,14 +843,25 @@ class ARPCONV_OT_BuildRig(Operator):
         bpy.ops.object.mode_set(mode='EDIT')
         preview_matrix = preview_obj.matrix_world
         preview_positions = {}
+        preview_local_positions = {}
         for ebone in preview_obj.data.edit_bones:
             world_head = preview_matrix @ ebone.head.copy()
             world_tail = preview_matrix @ ebone.tail.copy()
             preview_positions[ebone.name] = (world_head, world_tail, ebone.roll)
+            preview_local_positions[ebone.name] = (
+                ebone.head.copy(),
+                ebone.tail.copy(),
+                ebone.roll,
+            )
         bpy.ops.object.mode_set(mode='OBJECT')
 
         # Preview 역할 읽기 (Pose 모드 데이터, Edit 불필요)
         roles = read_preview_roles(preview_obj)
+        preview_role_by_bone = {
+            bone_name: role_label
+            for role_label, bone_names in roles.items()
+            for bone_name in bone_names
+        }
 
         # Step 3: ARP Edit 모드 1회 진입 → ref 검색 + 매핑 + 위치 설정
         log("ARP ref 본 검색 + 위치 정렬 (단일 Edit 세션)")
@@ -610,7 +1032,34 @@ class ARPCONV_OT_BuildRig(Operator):
         resolved = {}
         for src_name, ref_name in deform_to_ref.items():
             if src_name in preview_positions:
-                resolved[ref_name] = preview_positions[src_name]
+                resolved_value = preview_positions[src_name]
+                role_label = preview_role_by_bone.get(src_name, '')
+                guide_kind = _detect_guide_kind(role_label, src_name)
+
+                if guide_kind:
+                    preview_bone = preview_obj.data.bones.get(src_name)
+                    foot_name = preview_bone.parent.name if preview_bone and preview_bone.parent else None
+                    guide_side = _detect_guide_side(role_label, foot_name or src_name)
+
+                    if foot_name and _is_default_foot_guide(
+                        preview_local_positions,
+                        src_name,
+                        foot_name,
+                        guide_kind,
+                        guide_side,
+                    ):
+                        foot_world = preview_positions.get(foot_name)
+                        if foot_world:
+                            auto_head, auto_tail = _compute_auto_foot_guide_world(
+                                foot_world[0],
+                                foot_world[1],
+                                guide_kind,
+                                guide_side,
+                            )
+                            resolved_value = (auto_head, auto_tail, resolved_value[2])
+                            log(f"  {src_name}: 자동 {guide_kind} 가이드 보정 적용")
+
+                resolved[ref_name] = resolved_value
 
         # 하이어라키 깊이 계산 → 부모(얕은)부터 자식(깊은) 순서
         def get_depth(bone_name):
@@ -752,21 +1201,44 @@ class ARPCONV_OT_BuildRig(Operator):
             log(f"  match_to_rig 에러: {e}", "ERROR")
             return {'CANCELLED'}
 
-        # Step 4: 얼굴 cc_ 커스텀 본 추가
+        # Step 5: face / unmapped cc_ 커스텀 본 추가
         from skeleton_analyzer import read_preview_roles
         roles = read_preview_roles(preview_obj)
-        face_bones = roles.get('face', [])
-        if face_bones:
-            log(f"얼굴 cc_ 커스텀 본 추가: {len(face_bones)}개")
+        custom_bones = list(roles.get('face', []))
+        custom_bones.extend(
+            bone_name for bone_name in roles.get('unmapped', [])
+            if not bone_name.endswith(GUIDE_SUFFIX_HEEL)
+            and not bone_name.endswith(GUIDE_SUFFIX_BANK)
+        )
+
+        if custom_bones:
+            log(f"cc_ 커스텀 본 추가: {len(custom_bones)}개")
             ensure_object_mode()
             select_only(arp_obj)
-            for bone_name in face_bones:
-                if bone_name not in preview_positions:
-                    continue
-                try:
-                    run_arp_operator(bpy.ops.arp.add_custom_bone)
-                except Exception as e:
-                    log(f"  cc_ 추가 실패 ({bone_name}): {e}", "WARN")
+            try:
+                created_cc = _create_cc_bones_from_preview(
+                    arp_obj=arp_obj,
+                    preview_obj=preview_obj,
+                    preview_positions=preview_positions,
+                    custom_bone_names=custom_bones,
+                    deform_to_ref=deform_to_ref,
+                    log=log,
+                )
+                log(f"  cc_ 생성 완료: {created_cc}개")
+
+                copied_constraints = _copy_custom_bone_constraints(
+                    source_obj=source_obj,
+                    arp_obj=arp_obj,
+                    custom_bone_names=custom_bones,
+                    deform_to_ref=deform_to_ref,
+                    log=log,
+                )
+                if copied_constraints:
+                    log(f"  constraint 복제 완료: {copied_constraints}개")
+            except Exception as e:
+                self.report({'ERROR'}, f"cc_ 커스텀 본 생성 실패: {e}")
+                log(f"  cc_ 생성 에러: {traceback.format_exc()}", "ERROR")
+                return {'CANCELLED'}
 
         self.report({'INFO'}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
         return {'FINISHED'}
@@ -891,6 +1363,125 @@ class ARPCONV_OT_Retarget(Operator):
 
 
 # ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: 회귀 테스트
+# ═══════════════════════════════════════════════════════════════
+
+class ARPCONV_OT_RunRegression(Operator):
+    """Fixture 기반 Preview 회귀 테스트"""
+    bl_idname = "arp_convert.run_regression"
+    bl_label = "회귀 테스트 실행"
+    bl_description = "Fixture JSON으로 역할을 적용하고 BuildRig/Retarget까지 자동 실행"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        _ensure_scripts_path()
+        _reload_modules()
+
+        try:
+            from arp_utils import log
+        except ImportError as e:
+            self.report({'ERROR'}, f"모듈 임포트 실패: {e}")
+            return {'CANCELLED'}
+
+        props = context.scene.arp_convert_props
+        fixture_path = props.regression_fixture.strip()
+        if not fixture_path:
+            self.report({'ERROR'}, "Fixture JSON 경로를 지정하세요.")
+            return {'CANCELLED'}
+
+        started = time.time()
+        report = {
+            'success': False,
+            'fixture_path': '',
+            'report_path': '',
+            'source_armature': '',
+            'preview_armature': '',
+            'build_rig': False,
+            'retarget': False,
+            'role_application': {},
+            'warnings': [],
+            'elapsed_sec': 0.0,
+        }
+
+        try:
+            fixture_data = _load_regression_fixture(fixture_path)
+            report['fixture_path'] = fixture_data['path']
+            log(f"회귀 테스트 fixture 로드: {fixture_data['path']}")
+
+            result = bpy.ops.arp_convert.create_preview()
+            if 'FINISHED' not in result:
+                raise RuntimeError("Preview 생성 실패")
+
+            preview_obj = bpy.data.objects.get(props.preview_armature)
+            source_obj = bpy.data.objects.get(props.source_armature)
+            if preview_obj is None or source_obj is None:
+                raise RuntimeError("Preview 또는 source armature를 찾을 수 없습니다.")
+
+            report['preview_armature'] = preview_obj.name
+            report['source_armature'] = source_obj.name
+
+            role_summary = _apply_fixture_roles(context, preview_obj, fixture_data)
+            report['role_application'] = role_summary
+            if role_summary['missing_bones']:
+                report['warnings'].append(
+                    f"fixture bone 미발견: {', '.join(role_summary['missing_bones'])}"
+                )
+            if role_summary['duplicate_bones']:
+                report['warnings'].append(
+                    f"중복 role 지정 본 {len(role_summary['duplicate_bones'])}개"
+                )
+
+            log(
+                "회귀 테스트 역할 적용: "
+                f"{role_summary['assigned_count']}개 본, "
+                f"가이드 {role_summary['guide_count']}개"
+            )
+
+            result = bpy.ops.arp_convert.build_rig()
+            if 'FINISHED' not in result:
+                raise RuntimeError("BuildRig 실패")
+            report['build_rig'] = True
+
+            should_run_retarget = props.regression_run_retarget and fixture_data['run_retarget']
+            if should_run_retarget:
+                result = bpy.ops.arp_convert.retarget()
+                if 'FINISHED' not in result:
+                    raise RuntimeError("Retarget 실패")
+                report['retarget'] = True
+
+            report['success'] = True
+            self.report({'INFO'}, "회귀 테스트 완료")
+            return {'FINISHED'}
+
+        except Exception as e:
+            log(f"회귀 테스트 실패: {e}", "ERROR")
+            log(traceback.format_exc(), "ERROR")
+            self.report({'ERROR'}, f"회귀 테스트 실패: {e}")
+            report['warnings'].append(str(e))
+            return {'CANCELLED'}
+
+        finally:
+            report['elapsed_sec'] = round(time.time() - started, 2)
+            report_dir = _resolve_regression_path(props.regression_report_dir.strip())
+            if not report_dir:
+                report_dir = _default_regression_report_dir()
+            os.makedirs(report_dir, exist_ok=True)
+
+            blend_name = os.path.splitext(os.path.basename(bpy.data.filepath or "untitled.blend"))[0]
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            report_path = os.path.join(report_dir, f"{blend_name}_{timestamp}.json")
+            report['report_path'] = report_path
+            with open(report_path, 'w', encoding='utf-8') as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+
+            try:
+                from arp_utils import log
+                log(f"회귀 테스트 리포트 저장: {report_path}")
+            except Exception:
+                pass
+
+
+# ═══════════════════════════════════════════════════════════════
 # UI 패널
 # ═══════════════════════════════════════════════════════════════
 
@@ -996,6 +1587,17 @@ class ARPCONV_PT_MainPanel(Panel):
         col.operator("arp_convert.build_rig", icon='MOD_ARMATURE')
         col.operator("arp_convert.retarget", icon='ACTION')
 
+        layout.separator()
+
+        box = layout.box()
+        box.label(text="Regression", icon='FILE_TEXT')
+        box.prop(props, "regression_fixture", text="Fixture")
+        box.prop(props, "regression_report_dir", text="Report Dir")
+        box.prop(props, "regression_run_retarget")
+        row = box.row()
+        row.scale_y = 1.2
+        row.operator("arp_convert.run_regression", icon='CHECKMARK')
+
 
 # ═══════════════════════════════════════════════════════════════
 # 등록
@@ -1007,6 +1609,7 @@ classes = [
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
     ARPCONV_OT_Retarget,
+    ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,
 ]
 

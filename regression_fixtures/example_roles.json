@@ -1,0 +1,23 @@
+{
+  "description": "Example fixture for preview regression runner",
+  "apply_mode": "replace",
+  "run_retarget": true,
+  "roles": {
+    "root": ["root"],
+    "spine": ["spine01", "spine02", "chest"],
+    "neck": ["neck"],
+    "head": ["head"],
+    "back_leg_l": ["thigh_L", "leg_L", "foot_L"],
+    "back_foot_l": ["toe_L"],
+    "back_leg_r": ["thigh_R", "leg_R", "foot_R"],
+    "back_foot_r": ["toe_R"],
+    "front_leg_l": ["shoulder_L", "upperarm_L", "arm_L"],
+    "front_foot_l": ["hand_L"],
+    "front_leg_r": ["shoulder_R", "upperarm_R", "arm_R"],
+    "front_foot_r": ["hand_R"],
+    "tail": ["tail_01", "tail02", "tail03", "tail04"],
+    "ear_l": ["ear01_L", "ear02_L"],
+    "ear_r": ["ear01_R", "ear02_R"],
+    "face": ["eye_L", "eye_R", "jaw"]
+  }
+}
