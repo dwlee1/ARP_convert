@@ -100,6 +100,126 @@ def _ensure_nonzero_bone_length(local_head, local_tail):
     return local_head + offset
 
 
+# ═══════════════════════════════════════════════════════════════
+# ARP 네이티브 체인 조정 래퍼
+# ═══════════════════════════════════════════════════════════════
+
+def _get_arp_set_functions():
+    """ARP 내부 set_spine/set_neck/set_tail/set_ears 함수를 import."""
+    try:
+        from bl_ext.user_default.auto_rig_pro.src.auto_rig import (
+            set_spine, set_neck, set_tail, set_ears,
+        )
+        return set_spine, set_neck, set_tail, set_ears
+    except ImportError:
+        return None, None, None, None
+
+
+def _select_edit_bone(arp_obj, bone_name):
+    """Edit Mode에서 특정 본을 선택하고 active로 설정."""
+    edit_bones = arp_obj.data.edit_bones
+    bpy.ops.armature.select_all(action='DESELECT')
+    eb = edit_bones.get(bone_name)
+    if eb:
+        eb.select = True
+        eb.select_head = True
+        eb.select_tail = True
+        arp_obj.data.edit_bones.active = eb
+        return True
+    return False
+
+
+def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
+    """
+    소스 체인 개수에 맞춰 ARP ref 본 개수를 조정.
+    ARP 네이티브 함수(set_spine/set_neck/set_tail/set_ears)를 사용.
+
+    Returns:
+        True if any adjustment was made (ref 재탐색 필요), False otherwise
+    """
+    set_spine, set_neck, set_tail, set_ears = _get_arp_set_functions()
+    if set_spine is None:
+        log("  [WARN] ARP 네이티브 함수 import 실패 — 체인 매칭 건너뜀")
+        return False
+
+    adjusted = False
+
+    # 조정 대상: (역할, ARP 함수, 파라미터 이름, 선택할 ref 본 찾기 키워드)
+    adjustments = [
+        ('spine', set_spine, 'count', 'spine_01_ref'),
+        ('neck',  set_neck,  'neck_count', 'neck_ref'),
+        ('tail',  set_tail,  'tail_count', 'tail_00_ref'),
+    ]
+
+    for chain_role, set_func, param_name, ref_search_key in adjustments:
+        source_bones = roles.get(chain_role, [])
+        arp_refs = arp_chains.get(chain_role, [])
+
+        if not source_bones or not arp_refs:
+            continue
+
+        src_count = len(source_bones)
+        arp_count = len(arp_refs)
+
+        if src_count == arp_count:
+            continue
+
+        log(f"  [체인 매칭] {chain_role}: 소스 {src_count} vs ARP {arp_count}")
+
+        # 해당 ref 본 찾아서 선택
+        ref_bone_name = None
+        for ref_name in arp_refs:
+            if ref_search_key in ref_name:
+                ref_bone_name = ref_name
+                break
+        if ref_bone_name is None:
+            ref_bone_name = arp_refs[0]
+
+        if not _select_edit_bone(arp_obj, ref_bone_name):
+            log(f"    [WARN] ref 본 '{ref_bone_name}' 선택 실패")
+            continue
+
+        try:
+            # ARP set_spine은 root를 포함한 카운트 → ref 본 수 = count - 1
+            call_count = src_count + 1 if chain_role == 'spine' else src_count
+            kwargs = {param_name: call_count}
+            set_func(**kwargs)
+            log(f"    → ARP {chain_role} 개수를 {call_count}으로 변경 완료 (소스 {src_count}본)")
+            adjusted = True
+        except Exception as e:
+            log(f"    [ERROR] {chain_role} 개수 변경 실패: {e}")
+
+    # ear: L/R 개별 호출
+    if set_ears:
+        for side_key, side_arg in [('ear_l', '.l'), ('ear_r', '.r')]:
+            source_bones = roles.get(side_key, [])
+            arp_refs = arp_chains.get(side_key, [])
+
+            if not source_bones or not arp_refs:
+                continue
+
+            src_count = len(source_bones)
+            arp_count = len(arp_refs)
+
+            if src_count == arp_count:
+                continue
+
+            log(f"  [체인 매칭] {side_key}: 소스 {src_count} vs ARP {arp_count}")
+
+            if not _select_edit_bone(arp_obj, arp_refs[0]):
+                log(f"    [WARN] ref 본 '{arp_refs[0]}' 선택 실패")
+                continue
+
+            try:
+                set_ears(ears_amount=src_count, side_arg=side_arg)
+                log(f"    → ARP {side_key} 개수를 {src_count}으로 변경 완료")
+                adjusted = True
+            except Exception as e:
+                log(f"    [ERROR] {side_key} 개수 변경 실패: {e}")
+
+    return adjusted
+
+
 def _create_cc_bones_from_preview(
     arp_obj,
     preview_obj,
@@ -191,6 +311,14 @@ SUPPORTED_CUSTOM_CONSTRAINTS = {
     'COPY_SCALE',
     'DAMPED_TRACK',
     'LIMIT_ROTATION',
+    'LIMIT_LOCATION',
+    'LIMIT_SCALE',
+    'STRETCH_TO',
+    'TRACK_TO',
+    'LOCKED_TRACK',
+    'CHILD_OF',
+    'COPY_TRANSFORMS',
+    'TRANSFORMATION',
 }
 
 
@@ -202,18 +330,43 @@ def _map_source_bone_to_target_bone(source_bone_name, custom_bone_names, deform_
 
 def _copy_constraint_settings(src_constraint, dst_constraint):
     common_props = [
+        # 기본
         'name', 'mute', 'influence',
         'owner_space', 'target_space',
         'mix_mode',
+        # 축 사용/반전
         'use_x', 'use_y', 'use_z',
         'invert_x', 'invert_y', 'invert_z',
         'use_offset',
         'head_tail',
-        'track_axis',
-        'up_axis',
+        # 트래킹
+        'track_axis', 'up_axis', 'lock_axis',
+        # 제한
         'use_limit_x', 'use_limit_y', 'use_limit_z',
+        'use_min_x', 'use_min_y', 'use_min_z',
+        'use_max_x', 'use_max_y', 'use_max_z',
         'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z',
         'use_transform_limit',
+        # 스케일/변환
+        'power',
+        'use_make_uniform',
+        # STRETCH_TO
+        'rest_length', 'bulge', 'volume',
+        'keep_axis',
+        # CHILD_OF
+        'use_location_x', 'use_location_y', 'use_location_z',
+        'use_rotation_x', 'use_rotation_y', 'use_rotation_z',
+        'use_scale_x', 'use_scale_y', 'use_scale_z',
+        # COPY_TRANSFORMS
+        'remove_target_shear',
+        # TRANSFORMATION
+        'use_motion_extrapolate',
+        'map_from', 'map_to',
+        'from_min_x', 'from_max_x', 'from_min_y', 'from_max_y',
+        'from_min_z', 'from_max_z',
+        'to_min_x', 'to_max_x', 'to_min_y', 'to_max_y',
+        'to_min_z', 'to_max_z',
+        'map_to_x_from', 'map_to_y_from', 'map_to_z_from',
     ]
 
     for prop_name in common_props:
@@ -252,6 +405,7 @@ def _copy_custom_bone_constraints(
 
         for src_constraint in src_pbone.constraints:
             if src_constraint.type not in SUPPORTED_CUSTOM_CONSTRAINTS:
+                log(f"  constraint 건너뜀 (미지원): {source_bone_name} / {src_constraint.type}", "WARN")
                 continue
 
             try:
@@ -689,13 +843,19 @@ def _is_default_foot_guide(preview_local_positions, guide_name, foot_name, kind,
     return (current_head - expected_head).length <= GUIDE_DEFAULT_TOLERANCE
 
 
-def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side):
-    foot_vector = foot_world_tail - foot_world_head
-    foot_length = max(foot_vector.length, 0.001)
-    forward = foot_vector.normalized()
+def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side,
+                                    toe_world_tail=None):
+    foot_length = (foot_world_tail - foot_world_head).length
+    toe_length = (toe_world_tail - foot_world_tail).length if toe_world_tail else 0
+    total_length = max(foot_length + toe_length, 0.001)
 
-    up = Vector((0.0, 0.0, 1.0))
-    lateral = up.cross(forward)
+    forward = foot_world_tail - foot_world_head
+    forward.z = 0.0  # XY 평면에서 방향 계산
+    if forward.length < 0.0001:
+        forward = Vector((0.0, 1.0, 0.0))
+    forward.normalize()
+
+    lateral = Vector((0.0, 0.0, 1.0)).cross(forward)
     if lateral.length < 0.0001:
         lateral = Vector((1.0, 0.0, 0.0))
     else:
@@ -704,17 +864,20 @@ def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side)
     if side == 'r':
         lateral.negate()
 
-    back_offset = min(foot_length * AUTO_HEEL_BACK_RATIO, AUTO_GUIDE_MAX_OFFSET)
-    down_offset = min(foot_length * AUTO_HEEL_DOWN_RATIO, AUTO_GUIDE_MAX_OFFSET * 0.7)
-    side_offset = min(foot_length * AUTO_BANK_SIDE_RATIO, AUTO_GUIDE_MAX_OFFSET)
-    bank_down = min(foot_length * AUTO_BANK_DOWN_RATIO, AUTO_GUIDE_MAX_OFFSET * 0.5)
+    back_offset = min(total_length * AUTO_HEEL_BACK_RATIO, AUTO_GUIDE_MAX_OFFSET)
+    side_offset = min(total_length * AUTO_BANK_SIDE_RATIO, AUTO_GUIDE_MAX_OFFSET)
+
+    base = Vector((foot_world_head.x, foot_world_head.y, 0.0))
 
     if kind == 'heel':
-        head = foot_world_head - forward * back_offset + Vector((0.0, 0.0, -down_offset))
-    else:
-        head = foot_world_head + lateral * side_offset + Vector((0.0, 0.0, -bank_down))
+        head = base - forward * back_offset
+    else:  # bank
+        head = base + lateral * side_offset
+    head.z = 0.0
 
-    tail = head + Vector((0.0, 0.0, 0.005))
+    bone_len = max(total_length * 0.50, 0.015)
+    tail = head + forward * bone_len
+    tail.z = 0.0
     return head, tail
 
 
@@ -829,10 +992,27 @@ class ARPCONV_OT_BuildRig(Operator):
             self.report({'ERROR'}, "ARP 아마추어를 찾을 수 없습니다.")
             return {'CANCELLED'}
 
+        # face/skull 비활성화
+        try:
+            ensure_object_mode()
+            select_only(arp_obj)
+            bpy.ops.object.mode_set(mode='EDIT')
+            head_ref = arp_obj.data.edit_bones.get('head_ref')
+            if head_ref:
+                head_ref.select = True
+                arp_obj.data.edit_bones.active = head_ref
+            from bl_ext.user_default.auto_rig_pro.src.auto_rig import set_facial
+            set_facial(enable=False, skull_bones=False)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            log("face/skull 비활성화 완료")
+        except Exception as e:
+            log(f"face/skull 비활성화 실패 (무시): {e}")
+            ensure_object_mode()
+
         # Step 2: Preview 본 위치 추출 (Edit 모드 1회)
         log("Preview 본 위치 추출")
         from skeleton_analyzer import (
-            read_preview_roles, match_chain_lengths,
+            read_preview_roles, map_role_chain,
         )
 
         ensure_object_mode()
@@ -995,6 +1175,93 @@ class ARPCONV_OT_BuildRig(Operator):
         for role, bones in arp_chains.items():
             log(f"  {role:20s}: {' → '.join(bones)}")
 
+        # --- 체인 개수 매칭 (ARP 네이티브 함수로 조정) ---
+        chain_adjusted = _adjust_chain_counts(arp_obj, roles, arp_chains, log)
+
+        if chain_adjusted:
+            # set_* 함수가 Edit Mode를 변경할 수 있으므로 재진입
+            if bpy.context.mode != 'EDIT_ARMATURE':
+                bpy.ops.object.mode_set(mode='EDIT')
+
+            # ref 본 재탐색 (set_* 호출로 이름/구조가 변경되었을 수 있음)
+            edit_bones = arp_obj.data.edit_bones
+            ref_names = set()
+            ref_depth = {}
+            for eb in edit_bones:
+                if '_ref' in eb.name:
+                    ref_names.add(eb.name)
+                    d = 0
+                    p = eb.parent
+                    while p:
+                        d += 1
+                        p = p.parent
+                    ref_depth[eb.name] = d
+
+            log(f"  ref 본 재탐색: {len(ref_names)}개")
+
+            # arp_chains 재구성
+            arp_chains = {}
+
+            for name in ref_names:
+                if name.startswith('root_ref'):
+                    arp_chains.setdefault('root', []).append(name)
+                elif 'spine_' in name and '_ref' in name:
+                    arp_chains.setdefault('spine', []).append(name)
+                elif 'neck' in name and '_ref' in name:
+                    arp_chains.setdefault('neck', []).append(name)
+                elif name.startswith('head_ref'):
+                    arp_chains.setdefault('head', []).append(name)
+                elif 'tail_' in name and '_ref' in name:
+                    arp_chains.setdefault('tail', []).append(name)
+
+            for key in ['root', 'spine', 'neck', 'head', 'tail']:
+                if key in arp_chains:
+                    arp_chains[key] = sorted(arp_chains[key],
+                        key=lambda x: ref_depth.get(x, 0))
+
+            for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
+                for is_dupli, leg_prefix in [(False, 'back'), (True, 'front')]:
+                    thigh_roots = [n for n in ref_names
+                                   if n.startswith('thigh_b_ref')
+                                   and n.endswith(side_suffix)
+                                   and ('dupli' in n) == is_dupli]
+                    if not thigh_roots:
+                        thigh_roots = [n for n in ref_names
+                                       if n.startswith('thigh_ref')
+                                       and n.endswith(side_suffix)
+                                       and ('dupli' in n) == is_dupli]
+
+                    if thigh_roots:
+                        thigh_roots.sort(key=lambda x: ref_depth.get(x, 0))
+                        limb_chain = collect_connected_ref_chain(thigh_roots[0])
+                        leg_bones = [n for n in limb_chain if n.startswith('thigh') or n.startswith('leg')]
+                        foot_bones = [n for n in limb_chain if n.startswith('foot') or n.startswith('toes')]
+                        if leg_bones:
+                            arp_chains[f'{leg_prefix}_leg_{side_key}'] = leg_bones
+                        if foot_bones:
+                            arp_chains[f'{leg_prefix}_foot_{side_key}'] = foot_bones
+
+                    for aux_pfx in FOOT_AUX_PREFIXES:
+                        aux_key = aux_pfx.replace('foot_', '')
+                        cands = [n for n in ref_names
+                                 if n.startswith(aux_pfx) and '_ref' in n
+                                 and n.endswith(side_suffix)
+                                 and ('dupli' in n) == is_dupli]
+                        if cands:
+                            cands.sort(key=lambda x: ref_depth.get(x, 0))
+                            arp_chains[f'{leg_prefix}_{aux_key}_{side_key}'] = cands
+
+                ear_cands = sorted([n for n in ref_names
+                                    if 'ear' in n and '_ref' in n
+                                    and n.endswith(side_suffix)],
+                                   key=lambda x: ref_depth.get(x, 0))
+                if ear_cands:
+                    arp_chains[f'ear_{side_key}'] = ear_cands
+
+            log("  --- ARP ref 체인 (조정 후) ---")
+            for role, bones in arp_chains.items():
+                log(f"  {role:20s}: {' → '.join(bones)}")
+
         # --- 매핑 생성 ---
         deform_to_ref = {}
 
@@ -1006,7 +1273,7 @@ class ARPCONV_OT_BuildRig(Operator):
                     log(f"  [WARN] 역할 '{role_label}' → ARP ref 없음")
                 return
 
-            chain_map = match_chain_lengths(preview_bones, target_refs)
+            chain_map = map_role_chain(role_label, preview_bones, target_refs)
             deform_to_ref.update(chain_map)
 
         for role, preview_bones in roles.items():
@@ -1050,16 +1317,114 @@ class ARPCONV_OT_BuildRig(Operator):
                     ):
                         foot_world = preview_positions.get(foot_name)
                         if foot_world:
+                            foot_len = (foot_world[1] - foot_world[0]).length
+                            # toe 본 위치 조회
+                            toe_world_tail = None
+                            foot_bone_preview = preview_obj.data.bones.get(foot_name)
+                            if foot_bone_preview:
+                                for child in foot_bone_preview.children:
+                                    if child.name in preview_positions and child.name != src_name:
+                                        child_pos = preview_positions[child.name]
+                                        if toe_world_tail is None or child_pos[1].z < toe_world_tail.z:
+                                            toe_world_tail = child_pos[1]
                             auto_head, auto_tail = _compute_auto_foot_guide_world(
                                 foot_world[0],
                                 foot_world[1],
                                 guide_kind,
                                 guide_side,
+                                toe_world_tail=toe_world_tail,
                             )
+                            orig_head = resolved_value[0]
                             resolved_value = (auto_head, auto_tail, resolved_value[2])
-                            log(f"  {src_name}: 자동 {guide_kind} 가이드 보정 적용")
+                            offset = (auto_head - orig_head).length
+                            log(f"  {src_name}: 자동 {guide_kind} 보정 (side={guide_side}, "
+                                f"foot_len={foot_len:.4f}, offset={offset:.4f})")
+                    else:
+                        log(f"  {src_name}: {guide_kind} 가이드 사용자 위치 유지")
 
                 resolved[ref_name] = resolved_value
+
+        # --- heel/bank ref 본 위치 설정 (foot ref 기준) ---
+        FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
+        for role, ref_chain in arp_chains.items():
+            if 'heel' not in role and 'bank' not in role:
+                continue
+            # 대응하는 foot 역할 찾기 (back_heel_l → back_foot_l)
+            foot_role = role.replace('_heel_', '_foot_').replace('_bank_', '_foot_')
+            foot_refs = arp_chains.get(foot_role, [])
+            if not foot_refs:
+                continue
+
+            # foot ref 본에서 위치 가져오기
+            foot_ref_name = foot_refs[0]  # foot_ref.l 등
+            foot_ref_eb = edit_bones.get(foot_ref_name)
+            if not foot_ref_eb or foot_ref_name not in resolved:
+                continue
+
+            foot_world_head = resolved[foot_ref_name][0]
+            foot_world_tail = resolved[foot_ref_name][1]
+
+            # toe ref 본 찾기
+            toe_world_tail = None
+            if len(foot_refs) > 1:
+                toe_ref_name = foot_refs[-1]
+                if toe_ref_name in resolved:
+                    toe_world_tail = resolved[toe_ref_name][1]
+
+            side = 'r' if role.endswith('_r') else 'l'
+
+            # heel 먼저 계산
+            heel_head, heel_tail = _compute_auto_foot_guide_world(
+                foot_world_head, foot_world_tail, 'heel', side,
+                toe_world_tail=toe_world_tail,
+            )
+
+            # forward / lateral 축 계산 (bank 배치용)
+            fwd = foot_world_tail - foot_world_head
+            fwd.z = 0.0
+            if fwd.length < 0.0001:
+                fwd = Vector((0.0, 1.0, 0.0))
+            fwd.normalize()
+            lat = Vector((0.0, 0.0, 1.0)).cross(fwd)
+            if lat.length < 0.0001:
+                lat = Vector((1.0, 0.0, 0.0))
+            else:
+                lat.normalize()
+            if side == 'r':
+                lat.negate()
+
+            foot_length = (foot_world_tail - foot_world_head).length
+            toe_length = (toe_world_tail - foot_world_tail).length if toe_world_tail else 0
+            total_length = max(foot_length + toe_length, 0.001)
+            bank_offset = total_length * 0.50
+            bone_len = max(total_length * 0.50, 0.015)
+
+            for aux_ref_name in ref_chain:
+                aux_eb = edit_bones.get(aux_ref_name)
+                if not aux_eb:
+                    continue
+
+                if 'heel' in aux_ref_name:
+                    auto_head = heel_head.copy()
+                    auto_tail = heel_tail.copy()
+                    guide_kind = 'heel'
+                elif 'bank_01' in aux_ref_name:
+                    # bank_01 = inner (같은 side 방향)
+                    auto_head = heel_head + lat * bank_offset
+                    auto_head.z = 0.0
+                    auto_tail = auto_head + fwd * bone_len
+                    auto_tail.z = 0.0
+                    guide_kind = 'bank_inner'
+                else:
+                    # bank_02 = outer (반대 방향)
+                    auto_head = heel_head - lat * bank_offset
+                    auto_head.z = 0.0
+                    auto_tail = auto_head + fwd * bone_len
+                    auto_tail.z = 0.0
+                    guide_kind = 'bank_outer'
+
+                resolved[aux_ref_name] = (auto_head, auto_tail, 0.0)
+                log(f"  {aux_ref_name}: 자동 {guide_kind} 배치 (Z=0, foot={foot_ref_name})")
 
         # 하이어라키 깊이 계산 → 부모(얕은)부터 자식(깊은) 순서
         def get_depth(bone_name):
@@ -1121,6 +1486,7 @@ class ARPCONV_OT_BuildRig(Operator):
 
             local_head = arp_matrix_inv @ world_head
             local_tail = arp_matrix_inv @ world_tail
+            preview_tail = local_tail.copy()
             tail_source = "프리뷰.tail"
 
             current_head = ebone.head.copy() if (ebone.use_connect and ebone.parent) else local_head
@@ -1158,8 +1524,31 @@ class ARPCONV_OT_BuildRig(Operator):
                     helper_eb.tail = helper_tail
                     log(f"  {helper_eb.name}: virtual toe tail 설정 (프리뷰.tail/{segment_count}분할)")
 
-            if (local_tail - current_head).length < 0.0001:
-                local_tail = current_head + Vector((0, 0.01, 0))
+            # root_ref: spine 방향, tail을 원래 pelvis.head에 맞춰 head를 뒤로 이동
+            if ref_name.startswith('root_ref') and next_resolved_child and next_resolved_child.name in resolved:
+                spine_world_tail = resolved[next_resolved_child.name][1]
+                spine_local_tail = arp_matrix_inv @ spine_world_tail
+                spine_dir = spine_local_tail - current_head
+                if spine_dir.length > 0.001:
+                    bone_len = max((preview_tail - current_head).length, 0.02)
+                    # tail = pelvis.head (spine01 시작점), head = 뒤로 이동
+                    local_tail = current_head.copy()
+                    local_head = current_head - spine_dir.normalized() * bone_len
+                    current_head = local_head
+                    tail_source = f"root→spine 방향 (head 후방 이동)"
+                else:
+                    bone_len = max((preview_tail - current_head).length, 0.02)
+                    local_tail = current_head + Vector((0, 0, bone_len))
+                    tail_source = "+Z fallback"
+            else:
+                # 결과 본이 프리뷰 대비 너무 짧으면 프리뷰 tail 사용
+                preview_length = (preview_tail - current_head).length
+                result_length = (local_tail - current_head).length
+                if preview_length > 0.001 and result_length < preview_length * 0.2:
+                    local_tail = preview_tail
+                    tail_source = "프리뷰.tail (짧은 본 보정)"
+                elif result_length < 0.0001:
+                    local_tail = current_head + Vector((0, 0.01, 0))
 
             # ARP 원래 연결 구조 보존
             if ebone.use_connect and ebone.parent:
@@ -1283,10 +1672,10 @@ class ARPCONV_OT_Retarget(Operator):
 
         ensure_object_mode()
 
-        # 동적 .bmap 생성
+        # 동적 .bmap 생성 (ARP 아마추어에서 실제 컨트롤러 이름 탐색)
         log("동적 .bmap 생성")
         analysis = preview_to_analysis(preview_obj)
-        bmap_content = generate_bmap_content(analysis)
+        bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj)
 
         bmap_name = "auto_generated"
         blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"

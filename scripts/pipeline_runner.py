@@ -339,7 +339,7 @@ def main():
                 'face_bones': analysis.get('face_bones', []) if 'analysis' in dir() else [],
             }
             # analysis 변수가 auto 모드에서만 존재
-            bmap_content = generate_bmap_content(analysis)
+            bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj)
             bmap_name = "auto_generated"
 
             # ARP presets 폴더에 저장

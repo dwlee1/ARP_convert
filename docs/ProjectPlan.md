@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-03-20
+> 최종 수정: 2026-03-23
 
 ## 문서 목적
 
@@ -35,10 +35,25 @@
 - [x] ARP 프리셋은 `dog`로 고정한다
 - [x] 다리 `leg` 3본 매핑과 `foot` 분할 규칙은 반영되었다
 - [x] Preview 가이드, `virtual neck`, `virtual toe`, `cc_` 커스텀 본 생성이 구현되었다
-- [ ] spine / neck / tail / ear 체인 개수 매칭은 아직 미구현이다
-- [ ] `.bmap` 규칙은 핵심 분리 규칙 반영까지 되었고 실제 리타게팅 검증이 더 필요하다
-- [ ] bank / heel 자동 배치 보정은 기본 케이스만 반영되었고 비율 검증이 더 필요하다
-- [ ] 소스 컨스트레인트 복제는 일부 타입만 부분 구현된 상태다
+- [x] GUI 세션용 대표 샘플 회귀 테스트 러너가 추가되었다
+- [x] spine / neck / tail / ear 체인 개수 동적 매칭 구현
+- [x] `.bmap` 규칙 `map_role_chain` 일관 사용, 동적 컨트롤러 이름 생성
+- [x] 소스 컨스트레인트 복제 13개 타입 지원
+- [x] 자동 추론 개선: spine 추적 + neck 다중 본 + 다리/발 자동 분리 + 구조적 귀 감지
+- [x] bank / heel ref 본 자동 배치: foot.head 기준 Z=0, foot+toe 합산 길이 비례
+- [x] face/skull 비활성화: append_arp 후 set_facial(enable=False) 호출
+- [x] pytest 기반 fixture 테스트 (사슴 리그 22개 테스트 통과)
+- [x] RECON-4 방향 수정: ROOT_NAME_HINTS + 후손 수 비교로 parent 방향 결정
+- [x] root_ref 후방 이동: spine 방향 기반 head 후방 배치
+- [x] set_spine count+1 보정: ARP set_spine은 root 포함 카운트
+- [ ] 체인 개수 매칭 및 자동 추론 결과의 `.blend` 실제 검증 필요
+
+### 자동화 전략
+
+- 이 프로젝트의 핵심 자동화 목표는 새 동물 리그를 넣었을 때 `scripts/skeleton_analyzer.py`가 역할을 최대한 자동 추론하는 것이다
+- 대표 샘플 회귀 테스트 러너는 개발 중 기존 성공 케이스를 빠르게 재검증하기 위한 보조 도구다
+- 모든 동물마다 fixture JSON을 만드는 방향은 목표가 아니다
+- 이상적인 흐름은 `자동 추론 → 예외 몇 개만 수정 → BuildRig/Retarget`이다
 
 ## 저장소 점검 체크리스트
 
@@ -48,7 +63,7 @@
 - [x] 기획 및 작업 문서는 `docs/`에 있다
 - [x] 프로필 자산은 `mapping_profiles/`, `remap_presets/`에 있다
 - [x] 일반적인 Python 패키지 구조는 아니다
-- [ ] 자동 테스트 디렉터리나 테스트 스위트는 없다
+- [x] pytest 기반 테스트: `tests/test_skeleton_analyzer.py` (JSON fixture 기반)
 
 ### 현재 기준 진입점
 
@@ -65,10 +80,12 @@
 - [ ] ARP operator 실행이 3D Viewport 컨텍스트에 의존한다
 - [ ] 자동 테스트가 없어 회귀 확인이 수동 검증 중심이다
 - [ ] 실행 경로가 여러 갈래라 수정 시 동기화 누락 위험이 있다
+- [ ] 자동 역할 추론 정확도가 충분하지 않으면 대량 동물 처리 자동화가 어렵다
 
 ## 핵심 규칙
 
-- ARP 프리셋은 `dog` 고정
+- ARP 프리셋은 `dog` 고정 (face/skull 비활성화 상태)
+- bank/heel ref 본은 foot.head 기준 Z=0에 배치, bank_01(inner)/bank_02(outer) 분리
 - ARP ref 본은 실제 리그에서 동적 탐색
 - `leg` 역할 본이 3개면 ARP도 3본 다리 체인으로 적용
 - `foot` 역할 본이 2개면 `foot_ref`, `toes_ref`에 1:1 매핑
@@ -156,6 +173,7 @@
 | `scripts/skeleton_analyzer.py` | 구조 분석, Preview 생성, ref 체인 탐색, `.bmap` 생성 |
 | `scripts/arp_convert_addon.py` | Preview UI, BuildRig, Retarget |
 | `scripts/arp_utils.py` | Blender / ARP 공통 유틸 |
+| `docs/RegressionRunner.md` | 대표 샘플 회귀 테스트 운영 문서 |
 | `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 |
 | `scripts/01_create_arp_rig.py` | 구형 프로필 기반 리그 생성 경로 |
 | `scripts/02_retarget_animation.py` | 구형 리타게팅 경로 |
@@ -176,42 +194,80 @@
 - [x] Preview 생성 시 `__virtual_neck__` 자동 생성
 - [x] `face` 역할 본을 `cc_<source>` 본으로 생성
 - [x] 가이드 본을 제외한 `unmapped` 본을 `cc_<source>`로 생성
+- [ ] spine / neck / tail / ear ref 본 개수를 소스 체인에 맞춰 동적 조정 → **ARP 네이티브 함수로 교체 필요** (아래 F1 참조)
+- [x] BuildRig와 Remap `.bmap`에서 `map_role_chain` 일관 사용
+- [ ] `.bmap` 컨트롤러 이름 → ARP가 생성한 실제 이름을 읽는 방식으로 교체 필요
 
 ### 부분 완료
 
 - [ ] 소스 컨스트레인트 복제
-  - 현재는 `face` / `unmapped`에서 생성된 custom bone에 대해서만 일부 constraint 타입 지원
+  - 13개 타입 지원 (COPY_ROTATION/LOCATION/SCALE/TRANSFORMS, DAMPED_TRACK, LIMIT_ROTATION/LOCATION/SCALE, STRETCH_TO, TRACK_TO, LOCKED_TRACK, CHILD_OF, TRANSFORMATION)
+  - 미지원 타입은 건너뛰고 로그 출력
 - [ ] bank / heel 자동 오프셋 보정
-  - 현재는 기본 위치 그대로인 가이드만 foot 방향 기준으로 자동 보정
-- [ ] BuildRig와 Remap `.bmap` 규칙 정리
-  - 현재는 `leg/foot` 분리 규칙과 `ear_l/r` 매핑이 반영되었지만 실제 결과 검증이 더 필요
+  - 기본 위치 가이드는 foot 방향/길이 비율로 자동 보정, 사용자 이동한 가이드는 유지
+  - 보정 시 foot_len, offset, side 로그 출력
+- [ ] 대표 샘플 회귀 테스트 체계
+  - 현재는 GUI 세션용 fixture 기반 러너가 있고, 대량 자동화가 아니라 회귀 검증 용도다
 
-### 미구현
+### 검증 완료 (그릴링 세션 2026-03-20)
 
-- [ ] spine / neck / tail / ear 본 개수를 소스 체인에 맞춰 조정
+- [x] `edit_bones.new()` 방식은 `match_to_rig`에서 무시됨 → **동작하지 않음** 확인
+- [x] `show_limb_params` EXEC_DEFAULT 호출은 `limb_type` 미설정으로 실효 없음 확인
+- [x] ARP 네이티브 `set_spine(count=N)` 호출 시 ref/ctrl/deform 본 정상 생성 확인
+- [x] `set_spine` 후 ref 본 위치 수동 수정 가능 확인
+
+### 검증 필요
+
+- [ ] `set_spine` 후 `match_to_rig` 시 `c_spine_04.x` 등 컨트롤러 정상 생성 확인
+- [ ] `set_neck`, `set_tail`, `set_ears` 동작 검증
+- [ ] `set_ears` L/R 개별 호출 방식 확인 (`side_arg` 파라미터)
+- [ ] 새 동물에 대한 역할 자동 추론 정확도 (여우 첫 테스트 필요)
 
 ## 남은 기능 상세
 
 ### F1. spine / neck / tail / ear 본 개수 매칭
 
-#### 문제
+#### 구현 상태 — 방식 변경 필요
 
-- 현재는 ARP `dog` 프리셋 기본 개수에 맞춘 상태로 `match_to_rig()`를 사용한다
-- 소스 spine, neck, tail, ear 개수가 달라도 ref 본 개수 자체는 조정하지 않는다
+- **현재 구현 (`edit_bones.new()`)은 동작하지 않음** — `match_to_rig`가 외부에서 추가한 ref 본을 무시함 (2026-03-20 검증)
+- ARP 내부 함수를 직접 호출하는 방식으로 교체해야 함
 
-#### 목표
+#### ARP 네이티브 방식 (검증 완료)
 
-- `spine`, `neck`, `tail`, `ear_l`, `ear_r` 역할에 대해 소스 개수에 맞춰 ref 본 개수 조정
-- 실패 시 fallback 규칙 정의
+- **모듈 경로**: `bl_ext.user_default.auto_rig_pro.src.auto_rig`
+- **함수 및 파라미터**:
+  - `set_spine(count=N)` — spine ref 본 선택 필요
+  - `set_neck(neck_count=N)` — neck ref 본 선택 필요
+  - `set_tail(tail_count=N)` — tail ref 본 선택 필요
+  - `set_ears(ears_amount=N, side_arg='.l'|'.r')` — ear ref 본 선택 필요, L/R 개별 호출
+- **프로퍼티 저장 위치**: `root_ref.x['spine_count']` 등 ref 본 커스텀 프로퍼티
+- **호출 조건**: ARP 아마추어 활성 + Edit Mode + 해당 limb의 ref 본 선택
+- **동작 확인**: `set_spine(count=5)` → ref/ctrl/deform 본 5개 정상 생성, 위치 수정 가능
+
+#### 새 BuildRig 흐름
+
+```text
+append_arp('dog')
+→ set_spine/set_neck/set_tail/set_ears (소스 개수에 맞춤)
+→ ref 본 위치 설정 (소스 본 위치 복사)
+→ match_to_rig
+```
+
+#### 교체 대상 코드
+
+- `arp_convert_addon.py`: `_ADJUSTABLE_CHAINS` 블록 + `edit_bones.new()`/`edit_bones.remove()` 전체
+- `skeleton_analyzer.py`: `_dynamic_ctrl_names()` → ARP 생성 이름을 직접 읽는 방식으로 변경
+- `skeleton_analyzer.py`: `_dynamic_ref_names()` → ARP가 생성한 ref 이름을 탐색하는 방식으로 변경
 
 #### 완료 기준 체크리스트
 
-- [ ] spine 체인이 소스 개수 기준으로 조정된다
-- [ ] neck 체인이 소스 개수 기준으로 조정된다
-- [ ] tail 체인이 소스 개수 기준으로 조정된다
-- [ ] `ear_l`, `ear_r` 체인이 각각 소스 개수 기준으로 조정된다
-- [ ] 조정 실패 시 fallback 규칙이 로그와 함께 동작한다
-- [ ] 기본 `dog` 프리셋만 사용하는 케이스와 충돌하지 않는다
+- [ ] `edit_bones.new()` 해킹 코드 제거
+- [ ] `set_spine/set_neck/set_tail/set_ears` 호출로 교체
+- [ ] 각 set_* 호출 전 해당 ref 본 자동 선택 로직 구현
+- [ ] set_* 호출 후 ref 본 이름을 동적 탐색하여 매핑에 사용
+- [ ] `_dynamic_ctrl_names()` 제거, ARP가 생성한 컨트롤러 이름 직접 탐색
+- [ ] `match_to_rig` 후 정상 리그 생성 확인 (여우 기준)
+- [ ] `.bmap` 생성 시 실제 ARP 컨트롤러 이름 사용 확인
 
 ### F4. 소스 컨스트레인트 복제
 
@@ -300,15 +356,16 @@
 
 ## 우선순위
 
-1. F7: Remap `.bmap` 규칙 정리
-2. F6: bank / heel 자동 배치 보정
-3. F4: 소스 컨스트레인트 복제
-4. F1: spine / neck / tail / ear 본 개수 매칭
+1. **F1: 체인 매칭 ARP 네이티브 방식 교체** — 현재 구현이 동작하지 않으므로 최우선
+2. F7: Remap `.bmap` 규칙 정리 — 컨트롤러 이름 직접 탐색 방식 연동
+3. F6: bank / heel 자동 배치 보정
+4. F4: 소스 컨스트레인트 복제
 
 ## 현재 한계
 
-- spine / neck / tail / ear는 소스 개수에 맞춰 ref 개수를 조절하지 않음
-- `.bmap` 규칙은 핵심 분리 규칙 반영 완료, 실제 리타게팅 검증 추가 필요
+- **`edit_bones.new()` 체인 매칭이 동작하지 않음** — ARP 네이티브 함수로 교체 필요 (최우선)
+- `.bmap` 컨트롤러 이름을 추측(`_dynamic_ctrl_names`)하고 있음 — ARP 생성 이름 직접 읽기로 변경 필요
+- 자동 추론이 실제 동물 리그에서 미검증 (여우 첫 테스트 필요)
 - 자동 테스트가 없어 실제 `.blend` 기준 검증 비중이 큼
 - Windows / Blender 경로 가정이 일부 남아 있음
 
