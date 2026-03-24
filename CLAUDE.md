@@ -28,8 +28,10 @@
   5. 체인 개수 매칭 (`set_spine/neck/tail/ears`)
   6. ref 본 위치 설정
   7. `match_to_rig`
-  8. Remap 설정
-  9. 액션별 retarget
+  8. cc_ 커스텀 본 추가
+  9. 전체 웨이트 전송 (deform + cc_ → ARP)
+  10. Remap 설정
+  11. 액션별 retarget
 
 ## 우선 확인할 파일
 
@@ -68,7 +70,7 @@
 - `foot` 역할 본이 1개면 `foot_ref + toes_ref`로 분할
 - toe 본이 없으면 `virtual toe` 사용
 - ear는 `ear_01_ref / ear_02_ref`에 직접 매핑
-- face와 가이드 제외 `unmapped` 본은 `cc_` 커스텀 본 후보
+- face 역할은 unmapped에 통합, 가이드 제외 `unmapped` 본은 `cc_` 커스텀 본 후보
 - Preview Armature는 원본 이름 유지, 역할은 색상과 커스텀 프로퍼티로 표시
 
 ## ARP 네이티브 체인 조정 함수
@@ -91,6 +93,8 @@
 - BuildRig와 Remap `.bmap`에서 `map_role_chain` 일관 사용으로 통일
 - 소스 컨스트레인트 복제는 13개 타입 지원 (COPY_*, LIMIT_*, TRACK, STRETCH_TO, CHILD_OF, TRANSFORMATION)
 - `.bmap` 컨트롤러 이름은 `_dynamic_ctrl_names()` 추측 대신 ARP 생성 이름 직접 탐색으로 교체 필요
+- face 역할 제거 → unmapped에 통합, 모든 cc_ 본은 unmapped에서 생성
+- 전체 웨이트 전송: 위치 기반 독점 매칭 + 사이드 필터 + 본 길이 비율 분할 + Armature modifier 변경
 - 자동 추론 개선: spine 추적(후손 수 반영), neck 다중 본 감지, 다리/발 자동 분리, 구조적 귀 감지
 - 자동 추론은 실제 동물 리그에서 미검증 (여우 첫 테스트 필요)
 - 회귀 테스트 러너는 대표 샘플 검증용이다

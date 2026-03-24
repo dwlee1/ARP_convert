@@ -30,8 +30,11 @@ LATERAL_THRESHOLD = 0.1
 MIN_LEG_CHAIN_LENGTH = 2
 MAX_EAR_CHAIN_LENGTH = 3
 
-# 얼굴 본 키워드 (cc_ 커스텀 본으로 분류)
+# 얼굴 본 키워드 (스파인 후보 제외용)
 FACE_BONE_KEYWORDS = ["eye", "ear", "jaw", "mouth", "tongue"]
+
+# cc_ 커스텀 본 강제 전환 패턴 — 이 패턴이 포함된 본은 어떤 역할이든 cc_ 후보
+CC_NAME_PATTERNS = ['eye', 'jaw', 'mouth', 'tongue', 'food']
 
 # ARP dog 프리셋 ref 본 구조
 ARP_REF_MAP = {
@@ -856,7 +859,7 @@ def analyze_skeleton(armature_obj):
     소스 아마추어의 deform 본을 분석하여 구조적 역할을 식별.
 
     Returns:
-        dict: 분석 결과 (chains, face_bones, unmapped, confidence 등)
+        dict: 분석 결과 (chains, unmapped, confidence 등)
     """
     # 1. 본 데이터 추출
     all_bones = extract_bone_data(armature_obj)
@@ -878,13 +881,13 @@ def analyze_skeleton(armature_obj):
             print(f"  [DEBUG-after] {name}: parent={b['parent']}, children={b['children']}")
 
     if not deform_bones:
-        return {'error': 'deform 본이 없습니다.', 'chains': {}, 'face_bones': [],
+        return {'error': 'deform 본이 없습니다.', 'chains': {},
                 'unmapped': [], 'confidence': 0}
 
     # 2. 루트 찾기
     root_result = find_root_bone(deform_bones)
     if not root_result:
-        return {'error': '루트 본을 찾을 수 없습니다.', 'chains': {}, 'face_bones': [],
+        return {'error': '루트 본을 찾을 수 없습니다.', 'chains': {},
                 'unmapped': list(deform_bones.keys()), 'confidence': 0}
 
     root_name = root_result[0]
@@ -973,7 +976,7 @@ def analyze_skeleton(armature_obj):
         mapped_bones.update(foot_bones)
     if tail_chain:
         mapped_bones.update(tail_chain)
-    mapped_bones.update(face_features.get('face_bones', []))
+    # face_bones는 매핑하지 않음 — unmapped에 포함시켜 cc_ 커스텀 본으로 처리
     mapped_bones.update(face_features.get('ear_l', []))
     mapped_bones.update(face_features.get('ear_r', []))
 
@@ -1015,7 +1018,6 @@ def analyze_skeleton(armature_obj):
     return {
         'source_armature': armature_obj.name,
         'chains': chains,
-        'face_bones': face_features.get('face_bones', []),
         'unmapped': unmapped,
         'confidence': round(avg_confidence, 2),
         'bone_data': deform_bones,  # 위치 정보 포함
@@ -1097,7 +1099,6 @@ def generate_arp_mapping(analysis):
         dict: 기존 프로필과 호환되는 형식
             {
                 'deform_to_ref': {src_bone: arp_ref_bone, ...},
-                'face_bones': [src_bone, ...],
                 'ref_alignment': {'priority': {}, 'avg_lr': {}},
             }
     """
@@ -1121,7 +1122,6 @@ def generate_arp_mapping(analysis):
         'description': f"자동 생성 매핑 (신뢰도: {analysis.get('confidence', 0)})",
         'arp_preset': 'dog',
         'deform_to_ref': deform_to_ref,
-        'face_bones': analysis.get('face_bones', []),
         'ref_alignment': {'priority': {}, 'avg_lr': {}},
     }
 
@@ -1291,10 +1291,8 @@ def generate_bmap_content(analysis, arp_obj=None):
             lines.append("False")
             lines.append("")
 
-    # 얼굴 / unmapped cc_ 본 매핑 추가
-    custom_bones = []
-    custom_bones.extend(analysis.get('face_bones', []))
-    custom_bones.extend(analysis.get('unmapped', []))
+    # unmapped cc_ 본 매핑 추가
+    custom_bones = list(analysis.get('unmapped', []))
 
     for custom_bone in custom_bones:
         cc_name = f"cc_{custom_bone.lower()}"
@@ -1326,10 +1324,6 @@ def generate_verification_report(analysis):
         bones_str = " → ".join(info['bones'])
         conf = info['confidence']
         lines.append(f"  {role:14s}: {bones_str:30s} ({conf:.2f})")
-
-    face_bones = analysis.get('face_bones', [])
-    if face_bones:
-        lines.append(f"  {'face (cc_)':14s}: {', '.join(face_bones)}")
 
     unmapped = analysis.get('unmapped', [])
     if unmapped:
@@ -1408,7 +1402,6 @@ ROLE_COLORS = {
     'ear_l':        (0.0, 0.8, 0.8),    # 시안
     'ear_r':        (0.0, 0.8, 0.8),    # 시안
     'tail':         (1.0, 0.5, 0.0),    # 주황
-    'face':         (0.7, 0.3, 0.9),    # 보라
     'unmapped':     (0.5, 0.5, 0.5),    # 회색
 }
 
@@ -1432,7 +1425,6 @@ def create_preview_armature(source_obj, analysis):
     """
     bone_data = analysis.get('bone_data', {})
     chains = analysis.get('chains', {})
-    face_bones_list = analysis.get('face_bones', [])
     unmapped_list = analysis.get('unmapped', [])
 
     if not bone_data:
@@ -1443,8 +1435,6 @@ def create_preview_armature(source_obj, analysis):
     for role, chain_info in chains.items():
         for bone_name in chain_info['bones']:
             bone_to_role[bone_name] = role
-    for bone_name in face_bones_list:
-        bone_to_role[bone_name] = 'face'
     for bone_name in unmapped_list:
         bone_to_role[bone_name] = 'unmapped'
 
@@ -1608,13 +1598,10 @@ def preview_to_analysis(preview_obj):
     roles = read_preview_roles(preview_obj)
 
     chains = {}
-    face_bones = []
     unmapped = []
 
     for role, bone_names in roles.items():
-        if role == 'face':
-            face_bones = bone_names
-        elif role == 'unmapped':
+        if role == 'unmapped':
             unmapped = bone_names
         else:
             chains[role] = {
@@ -1629,7 +1616,6 @@ def preview_to_analysis(preview_obj):
     return {
         'source_armature': preview_obj.name,
         'chains': chains,
-        'face_bones': face_bones,
         'unmapped': unmapped,
         'confidence': 1.0,
         'bone_data': deform_bones,
@@ -1843,7 +1829,7 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
             print(f"  {src:25s} → {ref}")
 
     for role, preview_bones in roles.items():
-        if role in ('face', 'unmapped'):
+        if role == 'unmapped':
             continue
         map_chain(role, preview_bones, arp_chains.get(role, []))
 

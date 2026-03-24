@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-03-23
+> 최종 수정: 2026-03-24
 
 ## 문서 목적
 
@@ -25,8 +25,10 @@
 3. 역할 수정
 4. ARP 리그 생성
 5. match_to_rig
-6. Remap 설정
-7. 액션별 retarget
+6. cc_ 커스텀 본 추가
+7. 전체 웨이트 전송 (deform + cc_ → ARP)
+8. Remap 설정
+9. 액션별 retarget
 ```
 
 ### 현재 상태 요약
@@ -46,7 +48,14 @@
 - [x] RECON-4 방향 수정: ROOT_NAME_HINTS + 후손 수 비교로 parent 방향 결정
 - [x] root_ref 후방 이동: spine 방향 기반 head 후방 배치
 - [x] set_spine count+1 보정: ARP set_spine은 root 포함 카운트
+- [x] face 역할 제거 → unmapped에 통합, cc_ 커스텀 본으로 일괄 처리
+- [x] 전체 웨이트 전송: 소스 deform 본 → ARP deform 본 위치 기반 매칭
+- [x] 웨이트 전송: stretch/twist 본 포함, 본 길이 비율 분할
+- [x] 웨이트 전송: 사이드 필터(L↔L, R↔R, X↔X) + 독점 1:1 매칭
+- [x] cc_ 본 use_deform=True 전환, 웨이트 복사 포함
+- [x] 소스 vertex group 정리 + Armature modifier 자동 변경
 - [ ] 체인 개수 매칭 및 자동 추론 결과의 `.blend` 실제 검증 필요
+- [ ] 웨이트 전송 결과의 `.blend` 실제 검증 필요 (여우 첫 테스트)
 
 ### 자동화 전략
 
@@ -92,7 +101,7 @@
 - `foot` 역할 본이 1개면 `foot_ref + toes_ref`로 분할
 - toe 본이 없으면 `virtual toe` 사용
 - ear는 `ear_01_ref / ear_02_ref`에 직접 매핑
-- face는 `cc_` 커스텀 본 후보
+- face와 unmapped 본은 `cc_` 커스텀 본 후보 (face 역할은 unmapped에 통합)
 - Preview Armature는 원본 이름 유지, 역할은 색상과 커스텀 프로퍼티로 표시
 
 ## 진행 원칙
@@ -115,8 +124,7 @@
 | `front_foot_l/r` | 앞발 |
 | `ear_l/r` | 귀 체인 |
 | `tail` | 꼬리 체인 |
-| `face` | `cc_` 커스텀 본 후보 |
-| `unmapped` | 미매핑 |
+| `unmapped` | 미매핑 (cc_ 커스텀 본 후보) |
 
 ## ARP ref 체인 규칙
 
@@ -185,15 +193,16 @@
 
 - [x] Preview Armature 생성
 - [x] Preview 역할 수정 UI
-- [x] `root/spine/neck/head/leg/foot/ear/face/unmapped` 역할 체계 반영
+- [x] `root/spine/neck/head/leg/foot/ear/unmapped` 역할 체계 반영 (face 역할은 unmapped에 통합)
 - [x] ARP ref 본 동적 검색
 - [x] `leg` 3본 고정 매핑
 - [x] `foot` 1본을 `foot + toe`로 분할
 - [x] toe가 없을 때 `virtual toe` 생성
 - [x] `foot` 역할 지정 시 bank / heel Preview 가이드 생성
 - [x] Preview 생성 시 `__virtual_neck__` 자동 생성
-- [x] `face` 역할 본을 `cc_<source>` 본으로 생성
-- [x] 가이드 본을 제외한 `unmapped` 본을 `cc_<source>`로 생성
+- [x] unmapped 본을 `cc_<source>` 본으로 생성 (face 역할 통합, use_deform=True)
+- [x] 전체 웨이트 전송: 위치 기반 매칭 + 사이드 필터 + 본 길이 비율 분할
+- [x] Armature modifier 자동 변경 + 소스 vertex group 정리
 - [ ] spine / neck / tail / ear ref 본 개수를 소스 체인에 맞춰 동적 조정 → **ARP 네이티브 함수로 교체 필요** (아래 F1 참조)
 - [x] BuildRig와 Remap `.bmap`에서 `map_role_chain` 일관 사용
 - [ ] `.bmap` 컨트롤러 이름 → ARP가 생성한 실제 이름을 읽는 방식으로 교체 필요
@@ -269,6 +278,43 @@ append_arp('dog')
 - [ ] `match_to_rig` 후 정상 리그 생성 확인 (여우 기준)
 - [ ] `.bmap` 생성 시 실제 ARP 컨트롤러 이름 사용 확인
 
+### F8. 전체 웨이트 전송 (deform + cc_ → ARP)
+
+#### 구현 상태 — 구현 완료, 검증 필요
+
+BuildRig 완료 후 소스 deform 본의 vertex group weight를 ARP deform 본으로 자동 전송한다.
+
+#### 매칭 알고리즘
+
+1. **Phase 1: 독점 소스 중심 매칭** — 소스 deform 본과 ARP Deform 컬렉션 본을 위치 기반으로 1:1 매칭
+   - 사이드 필터: `.l`↔`.l`, `.r`↔`.r`, `.x`↔`.x` (교차 매칭 방지)
+   - 거리순 정렬 후 탐욕적(greedy) 배정, 각 본은 한 번만 사용
+2. **Phase 2: orphan ARP 본 재배정** — Phase 1에서 매칭되지 않은 ARP 본(stretch, twist 등)을 ARP 공간 위치 기반으로 가장 가까운 claimed 본에 배정
+   - 사이드 필터 적용, 앞다리↔뒷다리 교차 방지
+3. **Phase 3: 본 길이 비율 분할** — 소스 본 하나에 여러 ARP 본이 배정되면 각 ARP 본의 길이 비율로 weight 분할
+
+#### 웨이트 전송
+
+- `REPLACE` 모드로 적용 (누적 없음)
+- 기존 소스 vertex group 삭제 (자기 자신이 타겟인 경우 제외)
+- Armature modifier를 소스에서 ARP 아마추어로 변경
+
+#### cc_ 커스텀 본 웨이트
+
+- `cc_bone_map` 기반 이름 매핑 (eye_L → cc_eye_l 등)
+- cc_ 본 `use_deform=True` 설정
+
+#### 완료 기준 체크리스트
+
+- [x] 위치 기반 매칭 + 사이드 필터 구현
+- [x] stretch/twist orphan 재배정 (위치 기반)
+- [x] 본 길이 비율 분할
+- [x] cc_ 본 웨이트 매핑
+- [x] 소스 vertex group 정리 + Armature modifier 변경
+- [ ] 여우 리그 기준 weight paint 모드에서 검증
+- [ ] 뒷다리/앞다리 교차 오염 없음 확인
+- [ ] cc_ 본(eye, jaw, Food 등) 웨이트 정상 확인
+
 ### F4. 소스 컨스트레인트 복제
 
 #### 문제
@@ -290,7 +336,7 @@ append_arp('dog')
 
 #### 현재 상태
 
-- `face` / `unmapped` custom bone 대상에 한해 일부 constraint 복제
+- `unmapped` (cc_) custom bone 대상에 한해 일부 constraint 복제
 - target이 소스 아마추어면 ARP 아마추어로 교체
 - 세부 옵션과 추가 constraint 타입은 후속 정리 필요
 
@@ -357,9 +403,10 @@ append_arp('dog')
 ## 우선순위
 
 1. **F1: 체인 매칭 ARP 네이티브 방식 교체** — 현재 구현이 동작하지 않으므로 최우선
-2. F7: Remap `.bmap` 규칙 정리 — 컨트롤러 이름 직접 탐색 방식 연동
-3. F6: bank / heel 자동 배치 보정
-4. F4: 소스 컨스트레인트 복제
+2. **F8: 웨이트 전송 실제 검증** — 구현 완료, 여우 리그 weight paint 검증 필요
+3. F7: Remap `.bmap` 규칙 정리 — 컨트롤러 이름 직접 탐색 방식 연동
+4. F6: bank / heel 자동 배치 보정
+5. F4: 소스 컨스트레인트 복제
 
 ## 현재 한계
 
@@ -379,6 +426,14 @@ append_arp('dog')
 - [ ] ear 체인에서 `ear_01_ref -> ear_02_ref` 정렬 확인
 - [ ] bank / heel 가이드를 안 움직인 경우 자동 보정 결과 확인
 - [ ] bank / heel 가이드를 수동 이동한 경우 위치 유지 확인
+
+### 웨이트 전송
+
+- [ ] Fox: BuildRig 후 weight paint 모드에서 각 ARP deform 본의 가중치 영역 확인
+- [ ] Fox: 뒷다리 본(leg_stretch.l, leg_twist.l)이 앞다리에 영향 없음 확인
+- [ ] Fox: cc_ 본(cc_eye_l, cc_eye_r, cc_jaw, cc_food)에 올바른 가중치 확인
+- [ ] Fox: Armature modifier가 ARP 아마추어를 가리키는지 확인
+- [ ] Fox: 소스 vertex group이 정리되었는지 확인
 
 ### Remap / Retarget
 

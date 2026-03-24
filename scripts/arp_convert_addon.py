@@ -229,17 +229,20 @@ def _create_cc_bones_from_preview(
     log,
 ):
     """
-    Preview의 face 역할 본을 기반으로 cc_ 본을 직접 생성한다.
-    ARP add_custom_bone 오퍼레이터 호출 의존성을 줄여 안정성을 확보하는 경로다.
+    Preview의 unmapped 역할 본을 기반으로 cc_ 본을 직접 생성한다.
+
+    Returns:
+        tuple: (생성 개수, cc_bone_map {소스본이름: cc_본이름})
     """
     if not custom_bone_names:
-        return 0
+        return 0, {}
 
     bpy.ops.object.mode_set(mode='EDIT')
     edit_bones = arp_obj.data.edit_bones
     arp_matrix_inv = arp_obj.matrix_world.inverted()
 
     created = 0
+    cc_bone_map = {}
     ordered_custom_bones = []
     pending = set(custom_bone_names)
 
@@ -265,6 +268,7 @@ def _create_cc_bones_from_preview(
         cc_name = _make_cc_bone_name(bone_name)
         if edit_bones.get(cc_name):
             log(f"  cc_ 이미 존재: {cc_name}")
+            cc_bone_map[bone_name] = cc_name
             continue
 
         world_head, world_tail, roll = preview_positions[bone_name]
@@ -291,6 +295,7 @@ def _create_cc_bones_from_preview(
             log(f"  cc_ 부모 없음 ({cc_name}): {parent_name}", "WARN")
 
         created += 1
+        cc_bone_map[bone_name] = cc_name
         log(f"  cc_ 생성: {bone_name} -> {cc_name} (parent={parent_name})")
 
     bpy.ops.object.mode_set(mode='OBJECT')
@@ -300,9 +305,206 @@ def _create_cc_bones_from_preview(
         cc_name = _make_cc_bone_name(bone_name)
         bone = arp_obj.data.bones.get(cc_name)
         if bone:
-            bone.use_deform = False
+            bone.use_deform = True
 
-    return created
+    return created, cc_bone_map
+
+
+def _get_bone_side(name):
+    """본 이름에서 사이드 추출 (.l/_L → L, .r/_R → R, .x/기타 → X)"""
+    if name.endswith('.l'):
+        return 'L'
+    if name.endswith('.r'):
+        return 'R'
+    if name.endswith('.x'):
+        return 'X'
+    if name.endswith('_L') or name.endswith('_l'):
+        return 'L'
+    if name.endswith('_R') or name.endswith('_r'):
+        return 'R'
+    return 'X'
+
+
+def _build_position_weight_map(source_obj, arp_obj, cc_bone_map, log):
+    """
+    독점 소스 중심 매칭 + orphan 재배정으로 소스 → ARP 웨이트 매핑 생성.
+
+    Phase 1: 사이드 필터 + 거리순 독점 매칭 (각 소스/ARP 본 1:1)
+    Phase 2: 미배정 ARP orphan → 가장 가까운 소스에 추가 (사이드 필터)
+    Phase 3: 소스에 여러 ARP 본이 배정되면 본 길이 비율로 분할
+
+    cc_ 본은 이름 기반 1:1 유지.
+
+    Returns:
+        dict: {소스본이름: [(ARP본이름, 비율), ...]}
+    """
+    weight_map = {}
+
+    # ARP Deform 컬렉션에서 후보 수집 (stretch/twist 포함)
+    deform_col = arp_obj.data.collections_all.get('Deform')
+    if not deform_col:
+        log("  Deform 컬렉션 미발견", "ERROR")
+        return weight_map
+
+    arp_matrix = arp_obj.matrix_world
+    candidates = {}      # {name: world_head_pos}
+    cand_lengths = {}    # {name: bone_length}
+
+    for bone in arp_obj.data.bones:
+        if deform_col not in bone.collections.values():
+            continue
+        if '_ref' in bone.name:
+            continue
+        head_w = arp_matrix @ bone.head_local
+        tail_w = arp_matrix @ bone.tail_local
+        candidates[bone.name] = head_w
+        cand_lengths[bone.name] = (tail_w - head_w).length
+
+    log(f"  Deform 매칭 후보: {len(candidates)}개")
+
+    # 소스 deform 본 위치 수집
+    src_matrix = source_obj.matrix_world
+    source_deform = {}
+    for bone in source_obj.data.bones:
+        if bone.use_deform:
+            source_deform[bone.name] = src_matrix @ bone.head_local
+
+    # Phase 1: 독점 소스 중심 매칭 (사이드 필터 + 거리순)
+    match_pairs = []
+    for src_name, src_pos in source_deform.items():
+        if src_name in cc_bone_map:
+            continue
+        src_side = _get_bone_side(src_name)
+        for cand_name, cand_pos in candidates.items():
+            if _get_bone_side(cand_name) != src_side:
+                continue
+            dist = (src_pos - cand_pos).length
+            match_pairs.append((dist, src_name, cand_name))
+
+    match_pairs.sort(key=lambda x: (x[0], x[1]))
+
+    initial_map = {}
+    claimed_arp = set()
+    claimed_src = set()
+
+    for dist, src_name, cand_name in match_pairs:
+        if src_name in claimed_src or cand_name in claimed_arp:
+            continue
+        initial_map[src_name] = cand_name
+        claimed_src.add(src_name)
+        claimed_arp.add(cand_name)
+
+    # Phase 2: orphan ARP 본 → ARP 공간 위치 기반으로 가장 가까운 claimed 본에 추가
+    orphans = [n for n in candidates if n not in claimed_arp]
+    src_to_arp = {src: [arp] for src, arp in initial_map.items()}
+    initial_map_inv = {arp: src for src, arp in initial_map.items()}
+
+    for orphan in orphans:
+        orphan_pos = candidates[orphan]
+        orphan_side = _get_bone_side(orphan)
+        best_claimed = None
+        best_dist = float('inf')
+        for claimed_name in claimed_arp:
+            if _get_bone_side(claimed_name) != orphan_side:
+                continue
+            dist = (orphan_pos - candidates[claimed_name]).length
+            if dist < best_dist:
+                best_dist = dist
+                best_claimed = claimed_name
+        if best_claimed and best_claimed in initial_map_inv:
+            owner_src = initial_map_inv[best_claimed]
+            src_to_arp[owner_src].append(orphan)
+
+    # Phase 3: 본 길이 비율 계산 + 로깅
+    for src_name, arp_list in src_to_arp.items():
+        if len(arp_list) == 1:
+            dist = (source_deform[src_name] - candidates[arp_list[0]]).length
+            weight_map[src_name] = [(arp_list[0], 1.0)]
+            log(f"  위치 매칭: {src_name} → {arp_list[0]} (거리={dist:.4f})")
+        else:
+            total_len = sum(cand_lengths.get(a, 0.01) for a in arp_list)
+            ratios = [(a, cand_lengths.get(a, 0.01) / total_len) for a in arp_list]
+            split_str = " + ".join(f"{a}({r:.0%})" for a, r in ratios)
+            weight_map[src_name] = ratios
+            log(f"  길이 분할: {src_name} → {split_str}")
+
+    # cc_ 매핑 추가
+    for src_name, cc_name in cc_bone_map.items():
+        weight_map[src_name] = [(cc_name, 1.0)]
+        log(f"  cc_ 매핑: {src_name} → {cc_name}")
+
+    return weight_map
+
+
+def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
+    """
+    소스 메시의 vertex group weight를 ARP 본 이름으로 복사하고,
+    Armature modifier를 ARP 아마추어로 변경한다.
+    1:N 분할 매핑 시 weight * ratio 로 적용.
+
+    Args:
+        source_obj: 소스 Armature 오브젝트
+        arp_obj: ARP Armature 오브젝트
+        weight_map: {소스본이름: [(ARP본이름, 비율), ...]}
+        log: 로그 함수
+    """
+    from arp_utils import find_mesh_objects
+    meshes = find_mesh_objects(source_obj)
+    total_groups = 0
+
+    for mesh_obj in meshes:
+        log(f"  메시 '{mesh_obj.name}' 처리 중...")
+
+        # ARP vertex group 초기화
+        all_targets = set()
+        for mappings in weight_map.values():
+            for arp_name, _ in mappings:
+                all_targets.add(arp_name)
+        for arp_name in all_targets:
+            existing = mesh_obj.vertex_groups.get(arp_name)
+            if existing:
+                mesh_obj.vertex_groups.remove(existing)
+
+        for src_name, mappings in weight_map.items():
+            src_vg = mesh_obj.vertex_groups.get(src_name)
+            if not src_vg:
+                continue
+
+            for arp_name, ratio in mappings:
+                arp_vg = mesh_obj.vertex_groups.get(arp_name)
+                if not arp_vg:
+                    arp_vg = mesh_obj.vertex_groups.new(name=arp_name)
+
+                for v in mesh_obj.data.vertices:
+                    for g in v.groups:
+                        if g.group == src_vg.index:
+                            arp_vg.add([v.index], g.weight * ratio, 'REPLACE')
+                            break
+
+            total_groups += 1
+
+        # 소스 vertex group 정리
+        removed = 0
+        for src_name, mappings in weight_map.items():
+            is_target = any(src_name == arp_name for arp_name, _ in mappings)
+            if is_target:
+                continue
+            src_vg = mesh_obj.vertex_groups.get(src_name)
+            if src_vg:
+                mesh_obj.vertex_groups.remove(src_vg)
+                removed += 1
+        if removed:
+            log(f"  소스 vertex group 정리: {removed}개 삭제")
+
+        # Armature modifier를 ARP로 변경
+        for mod in mesh_obj.modifiers:
+            if mod.type == 'ARMATURE' and mod.object == source_obj:
+                mod.object = arp_obj
+                log(f"  Armature modifier 변경: {source_obj.name} → {arp_obj.name}")
+                break
+
+    log(f"  weight 전송 완료: {total_groups} groups, {len(meshes)} meshes")
+    return total_groups
 
 
 SUPPORTED_CUSTOM_CONSTRAINTS = {
@@ -456,8 +658,7 @@ ROLE_ITEMS = [
     ('ear_l', "Ear L", "귀 좌"),
     ('ear_r', "Ear R", "귀 우"),
     ('tail', "Tail", "꼬리"),
-    ('face', "Face (cc_)", "얼굴 커스텀 본 (eye, jaw, mouth, tongue)"),
-    ('unmapped', "Unmapped", "미매핑"),
+    ('unmapped', "Unmapped", "미매핑 (cc_ 커스텀 본)"),
 ]
 ROLE_IDS = {item[0] for item in ROLE_ITEMS}
 
@@ -1277,7 +1478,7 @@ class ARPCONV_OT_BuildRig(Operator):
             deform_to_ref.update(chain_map)
 
         for role, preview_bones in roles.items():
-            if role in ('face', 'unmapped'):
+            if role == 'unmapped':
                 continue
             add_chain_mapping(role, preview_bones, arp_chains.get(role, []))
 
@@ -1590,22 +1791,21 @@ class ARPCONV_OT_BuildRig(Operator):
             log(f"  match_to_rig 에러: {e}", "ERROR")
             return {'CANCELLED'}
 
-        # Step 5: face / unmapped cc_ 커스텀 본 추가
+        # Step 5: unmapped cc_ 커스텀 본 추가
         from skeleton_analyzer import read_preview_roles
         roles = read_preview_roles(preview_obj)
-        custom_bones = list(roles.get('face', []))
-        custom_bones.extend(
+        custom_bones = [
             bone_name for bone_name in roles.get('unmapped', [])
             if not bone_name.endswith(GUIDE_SUFFIX_HEEL)
             and not bone_name.endswith(GUIDE_SUFFIX_BANK)
-        )
+        ]
 
         if custom_bones:
             log(f"cc_ 커스텀 본 추가: {len(custom_bones)}개")
             ensure_object_mode()
             select_only(arp_obj)
             try:
-                created_cc = _create_cc_bones_from_preview(
+                created_cc, cc_bone_map = _create_cc_bones_from_preview(
                     arp_obj=arp_obj,
                     preview_obj=preview_obj,
                     preview_positions=preview_positions,
@@ -1628,6 +1828,22 @@ class ARPCONV_OT_BuildRig(Operator):
                 self.report({'ERROR'}, f"cc_ 커스텀 본 생성 실패: {e}")
                 log(f"  cc_ 생성 에러: {traceback.format_exc()}", "ERROR")
                 return {'CANCELLED'}
+        else:
+            cc_bone_map = {}
+
+        # Step 6: 전체 웨이트 전송 (deform 본 + cc_ 본) + Armature modifier 변경
+        log("=== 웨이트 전송 ===")
+        ensure_object_mode()
+        try:
+            weight_map = _build_position_weight_map(source_obj, arp_obj, cc_bone_map, log)
+            if weight_map:
+                transferred = _transfer_all_weights(source_obj, arp_obj, weight_map, log)
+                log(f"  전체 weight 전송: {transferred} groups")
+            else:
+                log("  weight map 비어있음 — 전송 스킵", "WARN")
+        except Exception as e:
+            log(f"  weight 전송 실패 (무시): {e}", "WARN")
+            log(traceback.format_exc(), "WARN")
 
         self.report({'INFO'}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
         return {'FINISHED'}
@@ -1942,15 +2158,15 @@ class ARPCONV_PT_MainPanel(Panel):
         # Head features
         sub = box.column(align=True)
         sub.label(text="Head:")
-        grid = sub.grid_flow(columns=3, align=True)
-        for role_id in ['ear_l', 'ear_r', 'face']:
-            label = {'ear_l': 'Ear L', 'ear_r': 'Ear R', 'face': 'Face(cc_)'}[role_id]
+        grid = sub.grid_flow(columns=2, align=True)
+        for role_id in ['ear_l', 'ear_r']:
+            label = {'ear_l': 'Ear L', 'ear_r': 'Ear R'}[role_id]
             op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
-        # Unmapped
+        # Unmapped (cc_ custom bones)
         row = box.row()
-        op = row.operator("arp_convert.set_role", text="Unmapped")
+        op = row.operator("arp_convert.set_role", text="Unmapped (cc_)")
         op.role = 'unmapped'
 
         # 현재 선택된 본의 역할 표시

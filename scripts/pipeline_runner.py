@@ -336,7 +336,7 @@ def main():
             from skeleton_analyzer import generate_bmap_content
             analysis_for_bmap = {
                 'chains': {k: v for k, v in analysis.items() if k == 'chains'}.get('chains', {}),
-                'face_bones': analysis.get('face_bones', []) if 'analysis' in dir() else [],
+                'unmapped': analysis.get('unmapped', []),
             }
             # analysis 변수가 auto 모드에서만 존재
             bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj)
