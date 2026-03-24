@@ -25,10 +25,11 @@
 3. 역할 수정
 4. ARP 리그 생성
 5. match_to_rig
-6. cc_ 커스텀 본 추가
-7. 전체 웨이트 전송 (deform + cc_ → ARP)
-8. Remap 설정
-9. 액션별 retarget
+6. 앞다리 3 Bones IK 값 설정
+7. cc_ 커스텀 본 추가
+8. 전체 웨이트 전송 (deform + cc_ → ARP)
+9. Remap 설정
+10. 액션별 retarget
 ```
 
 ### 현재 상태 요약
@@ -54,6 +55,7 @@
 - [x] 웨이트 전송: 사이드 필터(L↔L, R↔R, X↔X) + 독점 1:1 매칭
 - [x] cc_ 본 use_deform=True 전환, 웨이트 복사 포함
 - [x] 소스 vertex group 정리 + Armature modifier 자동 변경
+- [x] 앞다리 3 Bones IK 슬라이더 추가 (0.0=shoulder 독립, 1.0=foot IK 반응)
 - [ ] 체인 개수 매칭 및 자동 추론 결과의 `.blend` 실제 검증 필요
 - [ ] 웨이트 전송 결과의 `.blend` 실제 검증 필요 (여우 첫 테스트)
 
