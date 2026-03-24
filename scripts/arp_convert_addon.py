@@ -687,6 +687,13 @@ class ARPCONV_Props(PropertyGroup):
         name="Retarget 포함",
         default=True,
     )
+    front_3bones_ik: FloatProperty(
+        name="앞다리 3 Bones IK",
+        description="앞다리 3 Bones IK 값. 0.0이면 shoulder 독립 회전, 1.0이면 foot IK에 반응",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1791,6 +1798,18 @@ class ARPCONV_OT_BuildRig(Operator):
             log(f"  match_to_rig 에러: {e}", "ERROR")
             return {'CANCELLED'}
 
+        # Step 4b: 앞다리 3 Bones IK 값 설정
+        front_ik_val = props.front_3bones_ik
+        log(f"앞다리 3 Bones IK 값 설정: {front_ik_val}")
+        for side in ('.l', '.r'):
+            foot_ik_name = f"c_foot_ik_dupli_001{side}"
+            pb = arp_obj.pose.bones.get(foot_ik_name)
+            if pb and "three_bones_ik" in pb:
+                pb["three_bones_ik"] = front_ik_val
+                log(f"  {foot_ik_name}['three_bones_ik'] = {front_ik_val}")
+            else:
+                log(f"  {foot_ik_name} 미발견 또는 속성 없음", "WARN")
+
         # Step 5: unmapped cc_ 커스텀 본 추가
         from skeleton_analyzer import read_preview_roles
         roles = read_preview_roles(preview_obj)
@@ -2187,6 +2206,7 @@ class ARPCONV_PT_MainPanel(Panel):
         # Step 3: 리그 생성
         box = layout.box()
         box.label(text="Step 3: 적용", icon='PLAY')
+        box.prop(props, "front_3bones_ik", slider=True)
         col = box.column(align=True)
         col.scale_y = 1.3
         col.operator("arp_convert.build_rig", icon='MOD_ARMATURE')
