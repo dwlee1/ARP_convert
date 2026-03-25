@@ -62,7 +62,7 @@ def _ensure_scripts_path():
 def _reload_modules():
     """개발 중 모듈 리로드"""
     import importlib
-    for mod_name in ['skeleton_analyzer', 'arp_utils']:
+    for mod_name in ['skeleton_analyzer', 'arp_utils', 'weight_transfer_rules']:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
 
@@ -72,21 +72,40 @@ def _make_cc_bone_name(source_bone_name):
     return f"cc_{source_bone_name.lower()}"
 
 
-def _find_cc_parent_name(source_bone_name, preview_obj, custom_bone_names, deform_to_ref):
-    """
-    custom 체인 내부 부모가 있으면 해당 cc_ 본에 연결.
-    아니면 이미 매핑된 ARP ref 부모를 사용하고, 마지막 fallback은 root/head ref다.
-    """
-    preview_bone = preview_obj.data.bones.get(source_bone_name)
-    if preview_bone and preview_bone.parent:
-        parent_name = preview_bone.parent.name
-        if parent_name in custom_bone_names:
-            return _make_cc_bone_name(parent_name)
-        if parent_name in deform_to_ref:
-            return deform_to_ref[parent_name]
-        if "head" in parent_name.lower() or "jaw" in parent_name.lower() or "eye" in parent_name.lower():
-            return "head_ref.x"
-    return "root_ref.x"
+def _build_preview_hierarchy(preview_obj):
+    hierarchy = {}
+    for bone in preview_obj.data.bones:
+        hierarchy[bone.name] = {
+            'parent': bone.parent.name if bone.parent else None,
+            'use_connect': bool(getattr(bone, 'use_connect', False)),
+        }
+    return hierarchy
+
+
+def _iter_preview_ancestors(source_bone_name, preview_hierarchy):
+    visited = set()
+    current_name = source_bone_name
+
+    while current_name and current_name not in visited:
+        visited.add(current_name)
+        bone_info = preview_hierarchy.get(current_name, {})
+        parent_name = bone_info.get('parent')
+        if not parent_name:
+            break
+        yield parent_name
+        current_name = parent_name
+
+
+def _should_connect_cc_bone(source_bone_name, resolved_parent_name, preview_hierarchy, custom_bone_names):
+    bone_info = preview_hierarchy.get(source_bone_name)
+    if not bone_info or not bone_info.get('use_connect'):
+        return False
+
+    direct_parent_name = bone_info.get('parent')
+    if direct_parent_name not in custom_bone_names:
+        return False
+
+    return resolved_parent_name == _make_cc_bone_name(direct_parent_name)
 
 
 def _ensure_nonzero_bone_length(local_head, local_tail):
@@ -220,96 +239,6 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
     return adjusted
 
 
-def _create_cc_bones_from_preview(
-    arp_obj,
-    preview_obj,
-    preview_positions,
-    custom_bone_names,
-    deform_to_ref,
-    log,
-):
-    """
-    Preview의 unmapped 역할 본을 기반으로 cc_ 본을 직접 생성한다.
-
-    Returns:
-        tuple: (생성 개수, cc_bone_map {소스본이름: cc_본이름})
-    """
-    if not custom_bone_names:
-        return 0, {}
-
-    bpy.ops.object.mode_set(mode='EDIT')
-    edit_bones = arp_obj.data.edit_bones
-    arp_matrix_inv = arp_obj.matrix_world.inverted()
-
-    created = 0
-    cc_bone_map = {}
-    ordered_custom_bones = []
-    pending = set(custom_bone_names)
-
-    # 부모가 먼저 생성되도록 간단한 위상 순서를 만든다.
-    while pending:
-        progressed = False
-        for bone_name in list(pending):
-            preview_bone = preview_obj.data.bones.get(bone_name)
-            parent_name = preview_bone.parent.name if preview_bone and preview_bone.parent else None
-            if parent_name not in pending:
-                ordered_custom_bones.append(bone_name)
-                pending.remove(bone_name)
-                progressed = True
-        if not progressed:
-            ordered_custom_bones.extend(sorted(pending))
-            break
-
-    for bone_name in ordered_custom_bones:
-        if bone_name not in preview_positions:
-            log(f"  cc_ 생성 스킵 ({bone_name}): Preview 위치 없음", "WARN")
-            continue
-
-        cc_name = _make_cc_bone_name(bone_name)
-        if edit_bones.get(cc_name):
-            log(f"  cc_ 이미 존재: {cc_name}")
-            cc_bone_map[bone_name] = cc_name
-            continue
-
-        world_head, world_tail, roll = preview_positions[bone_name]
-        local_head = arp_matrix_inv @ world_head
-        local_tail = arp_matrix_inv @ world_tail
-        local_tail = _ensure_nonzero_bone_length(local_head, local_tail)
-
-        new_eb = edit_bones.new(cc_name)
-        new_eb.head = local_head
-        new_eb.tail = local_tail
-        new_eb.roll = roll
-        new_eb.use_connect = False
-
-        parent_name = _find_cc_parent_name(
-            bone_name,
-            preview_obj,
-            set(custom_bone_names),
-            deform_to_ref,
-        )
-        parent_eb = edit_bones.get(parent_name)
-        if parent_eb:
-            new_eb.parent = parent_eb
-        else:
-            log(f"  cc_ 부모 없음 ({cc_name}): {parent_name}", "WARN")
-
-        created += 1
-        cc_bone_map[bone_name] = cc_name
-        log(f"  cc_ 생성: {bone_name} -> {cc_name} (parent={parent_name})")
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    # bone.use_deform은 Object Mode에서만 설정 가능
-    for bone_name in ordered_custom_bones:
-        cc_name = _make_cc_bone_name(bone_name)
-        bone = arp_obj.data.bones.get(cc_name)
-        if bone:
-            bone.use_deform = True
-
-    return created, cc_bone_map
-
-
 def _get_bone_side(name):
     """본 이름에서 사이드 추출 (.l/_L → L, .r/_R → R, .x/기타 → X)"""
     if name.endswith('.l'):
@@ -325,113 +254,354 @@ def _get_bone_side(name):
     return 'X'
 
 
-def _build_position_weight_map(source_obj, arp_obj, cc_bone_map, log):
-    """
-    독점 소스 중심 매칭 + orphan 재배정으로 소스 → ARP 웨이트 매핑 생성.
+def _vector_to_tuple(vec):
+    return (float(vec.x), float(vec.y), float(vec.z))
 
-    Phase 1: 사이드 필터 + 거리순 독점 매칭 (각 소스/ARP 본 1:1)
-    Phase 2: 미배정 ARP orphan → 가장 가까운 소스에 추가 (사이드 필터)
-    Phase 3: 소스에 여러 ARP 본이 배정되면 본 길이 비율로 분할
 
-    cc_ 본은 이름 기반 1:1 유지.
+def _is_auxiliary_arp_deform(name):
+    lowered = name.lower()
+    return 'heel' in lowered or 'bank' in lowered
 
-    Returns:
-        dict: {소스본이름: [(ARP본이름, 비율), ...]}
-    """
-    weight_map = {}
 
-    # ARP Deform 컬렉션에서 후보 수집 (stretch/twist 포함)
+def _classify_arp_family_kind(name):
+    lowered = name.lower()
+    if 'twist' in lowered:
+        return 'twist'
+    if 'stretch' in lowered:
+        return 'stretch'
+    if lowered.startswith('toes') or 'toes' in lowered:
+        return 'toe'
+    return 'main'
+
+
+def _build_ref_metadata(arp_obj, arp_chains):
+    arp_matrix = arp_obj.matrix_world
+    ref_to_role = {}
+    ref_to_index = {}
+    ref_meta = {}
+
+    for role_name, ref_names in (arp_chains or {}).items():
+        for index, ref_name in enumerate(ref_names):
+            ref_to_role[ref_name] = role_name
+            ref_to_index[ref_name] = index
+
+    for bone in arp_obj.data.bones:
+        if '_ref' not in bone.name:
+            continue
+        head_w = arp_matrix @ bone.head_local
+        tail_w = arp_matrix @ bone.tail_local
+        ref_meta[bone.name] = {
+            'name': bone.name,
+            'head': _vector_to_tuple(head_w),
+            'tail': _vector_to_tuple(tail_w),
+            'mid': _vector_to_tuple((head_w + tail_w) * 0.5),
+            'length': (tail_w - head_w).length,
+            'side': _get_bone_side(bone.name),
+            'role': ref_to_role.get(bone.name, ''),
+            'segment_index': ref_to_index.get(bone.name),
+        }
+
+    return ref_meta
+
+
+def _find_nearest_ref_name(position, side, ref_meta):
+    best_name = None
+    best_distance = float('inf')
+
+    for ref_name, meta in ref_meta.items():
+        ref_side = meta.get('side')
+        if side != 'X' and ref_side != side:
+            continue
+        ref_pos = meta.get('mid') or meta.get('head')
+        if not ref_pos:
+            continue
+        distance = ((position[0] - ref_pos[0]) ** 2
+                    + (position[1] - ref_pos[1]) ** 2
+                    + (position[2] - ref_pos[2]) ** 2)
+        if distance < best_distance:
+            best_distance = distance
+            best_name = ref_name
+
+    if best_name is None and side != 'X':
+        return _find_nearest_ref_name(position, 'X', ref_meta)
+    return best_name
+
+
+def _build_arp_deform_metadata(arp_obj, ref_meta, log):
     deform_col = arp_obj.data.collections_all.get('Deform')
     if not deform_col:
         log("  Deform 컬렉션 미발견", "ERROR")
-        return weight_map
+        return {}
 
     arp_matrix = arp_obj.matrix_world
-    candidates = {}      # {name: world_head_pos}
-    cand_lengths = {}    # {name: bone_length}
+    arp_meta = {}
 
     for bone in arp_obj.data.bones:
         if deform_col not in bone.collections.values():
             continue
         if '_ref' in bone.name:
             continue
+
         head_w = arp_matrix @ bone.head_local
         tail_w = arp_matrix @ bone.tail_local
-        candidates[bone.name] = head_w
-        cand_lengths[bone.name] = (tail_w - head_w).length
+        side = _get_bone_side(bone.name)
+        owner_ref = _find_nearest_ref_name(
+            _vector_to_tuple((head_w + tail_w) * 0.5),
+            side,
+            ref_meta,
+        )
+        owner_meta = ref_meta.get(owner_ref, {})
 
-    log(f"  Deform 매칭 후보: {len(candidates)}개")
+        arp_meta[bone.name] = {
+            'name': bone.name,
+            'head': _vector_to_tuple(head_w),
+            'tail': _vector_to_tuple(tail_w),
+            'length': (tail_w - head_w).length,
+            'side': side,
+            'family_kind': _classify_arp_family_kind(bone.name),
+            'owner_ref': owner_ref,
+            'owner_role': owner_meta.get('role', ''),
+            'segment_index': owner_meta.get('segment_index'),
+            'is_auxiliary': _is_auxiliary_arp_deform(bone.name),
+        }
 
-    # 소스 deform 본 위치 수집
+    return arp_meta
+
+
+def _build_source_deform_metadata(source_obj, preview_role_by_bone):
     src_matrix = source_obj.matrix_world
-    source_deform = {}
+    source_meta = {}
+
     for bone in source_obj.data.bones:
-        if bone.use_deform:
-            source_deform[bone.name] = src_matrix @ bone.head_local
-
-    # Phase 1: 독점 소스 중심 매칭 (사이드 필터 + 거리순)
-    match_pairs = []
-    for src_name, src_pos in source_deform.items():
-        if src_name in cc_bone_map:
+        if not bone.use_deform:
             continue
-        src_side = _get_bone_side(src_name)
-        for cand_name, cand_pos in candidates.items():
-            if _get_bone_side(cand_name) != src_side:
-                continue
-            dist = (src_pos - cand_pos).length
-            match_pairs.append((dist, src_name, cand_name))
+        head_w = src_matrix @ bone.head_local
+        tail_w = src_matrix @ bone.tail_local
+        source_meta[bone.name] = {
+            'name': bone.name,
+            'head': _vector_to_tuple(head_w),
+            'tail': _vector_to_tuple(tail_w),
+            'length': (tail_w - head_w).length,
+            'side': _get_bone_side(bone.name),
+            'role': preview_role_by_bone.get(bone.name, ''),
+        }
 
-    match_pairs.sort(key=lambda x: (x[0], x[1]))
+    return source_meta
 
-    initial_map = {}
-    claimed_arp = set()
-    claimed_src = set()
 
-    for dist, src_name, cand_name in match_pairs:
-        if src_name in claimed_src or cand_name in claimed_arp:
+def _distance_sq(a, b):
+    return (
+        (a[0] - b[0]) ** 2
+        + (a[1] - b[1]) ** 2
+        + (a[2] - b[2]) ** 2
+    )
+
+
+def _build_primary_deform_bones_by_ref(arp_obj, arp_chains, log):
+    ref_meta = _build_ref_metadata(arp_obj, arp_chains)
+    arp_meta = _build_arp_deform_metadata(arp_obj, ref_meta, log)
+    primary_by_ref = {}
+
+    for ref_name, ref_info in ref_meta.items():
+        main_candidates = [
+            meta for meta in arp_meta.values()
+            if meta.get('owner_ref') == ref_name
+            and meta.get('family_kind') == 'main'
+            and not meta.get('is_auxiliary')
+        ]
+        if not main_candidates:
             continue
-        initial_map[src_name] = cand_name
-        claimed_src.add(src_name)
-        claimed_arp.add(cand_name)
 
-    # Phase 2: orphan ARP 본 → ARP 공간 위치 기반으로 가장 가까운 claimed 본에 추가
-    orphans = [n for n in candidates if n not in claimed_arp]
-    src_to_arp = {src: [arp] for src, arp in initial_map.items()}
-    initial_map_inv = {arp: src for src, arp in initial_map.items()}
+        ref_anchor = ref_info.get('head') or ref_info.get('mid')
+        main_candidates.sort(
+            key=lambda meta: (
+                _distance_sq(meta.get('head') or meta.get('tail'), ref_anchor),
+                meta.get('name', ''),
+            )
+        )
+        primary_by_ref[ref_name] = main_candidates[0]['name']
 
-    for orphan in orphans:
-        orphan_pos = candidates[orphan]
-        orphan_side = _get_bone_side(orphan)
-        best_claimed = None
-        best_dist = float('inf')
-        for claimed_name in claimed_arp:
-            if _get_bone_side(claimed_name) != orphan_side:
-                continue
-            dist = (orphan_pos - candidates[claimed_name]).length
-            if dist < best_dist:
-                best_dist = dist
-                best_claimed = claimed_name
-        if best_claimed and best_claimed in initial_map_inv:
-            owner_src = initial_map_inv[best_claimed]
-            src_to_arp[owner_src].append(orphan)
+    return primary_by_ref
 
-    # Phase 3: 본 길이 비율 계산 + 로깅
-    for src_name, arp_list in src_to_arp.items():
-        if len(arp_list) == 1:
-            dist = (source_deform[src_name] - candidates[arp_list[0]]).length
-            weight_map[src_name] = [(arp_list[0], 1.0)]
-            log(f"  위치 매칭: {src_name} → {arp_list[0]} (거리={dist:.4f})")
+
+def _resolve_root_deform_parent_name(arp_obj, primary_deform_by_ref):
+    for candidate_name in [
+        primary_deform_by_ref.get('root_ref.x'),
+        'root.x',
+        'root',
+        'root_ref.x',
+    ]:
+        if candidate_name and arp_obj.data.bones.get(candidate_name):
+            return candidate_name
+    return 'root_ref.x'
+
+
+def _build_cc_parent_targets(arp_obj, arp_chains, deform_to_ref, log):
+    primary_deform_by_ref = _build_primary_deform_bones_by_ref(arp_obj, arp_chains, log)
+    source_to_deform_parent = {}
+
+    for source_bone_name, ref_name in (deform_to_ref or {}).items():
+        deform_parent_name = primary_deform_by_ref.get(ref_name)
+        if deform_parent_name:
+            source_to_deform_parent[source_bone_name] = deform_parent_name
+
+    root_parent_name = _resolve_root_deform_parent_name(arp_obj, primary_deform_by_ref)
+    return source_to_deform_parent, root_parent_name
+
+
+def _resolve_cc_parent_name(
+    source_bone_name,
+    preview_hierarchy,
+    custom_bone_names,
+    source_to_deform_parent,
+    root_parent_name,
+):
+    for ancestor_name in _iter_preview_ancestors(source_bone_name, preview_hierarchy):
+        if ancestor_name in custom_bone_names:
+            return _make_cc_bone_name(ancestor_name)
+
+        deform_parent_name = source_to_deform_parent.get(ancestor_name)
+        if deform_parent_name:
+            return deform_parent_name
+
+    return root_parent_name
+
+
+def _create_cc_bones_from_preview(
+    arp_obj,
+    preview_obj,
+    preview_positions,
+    custom_bone_names,
+    deform_to_ref,
+    arp_chains,
+    log,
+):
+    """
+    Preview의 unmapped 역할 본을 기반으로 cc_ 본을 직접 생성하거나 갱신한다.
+    custom 체인은 Preview 계층을 그대로 따르고, non-custom 조상은 ARP deform 본에 붙인다.
+    """
+    if not custom_bone_names:
+        return 0, {}
+
+    preview_hierarchy = _build_preview_hierarchy(preview_obj)
+    custom_bone_names = list(custom_bone_names)
+    custom_bone_set = set(custom_bone_names)
+    source_to_deform_parent, root_parent_name = _build_cc_parent_targets(
+        arp_obj,
+        arp_chains,
+        deform_to_ref,
+        log,
+    )
+
+    from skeleton_analyzer import order_bones_by_hierarchy
+
+    ordered_custom_bones = order_bones_by_hierarchy(custom_bone_names, preview_hierarchy)
+
+    bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = arp_obj.data.edit_bones
+    arp_matrix_inv = arp_obj.matrix_world.inverted()
+    created = 0
+    cc_bone_map = {}
+
+    for bone_name in ordered_custom_bones:
+        if bone_name not in preview_positions:
+            log(f"  cc_ 생성 스킵 ({bone_name}): Preview 위치 없음", "WARN")
+            continue
+
+        world_head, world_tail, roll = preview_positions[bone_name]
+        local_head = arp_matrix_inv @ world_head
+        local_tail = arp_matrix_inv @ world_tail
+        local_tail = _ensure_nonzero_bone_length(local_head, local_tail)
+
+        cc_name = _make_cc_bone_name(bone_name)
+        cc_eb = edit_bones.get(cc_name)
+        if cc_eb is None:
+            cc_eb = edit_bones.new(cc_name)
+            created += 1
+            log(f"  cc_ 생성: {bone_name} -> {cc_name}")
         else:
-            total_len = sum(cand_lengths.get(a, 0.01) for a in arp_list)
-            ratios = [(a, cand_lengths.get(a, 0.01) / total_len) for a in arp_list]
-            split_str = " + ".join(f"{a}({r:.0%})" for a, r in ratios)
-            weight_map[src_name] = ratios
-            log(f"  길이 분할: {src_name} → {split_str}")
+            log(f"  cc_ 갱신: {bone_name} -> {cc_name}")
 
-    # cc_ 매핑 추가
-    for src_name, cc_name in cc_bone_map.items():
-        weight_map[src_name] = [(cc_name, 1.0)]
-        log(f"  cc_ 매핑: {src_name} → {cc_name}")
+        cc_eb.head = local_head
+        cc_eb.tail = local_tail
+        cc_eb.roll = roll
+        cc_eb.use_connect = False
+
+        parent_name = _resolve_cc_parent_name(
+            bone_name,
+            preview_hierarchy,
+            custom_bone_set,
+            source_to_deform_parent,
+            root_parent_name,
+        )
+        parent_eb = edit_bones.get(parent_name)
+        if parent_eb:
+            cc_eb.parent = parent_eb
+            cc_eb.use_connect = _should_connect_cc_bone(
+                bone_name,
+                parent_name,
+                preview_hierarchy,
+                custom_bone_set,
+            )
+        else:
+            cc_eb.parent = None
+            log(f"  cc_ 부모 없음 ({cc_name}): {parent_name}", "WARN")
+
+        cc_bone_map[bone_name] = cc_name
+        log(f"  cc_ 계층 적용: {bone_name} -> {cc_name} (parent={parent_name})")
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    for bone_name in ordered_custom_bones:
+        cc_name = _make_cc_bone_name(bone_name)
+        bone = arp_obj.data.bones.get(cc_name)
+        if bone:
+            bone.use_deform = True
+
+    return created, cc_bone_map
+
+
+def _build_position_weight_map(
+    source_obj,
+    arp_obj,
+    cc_bone_map,
+    roles,
+    preview_role_by_bone,
+    deform_to_ref,
+    arp_chains,
+    log,
+):
+    """Preview role metadata를 반영해 source -> ARP deform weight map을 생성한다."""
+    from weight_transfer_rules import build_weight_map
+
+    ref_meta = _build_ref_metadata(arp_obj, arp_chains)
+    arp_meta = _build_arp_deform_metadata(arp_obj, ref_meta, log)
+    if not arp_meta:
+        return {}
+
+    source_meta = _build_source_deform_metadata(source_obj, preview_role_by_bone)
+    aux_count = sum(1 for meta in arp_meta.values() if meta.get('is_auxiliary'))
+    log(f"  Deform 매핑 후보: {len(arp_meta)}개 (heel/bank 제외 {aux_count}개)")
+
+    weight_map = build_weight_map(
+        source_meta=source_meta,
+        arp_meta=arp_meta,
+        cc_bone_map=cc_bone_map,
+        roles=roles,
+        deform_to_ref=deform_to_ref,
+        arp_chains=arp_chains,
+        log=log,
+    )
+
+    for src_name, mappings in weight_map.items():
+        if src_name in cc_bone_map:
+            log(f"  cc_ 매핑: {src_name} -> {mappings[0][0]}")
+            continue
+        if len(mappings) == 1:
+            log(f"  weight 매핑: {src_name} -> {mappings[0][0]}")
+            continue
+        split_str = " + ".join(f"{arp_name}({ratio:.0%})" for arp_name, ratio in mappings)
+        log(f"  weight 분할: {src_name} -> {split_str}")
 
     return weight_map
 
@@ -1830,6 +2000,7 @@ class ARPCONV_OT_BuildRig(Operator):
                     preview_positions=preview_positions,
                     custom_bone_names=custom_bones,
                     deform_to_ref=deform_to_ref,
+                    arp_chains=arp_chains,
                     log=log,
                 )
                 log(f"  cc_ 생성 완료: {created_cc}개")
@@ -1854,7 +2025,16 @@ class ARPCONV_OT_BuildRig(Operator):
         log("=== 웨이트 전송 ===")
         ensure_object_mode()
         try:
-            weight_map = _build_position_weight_map(source_obj, arp_obj, cc_bone_map, log)
+            weight_map = _build_position_weight_map(
+                source_obj,
+                arp_obj,
+                cc_bone_map,
+                roles,
+                preview_role_by_bone,
+                deform_to_ref,
+                arp_chains,
+                log,
+            )
             if weight_map:
                 transferred = _transfer_all_weights(source_obj, arp_obj, weight_map, log)
                 log(f"  전체 weight 전송: {transferred} groups")

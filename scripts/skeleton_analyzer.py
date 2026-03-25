@@ -112,6 +112,108 @@ def vec_avg(vectors):
     return vec_scale(s, 1.0/n)
 
 
+def order_bones_by_hierarchy(bone_names, bone_data):
+    """
+    parent -> child 순서를 보장하도록 본 이름을 하이어라키 기준으로 정렬.
+    같은 depth의 형제 순서는 입력 순서를 유지한다.
+
+    Args:
+        bone_names: 정렬할 본 이름 리스트
+        bone_data: {bone_name: {'parent': parent_name, ...}} 형식의 dict
+
+    Returns:
+        list[str]: 부모가 항상 자식보다 먼저 오는 순서
+    """
+    if not bone_names:
+        return []
+
+    ordered_input = []
+    seen = set()
+    for bone_name in bone_names:
+        if bone_name and bone_name not in seen:
+            ordered_input.append(bone_name)
+            seen.add(bone_name)
+
+    index_map = {name: idx for idx, name in enumerate(ordered_input)}
+    bone_set = set(ordered_input)
+    children_map = defaultdict(list)
+    roots = []
+    missing = []
+
+    for bone_name in ordered_input:
+        info = bone_data.get(bone_name)
+        if info is None:
+            missing.append(bone_name)
+            continue
+
+        parent_name = info.get('parent')
+        if parent_name in bone_set and parent_name != bone_name:
+            children_map[parent_name].append(bone_name)
+        else:
+            roots.append(bone_name)
+
+    sort_key = lambda name: (index_map.get(name, 10**9), name)
+    roots.sort(key=sort_key)
+    for child_names in children_map.values():
+        child_names.sort(key=sort_key)
+
+    ordered = []
+    visited = set()
+
+    def visit(bone_name):
+        if bone_name in visited:
+            return
+        visited.add(bone_name)
+        ordered.append(bone_name)
+        for child_name in children_map.get(bone_name, []):
+            visit(child_name)
+
+    for bone_name in roots:
+        visit(bone_name)
+
+    remaining = [name for name in ordered_input if name not in visited and name not in missing]
+    remaining.sort(key=sort_key)
+    for bone_name in remaining:
+        visit(bone_name)
+
+    for bone_name in missing:
+        if bone_name not in visited:
+            ordered.append(bone_name)
+            visited.add(bone_name)
+
+    return ordered
+
+
+def build_preview_parent_overrides(bone_names, original_bone_data):
+    """
+    Preview 생성 시 특정 본들의 부모를 원본 deform 하이어라키 기준으로 강제한다.
+
+    Args:
+        bone_names: override 대상 본 이름 리스트
+        original_bone_data: spatial 재구성 전 deform bone_data
+
+    Returns:
+        dict: {bone_name: parent_name_or_None}
+    """
+    overrides = {}
+    if not bone_names or not original_bone_data:
+        return overrides
+
+    valid_bones = set(original_bone_data.keys())
+    for bone_name in bone_names:
+        info = original_bone_data.get(bone_name)
+        if info is None:
+            continue
+
+        parent_name = info.get('parent')
+        if parent_name in valid_bones and parent_name != bone_name:
+            overrides[bone_name] = parent_name
+        else:
+            overrides[bone_name] = None
+
+    return overrides
+
+
 # ═══════════════════════════════════════════════════════════════
 # 본 데이터 추출
 # ═══════════════════════════════════════════════════════════════
@@ -208,7 +310,7 @@ def filter_deform_bones(all_bones):
 ROOT_NAME_HINTS = {"pelvis", "hips", "hip", "root"}
 
 
-def _reconstruct_spatial_hierarchy(deform_bones, all_bones):
+def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=None):
     """
     parent=None인 deform 본에 대해 공간 관계로 부모-자식 관계를 보완.
 
@@ -351,6 +453,11 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones):
 
     def _step4(name):
         bone = deform_bones[name]
+        # 원본에서 고립 본(부모도 자식도 없음)은 RECON-4 제외 → unmapped로 유지
+        orig = (original_hierarchy or {}).get(name)
+        if orig and orig['parent'] is None and not orig['children']:
+            print(f"  [RECON-4] {name}: 고립 본 → 스킵")
+            return False
         my_descendants = set()
         _collect = [name]
         while _collect:
@@ -864,6 +971,10 @@ def analyze_skeleton(armature_obj):
     # 1. 본 데이터 추출
     all_bones = extract_bone_data(armature_obj)
     deform_bones = filter_deform_bones(all_bones)
+    original_deform_bones = {
+        name: dict(info, children=list(info.get('children', [])))
+        for name, info in deform_bones.items()
+    }
 
     # 디버그: 재구성 전 상태
     parentless_before = sum(1 for b in deform_bones.values() if b['parent'] is None)
@@ -871,7 +982,7 @@ def analyze_skeleton(armature_obj):
     for name, b in deform_bones.items():
         print(f"  [DEBUG] {name}: parent={b['parent']}, children={b['children']}")
 
-    _reconstruct_spatial_hierarchy(deform_bones, all_bones)
+    _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_deform_bones)
 
     # 디버그: 재구성 후 상태
     parentless_after = sum(1 for b in deform_bones.values() if b['parent'] is None)
@@ -1021,6 +1132,7 @@ def analyze_skeleton(armature_obj):
         'unmapped': unmapped,
         'confidence': round(avg_confidence, 2),
         'bone_data': deform_bones,  # 위치 정보 포함
+        'preview_parent_overrides': build_preview_parent_overrides(unmapped, original_deform_bones),
     }
 
 
@@ -1292,7 +1404,10 @@ def generate_bmap_content(analysis, arp_obj=None):
             lines.append("")
 
     # unmapped cc_ 본 매핑 추가
-    custom_bones = list(analysis.get('unmapped', []))
+    custom_bones = order_bones_by_hierarchy(
+        list(analysis.get('unmapped', [])),
+        analysis.get('bone_data', {}),
+    )
 
     for custom_bone in custom_bones:
         cc_name = f"cc_{custom_bone.lower()}"
@@ -1426,6 +1541,7 @@ def create_preview_armature(source_obj, analysis):
     bone_data = analysis.get('bone_data', {})
     chains = analysis.get('chains', {})
     unmapped_list = analysis.get('unmapped', [])
+    preview_parent_overrides = analysis.get('preview_parent_overrides', {})
 
     if not bone_data:
         return None
@@ -1482,9 +1598,12 @@ def create_preview_armature(source_obj, analysis):
 
     # 부모-자식 관계 설정
     for bone_name, binfo in bone_data.items():
-        if binfo['parent'] and binfo['parent'] in created_bones:
+        parent_name = (preview_parent_overrides[bone_name]
+                       if bone_name in preview_parent_overrides
+                       else binfo['parent'])
+        if parent_name and parent_name in created_bones:
             ebone = created_bones[bone_name]
-            parent_ebone = created_bones[binfo['parent']]
+            parent_ebone = created_bones[parent_name]
             ebone.parent = parent_ebone
 
             # 연결 여부: head가 부모 tail에 충분히 가까우면 connected

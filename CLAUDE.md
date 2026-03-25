@@ -95,9 +95,11 @@
 - 소스 컨스트레인트 복제는 13개 타입 지원 (COPY_*, LIMIT_*, TRACK, STRETCH_TO, CHILD_OF, TRANSFORMATION)
 - `.bmap` 컨트롤러 이름은 `_dynamic_ctrl_names()` 추측 대신 ARP 생성 이름 직접 탐색으로 교체 필요
 - face 역할 제거 → unmapped에 통합, 모든 cc_ 본은 unmapped에서 생성
-- 전체 웨이트 전송: 위치 기반 독점 매칭 + 사이드 필터 + 본 길이 비율 분할 + Armature modifier 변경
+- cc_ 커스텀 본: Preview 원본 계층 보존 + ARP deform 본 부모 연결 (`weight_transfer_rules.py` 분리)
+- 전체 웨이트 전송: role-aware 매핑 (leg/foot 역할별 ref 기반) + generic fallback + 본 길이 비율 분할
+- RECON-4 고립 본 제외: 원본에서 parent=None + children=[] 본은 거리 기반 재배정 스킵
 - 자동 추론 개선: spine 추적(후손 수 반영), neck 다중 본 감지, 다리/발 자동 분리, 구조적 귀 감지
-- 자동 추론은 실제 동물 리그에서 미검증 (여우 첫 테스트 필요)
+- 자동 추론은 여우 리그에서 첫 검증 진행 중
 - 회귀 테스트 러너는 대표 샘플 검증용이다
 
 ## 작업 원칙

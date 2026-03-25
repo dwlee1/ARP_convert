@@ -56,6 +56,9 @@
 - [x] cc_ 본 use_deform=True 전환, 웨이트 복사 포함
 - [x] 소스 vertex group 정리 + Armature modifier 자동 변경
 - [x] 앞다리 3 Bones IK 슬라이더 추가 (0.0=shoulder 독립, 1.0=foot IK 반응)
+- [x] cc_ 커스텀 본 하이어라키: Preview 원본 계층 보존 + ARP deform 본 부모 연결
+- [x] 웨이트 전송: role-aware 매핑 (leg/foot 역할별 분리 + generic fallback)
+- [x] RECON-4 고립 본 제외: parent=None + children=[] 본은 거리 기반 재배정 스킵
 - [ ] 체인 개수 매칭 및 자동 추론 결과의 `.blend` 실제 검증 필요
 - [ ] 웨이트 전송 결과의 `.blend` 실제 검증 필요 (여우 첫 테스트)
 
@@ -203,8 +206,12 @@
 - [x] `foot` 역할 지정 시 bank / heel Preview 가이드 생성
 - [x] Preview 생성 시 `__virtual_neck__` 자동 생성
 - [x] unmapped 본을 `cc_<source>` 본으로 생성 (face 역할 통합, use_deform=True)
-- [x] 전체 웨이트 전송: 위치 기반 매칭 + 사이드 필터 + 본 길이 비율 분할
+- [x] cc_ 본 하이어라키: 원본 계층 보존 (`order_bones_by_hierarchy` + `preview_parent_overrides`)
+- [x] cc_ 본 부모: Preview 조상 탐색 → cc_ 또는 ARP deform 본에 연결
+- [x] 전체 웨이트 전송: role-aware 매핑 (`weight_transfer_rules.py` 분리)
+- [x] 웨이트 전송: leg/foot 역할별 ref 기반 매칭 + generic fallback
 - [x] Armature modifier 자동 변경 + 소스 vertex group 정리
+- [x] RECON-4 고립 본 제외: 원본에서 parent=None + children=[] 본은 스킵
 - [ ] spine / neck / tail / ear ref 본 개수를 소스 체인에 맞춰 동적 조정 → **ARP 네이티브 함수로 교체 필요** (아래 F1 참조)
 - [x] BuildRig와 Remap `.bmap`에서 `map_role_chain` 일관 사용
 - [ ] `.bmap` 컨트롤러 이름 → ARP가 생성한 실제 이름을 읽는 방식으로 교체 필요
