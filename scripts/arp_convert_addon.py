@@ -2370,9 +2370,6 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
             log(f"  3-bone Type 1 c_thigh_b{s}: {f_end - f_start + 1}프레임 회전 저장")
 
     # ── 프레임별 IK 스냅 + 키프레임 ──────────────────────────
-    autokey = scene.tool_settings.use_keyframes_insert_auto
-    scene.tool_settings.use_keyframes_insert_auto = False
-
     keyframed = 0
     for frame in range(f_start, f_end + 1):
         scene.frame_set(frame)
@@ -2386,7 +2383,6 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
             ik_to_fk_leg(arp_obj, s, add_keyframe=True)
             keyframed += 1
 
-    scene.tool_settings.use_keyframes_insert_auto = autokey
     bpy.ops.object.mode_set(mode="OBJECT")
 
     log(
