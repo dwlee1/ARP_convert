@@ -604,3 +604,31 @@ class TestPoleVectors:
             assert any(kw in name_lower for kw in ["pole", "knee", "elbow"]), (
                 f"{key} pole 본 이름에 키워드 없음: {pole_info['name']}"
             )
+
+
+class TestShapeKeyDriverParsing:
+    """Shape key 드라이버 파싱 유틸리티 테스트 (bpy 불필요)."""
+
+    def test_extract_shape_key_name_standard(self):
+        result = sa._extract_shape_key_name('key_blocks["SmileMouth"].value')
+        assert result == "SmileMouth"
+
+    def test_extract_shape_key_name_with_spaces(self):
+        result = sa._extract_shape_key_name('key_blocks["Open Jaw"].value')
+        assert result == "Open Jaw"
+
+    def test_extract_shape_key_name_fallback(self):
+        result = sa._extract_shape_key_name("unknown_path")
+        assert result == "unknown_path"
+
+    def test_extract_bone_from_data_path_standard(self):
+        result = sa._extract_bone_from_data_path('pose.bones["CtrlJaw"]["jaw_open"]')
+        assert result == "CtrlJaw"
+
+    def test_extract_bone_from_data_path_no_match(self):
+        result = sa._extract_bone_from_data_path("some.other.path")
+        assert result is None
+
+    def test_extract_bone_from_data_path_with_dots(self):
+        result = sa._extract_bone_from_data_path('pose.bones["Ctrl.Jaw.001"]["value"]')
+        assert result == "Ctrl.Jaw.001"

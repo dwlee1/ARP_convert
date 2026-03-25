@@ -1043,6 +1043,119 @@ def find_pole_vectors(all_bones, legs, leg_foot_pairs):
     return pole_vectors
 
 
+def _extract_shape_key_name(data_path):
+    """드라이버 data_path에서 shape key 이름 추출.
+
+    예: 'key_blocks["SmileMouth"].value' → 'SmileMouth'
+    """
+    import re
+
+    m = re.search(r'key_blocks\["([^"]+)"\]', data_path)
+    return m.group(1) if m else data_path
+
+
+def _extract_bone_from_data_path(data_path):
+    """SINGLE_PROP 드라이버의 data_path에서 본 이름 추출.
+
+    예: 'pose.bones["BoneName"]["prop"]' → 'BoneName'
+    """
+    import re
+
+    m = re.search(r'pose\.bones\["([^"]+)"\]', data_path)
+    return m.group(1) if m else None
+
+
+def scan_shape_key_drivers(armature_obj):
+    """소스 아마추어에 연결된 메시의 shape key 드라이버 스캔.
+
+    Args:
+        armature_obj: 소스 아마추어 오브젝트
+
+    Returns:
+        tuple: (drivers_info, driver_bones)
+            drivers_info: 드라이버 정보 리스트
+            driver_bones: 드라이버에 사용되는 컨트롤러 본 이름 집합
+    """
+    driver_bones = set()
+    drivers_info = []
+
+    for child in armature_obj.children:
+        if child.type != "MESH":
+            continue
+        mesh = child.data
+        if not mesh.shape_keys or not mesh.shape_keys.animation_data:
+            continue
+        for fc in mesh.shape_keys.animation_data.drivers:
+            sk_name = _extract_shape_key_name(fc.data_path)
+            for var in fc.driver.variables:
+                for target in var.targets:
+                    if target.id != armature_obj:
+                        continue
+                    if var.type == "TRANSFORMS":
+                        bone_name = target.bone_target
+                        if not bone_name:
+                            continue
+                        driver_bones.add(bone_name)
+                        drivers_info.append(
+                            {
+                                "shape_key": sk_name,
+                                "mesh_name": child.name,
+                                "bone_name": bone_name,
+                                "var_type": "TRANSFORMS",
+                                "var_name": var.name,
+                                "transform_type": target.transform_type,
+                                "transform_space": target.transform_space,
+                            }
+                        )
+                    elif var.type == "SINGLE_PROP":
+                        bone_name = _extract_bone_from_data_path(target.data_path)
+                        if not bone_name:
+                            continue
+                        driver_bones.add(bone_name)
+                        drivers_info.append(
+                            {
+                                "shape_key": sk_name,
+                                "mesh_name": child.name,
+                                "bone_name": bone_name,
+                                "var_type": "SINGLE_PROP",
+                                "var_name": var.name,
+                                "data_path": target.data_path,
+                            }
+                        )
+
+    return drivers_info, driver_bones
+
+
+def remap_shape_key_drivers(armature_obj, source_armature, arp_armature):
+    """메시의 shape key 드라이버 타겟을 소스에서 ARP 아마추어로 리맵.
+
+    원본 본 이름을 유지하므로 bone_target 변경은 불필요하고,
+    target.id만 source → ARP로 교체한다.
+
+    Args:
+        armature_obj: 소스 아마추어 (드라이버가 참조하는 원래 아마추어)
+        source_armature: 소스 아마추어 오브젝트 (== armature_obj, 명시적 전달)
+        arp_armature: ARP 아마추어 오브젝트
+
+    Returns:
+        int: 리맵된 드라이버 변수 수
+    """
+    remapped = 0
+    for child in armature_obj.children:
+        if child.type != "MESH":
+            continue
+        mesh = child.data
+        if not mesh.shape_keys or not mesh.shape_keys.animation_data:
+            continue
+        for fc in mesh.shape_keys.animation_data.drivers:
+            for var in fc.driver.variables:
+                for target in var.targets:
+                    if target.id == source_armature:
+                        target.id = arp_armature
+                        remapped += 1
+    return remapped
+
+
 EAR_KEYWORDS = ["ear"]
 # ear를 제외한 face 키워드
 FACE_ONLY_KEYWORDS = ["eye", "jaw", "mouth", "tongue"]

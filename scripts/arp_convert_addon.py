@@ -2148,6 +2148,20 @@ class ARPCONV_OT_BuildRig(Operator):
 
             bpy.ops.object.mode_set(mode="OBJECT")
 
+        # Step 4d: Shape key 드라이버 컨트롤러 본 스캔
+        from skeleton_analyzer import scan_shape_key_drivers
+
+        driver_extra_bones = set()
+        try:
+            drivers_info, driver_bones = scan_shape_key_drivers(source_obj)
+            if driver_bones:
+                log(f"Shape key 드라이버 컨트롤러 본: {len(driver_bones)}개")
+                for b in sorted(driver_bones):
+                    log(f"  드라이버 본: {b}")
+        except Exception as e:
+            drivers_info, driver_bones = [], set()
+            log(f"Shape key 드라이버 스캔 실패 (무시): {e}", "WARN")
+
         # Step 5: unmapped cc_ 커스텀 본 추가
         from skeleton_analyzer import read_preview_roles
 
@@ -2158,6 +2172,35 @@ class ARPCONV_OT_BuildRig(Operator):
             if not bone_name.endswith(GUIDE_SUFFIX_HEEL)
             and not bone_name.endswith(GUIDE_SUFFIX_BANK)
         ]
+
+        # 드라이버 컨트롤러 본 중 기존 커스텀 본/매핑 본에 없는 것 추가
+        if driver_bones:
+            existing_bones = set(custom_bones) | set(deform_to_ref.keys())
+            for role_bones in roles.values():
+                existing_bones.update(role_bones)
+            for db in sorted(driver_bones):
+                if db not in existing_bones:
+                    custom_bones.append(db)
+                    driver_extra_bones.add(db)
+                    log(f"  드라이버 본 → 커스텀 본 추가: {db}")
+            if driver_extra_bones:
+                log(f"  드라이버 전용 커스텀 본: {len(driver_extra_bones)}개")
+
+        # 드라이버 전용 본의 위치를 소스 아마추어에서 추출 → preview_positions에 추가
+        if driver_extra_bones:
+            ensure_object_mode()
+            select_only(source_obj)
+            bpy.ops.object.mode_set(mode="EDIT")
+            src_matrix = source_obj.matrix_world
+            for db_name in driver_extra_bones:
+                ebone = source_obj.data.edit_bones.get(db_name)
+                if ebone:
+                    wh = src_matrix @ ebone.head.copy()
+                    wt = src_matrix @ ebone.tail.copy()
+                    preview_positions[db_name] = (wh, wt, ebone.roll)
+                else:
+                    log(f"  드라이버 본 미발견 (소스): {db_name}", "WARN")
+            bpy.ops.object.mode_set(mode="OBJECT")
 
         if custom_bones:
             log(f"cc_ 커스텀 본 추가: {len(custom_bones)}개")
@@ -2213,6 +2256,35 @@ class ARPCONV_OT_BuildRig(Operator):
         except Exception as e:
             log(f"  weight 전송 실패 (무시): {e}", "WARN")
             log(traceback.format_exc(), "WARN")
+
+        # Step 7: Shape key 드라이버 리맵 + 커스텀 프로퍼티 복사
+        if drivers_info:
+            log(f"Shape key 드라이버 리맵: {len(drivers_info)}개 변수")
+            try:
+                # 커스텀 프로퍼티 복사 (SINGLE_PROP 드라이버용)
+                for info in drivers_info:
+                    if info["var_type"] != "SINGLE_PROP":
+                        continue
+                    bone_name = info["bone_name"]
+                    src_pb = source_obj.pose.bones.get(bone_name)
+                    arp_pb = arp_obj.pose.bones.get(bone_name)
+                    if not src_pb or not arp_pb:
+                        continue
+                    for key in src_pb:
+                        if key.startswith("_") or key in ("custom_bone",):
+                            continue
+                        if key not in arp_pb:
+                            arp_pb[key] = src_pb[key]
+                            log(f"  커스텀 프로퍼티 복사: {bone_name}[{key}]")
+
+                # 드라이버 타겟 리맵 (source → ARP)
+                from skeleton_analyzer import remap_shape_key_drivers
+
+                remapped = remap_shape_key_drivers(source_obj, source_obj, arp_obj)
+                log(f"  드라이버 리맵 완료: {remapped}개 변수")
+            except Exception as e:
+                log(f"  드라이버 리맵 실패 (무시): {e}", "WARN")
+                log(traceback.format_exc(), "WARN")
 
         self.report({"INFO"}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
         return {"FINISHED"}
