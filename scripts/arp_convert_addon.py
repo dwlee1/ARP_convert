@@ -2313,23 +2313,25 @@ class ARPCONV_OT_BuildRig(Operator):
 # FK → IK 베이크
 # ═══════════════════════════════════════════════════════════════
 
-# ARP quadruped FK → IK 본 매핑
+# ARP quadruped FK → IK 본 매핑 (dog 프리셋)
 _FK_IK_PAIRS = [
-    # (FK 컨트롤러, IK 컨트롤러) — back legs
+    # (FK foot, IK foot) — back legs
     ("c_foot_fk.l", "c_foot_ik.l"),
     ("c_foot_fk.r", "c_foot_ik.r"),
-    # front legs (dupli)
-    ("c_hand_fk.l", "c_foot_ik_dupli_001.l"),
-    ("c_hand_fk.r", "c_foot_ik_dupli_001.r"),
+    # front legs (quadruped dupli — biped의 c_hand_fk가 아님)
+    ("c_foot_fk_dupli_001.l", "c_foot_ik_dupli_001.l"),
+    ("c_foot_fk_dupli_001.r", "c_foot_ik_dupli_001.r"),
 ]
 
 
 def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
-    """FK 리타겟 결과를 IK 컨트롤러에 베이크.
+    """FK 리타겟 결과를 IK 컨트롤러에 베이크 (two-phase).
 
-    각 프레임에서 FK 발/손 위치를 읽어 IK 컨트롤러에 위치 키프레임.
-    완료 후 ik_fk_switch를 IK(0.0)로 설정.
+    Phase 1: FK 모드 상태에서 FK 발 world 위치를 모든 프레임에 대해 기록.
+    Phase 2: IK 모드로 전환 후, IK 컨트롤러를 절대 위치로 배치·키프레임.
     """
+    from mathutils import Vector
+
     pose_bones = arp_obj.pose.bones
     valid_pairs = []
     for fk_name, ik_name in _FK_IK_PAIRS:
@@ -2344,47 +2346,63 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
         return 0
 
     scene = bpy.context.scene
-    keyframed = 0
+    world_mat = arp_obj.matrix_world
 
+    # ── Phase 1: FK 모드에서 FK 발 world 위치 기록 ──────────────
+    fk_positions = {}  # {frame: {ik_name: Vector}}
     for frame in range(f_start, f_end + 1):
         scene.frame_set(frame)
-
+        positions = {}
         for fk_name, ik_name in valid_pairs:
             fk_pb = pose_bones[fk_name]
-            ik_pb = pose_bones[ik_name]
+            positions[ik_name] = (world_mat @ fk_pb.matrix).translation.copy()
+        fk_positions[frame] = positions
+    log(f"  Phase 1 완료: {len(fk_positions)}프레임 x {len(valid_pairs)}개 발 위치 기록")
 
-            # FK 본의 world-space head 위치
-            fk_world_pos = (arp_obj.matrix_world @ fk_pb.matrix).translation
-
-            # IK 본의 현재 world-space head 위치 (rest + 현재 pose)
-            ik_world_pos = (arp_obj.matrix_world @ ik_pb.matrix).translation
-
-            # 필요한 world offset
-            offset_world = fk_world_pos - ik_world_pos
-
-            # offset을 IK 본의 부모 공간으로 변환
-            if ik_pb.parent:
-                parent_rot = (arp_obj.matrix_world @ ik_pb.parent.matrix).to_3x3()
-                offset_local = parent_rot.inverted() @ offset_world
-            else:
-                offset_local = arp_obj.matrix_world.to_3x3().inverted() @ offset_world
-
-            ik_pb.location = ik_pb.location + offset_local
-            ik_pb.keyframe_insert(data_path="location", frame=frame)
-            keyframed += 1
-
-    # IK/FK switch를 IK(0.0)로 설정 — 모든 프레임에 적용
-    ik_switched = []
+    # ── Phase 2: IK 모드 전환 + 절대 위치 베이크 ───────────────
+    # ik_fk_switch를 IK(0.0)로 설정
+    ik_switch_bones = []
     for _, ik_name in valid_pairs:
         ik_pb = pose_bones[ik_name]
         if "ik_fk_switch" in ik_pb:
             ik_pb["ik_fk_switch"] = 0.0
-            ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_start)
-            ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_end)
-            ik_switched.append(ik_name)
+            ik_switch_bones.append(ik_name)
 
-    if ik_switched:
-        log(f"  IK/FK switch → IK(0.0): {', '.join(ik_switched)}")
+    keyframed = 0
+    for frame in range(f_start, f_end + 1):
+        scene.frame_set(frame)
+
+        # Step A: 모든 IK 컨트롤러 location을 (0,0,0)으로 리셋
+        for _, ik_name in valid_pairs:
+            pose_bones[ik_name].location = Vector((0, 0, 0))
+        bpy.context.view_layer.update()
+
+        # Step B: "기본" world 위치 읽고 → 원하는 FK 위치까지의 오프셋 계산
+        for _, ik_name in valid_pairs:
+            ik_pb = pose_bones[ik_name]
+            desired_world = fk_positions[frame][ik_name]
+
+            # IK 본의 현재 world matrix (location=0 상태)
+            ik_mat_world = world_mat @ ik_pb.matrix
+            ik_rest_pos = ik_mat_world.translation
+            ik_rot_3x3 = ik_mat_world.to_3x3()
+
+            # World offset → bone-local offset
+            offset_world = desired_world - ik_rest_pos
+            offset_local = ik_rot_3x3.inverted() @ offset_world
+
+            ik_pb.location = offset_local
+            ik_pb.keyframe_insert(data_path="location", frame=frame)
+            keyframed += 1
+
+    # IK/FK switch 키프레임 (시작·끝)
+    for ik_name in ik_switch_bones:
+        ik_pb = pose_bones[ik_name]
+        ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_start)
+        ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_end)
+
+    if ik_switch_bones:
+        log(f"  IK/FK switch → IK(0.0): {', '.join(ik_switch_bones)}")
 
     return keyframed
 
