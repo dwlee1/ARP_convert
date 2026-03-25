@@ -87,7 +87,7 @@ def get_weighted_bones(mesh_obj):
 
 - [x] 소스 리그에 pole 본이 있으면 ARP pole target이 같은 위치로 이동
 - [x] pole 본이 없는 리그에서는 ARP 기본 위치 유지
-- [ ] Fox/Cat 모두 정상 동작 (Blender 테스트 필요)
+- [x] Fox/Cat 모두 정상 동작 (Blender 테스트 완료)
 
 ---
 

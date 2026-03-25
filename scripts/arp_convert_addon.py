@@ -2141,8 +2141,8 @@ class ARPCONV_OT_BuildRig(Operator):
             _ARP_POLE_MAP = {
                 "back_leg_l": "c_leg_pole.l",
                 "back_leg_r": "c_leg_pole.r",
-                "front_leg_l": "c_arms_pole.l",
-                "front_leg_r": "c_arms_pole.r",
+                "front_leg_l": "c_leg_pole_dupli_001.l",
+                "front_leg_r": "c_leg_pole_dupli_001.r",
             }
             ensure_object_mode()
             select_only(arp_obj)
