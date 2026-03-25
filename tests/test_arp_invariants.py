@@ -101,7 +101,7 @@ class TestNoRefBoneCreation:
     """edit_bones.new() 호출에서 '_ref' 패턴 본 이름 생성을 금지한다.
 
     허용되는 사용:
-    - cc_ 커스텀 본 (cc_name 등)
+    - 커스텀 본 (원본 이름 유지, custom_bone 프로퍼티로 태깅)
     - Preview armature 본 (bone_name 등)
     - heel / bank 보조 본
     - __virtual_neck__ 등 가상 본

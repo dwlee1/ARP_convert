@@ -74,8 +74,8 @@ def _reload_modules():
 
 
 def _make_cc_bone_name(source_bone_name):
-    """source 본 이름을 Remap 규칙과 맞는 cc_ 이름으로 변환."""
-    return f"cc_{source_bone_name.lower()}"
+    """source 본 이름을 커스텀 본 이름으로 변환. 원본 이름 유지 (cc_ 접두사 없음)."""
+    return source_bone_name
 
 
 def _build_preview_hierarchy(preview_obj):
@@ -569,6 +569,10 @@ def _create_cc_bones_from_preview(
         bone = arp_obj.data.bones.get(cc_name)
         if bone:
             bone.use_deform = True
+        # ARP 커스텀 본 태깅: custom_bone 프로퍼티 추가 (cc_ 접두사 대체)
+        pose_bone = arp_obj.pose.bones.get(cc_name)
+        if pose_bone:
+            pose_bone["custom_bone"] = 1
 
     return created, cc_bone_map
 

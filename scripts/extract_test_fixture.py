@@ -80,15 +80,35 @@ def extract_all_bone_data(armature_obj):
     return bones
 
 
+def get_weighted_bone_names(armature_obj, threshold=0.001):
+    """아마추어에 연결된 메시에서 실제 웨이트가 있는 본 이름 집합 반환."""
+    mesh_children = [
+        child for child in bpy.data.objects if child.type == "MESH" and child.parent == armature_obj
+    ]
+    if not mesh_children:
+        return None
+
+    weighted = set()
+    for mesh_obj in mesh_children:
+        vg_names = {vg.index: vg.name for vg in mesh_obj.vertex_groups}
+        for v in mesh_obj.data.vertices:
+            for g in v.groups:
+                if g.weight > threshold and g.group in vg_names:
+                    weighted.add(vg_names[g.group])
+    return weighted
+
+
 def save_fixture(armature_obj, name, output_dir):
     """bone data를 JSON fixture로 저장."""
     all_bones = extract_all_bone_data(armature_obj)
+    weighted_bones = get_weighted_bone_names(armature_obj)
 
     fixture = {
         "name": name,
         "source_armature": armature_obj.name,
         "bone_count": len(all_bones),
         "deform_count": sum(1 for b in all_bones.values() if b["is_deform"]),
+        "weighted_bones": sorted(weighted_bones) if weighted_bones is not None else None,
         "all_bones": all_bones,
     }
 

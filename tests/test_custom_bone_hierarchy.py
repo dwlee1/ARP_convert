@@ -25,12 +25,17 @@ class TestCustomBoneHierarchy:
         }
 
         content = sa.generate_bmap_content(analysis)
-        cc_lines = [line for line in content.splitlines() if line.startswith("cc_")]
+        # 커스텀 본은 원본 이름 유지 (cc_ 접두사 없음)
+        custom_lines = [
+            line
+            for line in content.splitlines()
+            if line.endswith("%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%")
+        ]
 
-        assert cc_lines == [
-            "cc_jaw%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%",
-            "cc_food%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%",
-            "cc_eye_l%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%",
+        assert custom_lines == [
+            "jaw%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%",
+            "food%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%",
+            "eye_l%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%",
         ]
 
     def test_build_preview_parent_overrides_keeps_original_custom_hierarchy(self):

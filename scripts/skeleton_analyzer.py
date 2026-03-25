@@ -157,7 +157,9 @@ def order_bones_by_hierarchy(bone_names, bone_data):
         else:
             roots.append(bone_name)
 
-    sort_key = lambda name: (index_map.get(name, 10**9), name)
+    def sort_key(name):
+        return (index_map.get(name, 10**9), name)
+
     roots.sort(key=sort_key)
     for child_names in children_map.values():
         child_names.sort(key=sort_key)
@@ -280,12 +282,49 @@ def extract_bone_data(armature_obj):
     return bones
 
 
-def filter_deform_bones(all_bones):
+def get_weighted_bone_names(armature_obj, threshold=0.001):
+    """
+    아마추어에 연결된 메시의 vertex group을 스캔하여
+    실제 웨이트가 있는 본 이름 집합을 반환.
+
+    Args:
+        armature_obj: 아마추어 오브젝트
+        threshold: 최소 웨이트 임계값 (이 값 이하는 무시)
+
+    Returns:
+        set[str]: 웨이트가 있는 본 이름 집합. 메시가 없으면 None 반환.
+    """
+    mesh_children = [
+        child for child in bpy.data.objects if child.type == "MESH" and child.parent == armature_obj
+    ]
+    if not mesh_children:
+        return None
+
+    weighted = set()
+    for mesh_obj in mesh_children:
+        vg_names = {vg.index: vg.name for vg in mesh_obj.vertex_groups}
+        for v in mesh_obj.data.vertices:
+            for g in v.groups:
+                if g.weight > threshold and g.group in vg_names:
+                    weighted.add(vg_names[g.group])
+    return weighted
+
+
+def filter_deform_bones(all_bones, weighted_bones=None):
     """
     deform 본만 추출하고, deform 본 간의 하이어라키를 재구성.
     비-deform 중간 본을 건너뛰어 직접적인 부모-자식 관계를 유지.
+
+    Args:
+        all_bones: 전체 본 딕셔너리
+        weighted_bones: 웨이트가 있는 본 이름 집합 (None이면 웨이트 필터링 안 함)
     """
     deform_names = {name for name, b in all_bones.items() if b["is_deform"]}
+    if weighted_bones is not None:
+        excluded = deform_names - weighted_bones
+        if excluded:
+            print(f"[DEBUG] 웨이트 0 deform 본 제외: {sorted(excluded)}")
+        deform_names &= weighted_bones
     deform_bones = {}
 
     for name in deform_names:
@@ -694,6 +733,11 @@ def find_downward_branches(spine_chain, deform_bones):
     branches = []
     spine_set = set(spine_chain)
 
+    def _is_downward(bone_data, ref_head_z):
+        return bone_data["direction"][2] < DOWNWARD_THRESHOLD or (
+            bone_data["direction"][2] < 0 and bone_data["tail"][2] < ref_head_z
+        )
+
     for spine_bone_name in spine_chain:
         bone = deform_bones[spine_bone_name]
         for child_name in bone["children"]:
@@ -704,13 +748,21 @@ def find_downward_branches(spine_chain, deform_bones):
             # 아래로 향하는 체인인지 확인
             # 1. 방향이 강하게 아래(-Z)이거나
             # 2. 방향이 약간이라도 아래이면서 tail이 부모 head보다 아래인 경우
-            if child["direction"][2] < DOWNWARD_THRESHOLD or (
-                child["direction"][2] < 0 and child["tail"][2] < bone["head"][2]
-            ):
+            if _is_downward(child, bone["head"][2]):
                 # 체인 따라가기
                 chain = trace_chain(child_name, deform_bones, spine_set)
                 if len(chain) >= MIN_LEG_CHAIN_LENGTH:
                     branches.append((spine_bone_name, chain))
+            else:
+                # 중간 허브 본(예: hip_01)을 통해 분기하는 경우 — 손자 본 탐색
+                for gc_name in child["children"]:
+                    if gc_name in spine_set or gc_name not in deform_bones:
+                        continue
+                    gc = deform_bones[gc_name]
+                    if _is_downward(gc, child["head"][2]):
+                        chain = trace_chain(gc_name, deform_bones, spine_set)
+                        if len(chain) >= MIN_LEG_CHAIN_LENGTH:
+                            branches.append((spine_bone_name, chain))
 
     return branches
 
@@ -863,9 +915,9 @@ def split_leg_foot(chain, deform_bones):
 def find_tail_chain(root_name, spine_chain, deform_bones):
     """
     루트에서 spine 반대 방향으로 가는 꼬리 체인 찾기.
+    중간 허브 본(예: hip_01)을 통해 분기하는 꼬리도 탐색.
     """
     spine_set = set(spine_chain)
-    bone = deform_bones[root_name]
 
     # spine 방향 파악: 꼬리는 이 방향의 반대
     if len(spine_chain) > 1:
@@ -873,13 +925,33 @@ def find_tail_chain(root_name, spine_chain, deform_bones):
     else:
         spine_dir = (0, -1, 0)
 
+    # 후보 수집: root 직계 자식 + spine 본의 비-spine 자식의 자식(허브 경유)
+    candidates = []
+    # 1) root 직계 자식
+    for child_name in deform_bones[root_name]["children"]:
+        if child_name not in spine_set:
+            candidates.append(child_name)
+
+    # 2) spine 본의 비-spine 중간 허브 본을 통한 손자 본
+    for sp_name in spine_chain:
+        for child_name in deform_bones[sp_name]["children"]:
+            if child_name in spine_set or child_name not in deform_bones:
+                continue
+            child = deform_bones[child_name]
+            # 아래로 향하지 않는 중간 본의 자식 중 꼬리 후보 탐색
+            if child["direction"][2] >= DOWNWARD_THRESHOLD:
+                for gc_name in child["children"]:
+                    if gc_name in spine_set or gc_name not in deform_bones:
+                        continue
+                    gc = deform_bones[gc_name]
+                    # 아래로 향하는 본은 다리이므로 제외
+                    if gc["direction"][2] >= DOWNWARD_THRESHOLD:
+                        candidates.append(gc_name)
+
     best_chain = None
     best_score = -float("inf")
 
-    for child_name in bone["children"]:
-        if child_name in spine_set:
-            continue
-
+    for child_name in candidates:
         child = deform_bones[child_name]
         avg_x = abs(child["head"][0])
 
@@ -994,7 +1066,8 @@ def analyze_skeleton(armature_obj):
     """
     # 1. 본 데이터 추출
     all_bones = extract_bone_data(armature_obj)
-    deform_bones = filter_deform_bones(all_bones)
+    weighted_bones = get_weighted_bone_names(armature_obj)
+    deform_bones = filter_deform_bones(all_bones, weighted_bones)
     original_deform_bones = {
         name: dict(info, children=list(info.get("children", [])))
         for name, info in deform_bones.items()
@@ -1115,7 +1188,7 @@ def analyze_skeleton(armature_obj):
     for key in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
         if legs.get(key):
             mapped_bones.update(legs[key])
-    for key, foot_bones in leg_foot_pairs.items():
+    for _key, foot_bones in leg_foot_pairs.items():
         mapped_bones.update(foot_bones)
     if tail_chain:
         mapped_bones.update(tail_chain)
@@ -1437,15 +1510,14 @@ def generate_bmap_content(analysis, arp_obj=None):
             lines.append("False")
             lines.append("")
 
-    # unmapped cc_ 본 매핑 추가
+    # unmapped 커스텀 본 매핑 추가 (원본 이름 유지, cc_ 접두사 없음)
     custom_bones = order_bones_by_hierarchy(
         list(analysis.get("unmapped", [])),
         analysis.get("bone_data", {}),
     )
 
     for custom_bone in custom_bones:
-        cc_name = f"cc_{custom_bone.lower()}"
-        lines.append(f"{cc_name}%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%")
+        lines.append(f"{custom_bone}%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%")
         lines.append(custom_bone)
         lines.append("False")
         lines.append("False")
@@ -1612,7 +1684,6 @@ def create_preview_armature(source_obj, analysis):
     bpy.ops.object.mode_set(mode="EDIT")
 
     edit_bones = preview_obj.data.edit_bones
-    src_matrix = source_obj.matrix_world
     preview_matrix_inv = preview_obj.matrix_world.inverted()
 
     # 소스에서 Edit Mode 본 데이터 읽기 (bone_data에 이미 월드 좌표 있음)
@@ -1686,11 +1757,8 @@ def create_preview_armature(source_obj, analysis):
     # 본 그룹 + 색상 설정 (Pose Mode에서)
     bpy.ops.object.mode_set(mode="POSE")
 
-    # 역할별 본 그룹 생성
-    bone_groups = {}
-    for role, color in ROLE_COLORS.items():
-        # Blender 4.x: bone_color 사용 (bone_groups 대신)
-        pass  # 아래에서 개별 본에 색상 직접 설정
+    # Blender 4.x: bone_color 사용 (bone_groups 대신)
+    # 아래에서 개별 본에 색상 직접 설정
 
     # 각 본에 역할 커스텀 프로퍼티 + 색상 설정
     for bone_name in created_bones:

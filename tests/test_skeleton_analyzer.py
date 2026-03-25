@@ -23,7 +23,7 @@ FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
 def load_fixture(name):
-    """JSON fixture를 로드하여 all_bones dict 반환."""
+    """JSON fixture를 로드하여 (all_bones, weighted_bones) 반환."""
     path = os.path.join(FIXTURES_DIR, f"{name}.json")
     if not os.path.exists(path):
         pytest.skip(f"fixture 없음: {path}")
@@ -37,15 +37,16 @@ def load_fixture(name):
         bone["tail"] = tuple(bone["tail"])
         bone["direction"] = tuple(bone["direction"])
         all_bones[bname] = bone
-    return all_bones
+    weighted_bones = set(data["weighted_bones"]) if data.get("weighted_bones") is not None else None
+    return all_bones, weighted_bones
 
 
-def run_analysis(all_bones):
+def run_analysis(all_bones, weighted_bones=None):
     """
     fixture의 all_bones로 전체 분석 파이프라인 실행.
     extract_bone_data()를 건너뛰고 순수 분석 로직만 실행.
     """
-    deform_bones = sa.filter_deform_bones(all_bones)
+    deform_bones = sa.filter_deform_bones(all_bones, weighted_bones)
     sa._reconstruct_spatial_hierarchy(deform_bones, all_bones)
 
     root_result = sa.find_root_bone(deform_bones)
@@ -215,8 +216,8 @@ def analysis(animal_name):
     """동물별 분석 결과를 반환하는 fixture."""
     if animal_name == "__no_fixtures__":
         pytest.skip("추출된 fixture 없음. Blender에서 extract_test_fixture.py 실행 필요.")
-    all_bones = load_fixture(animal_name)
-    result = run_analysis(all_bones)
+    all_bones, weighted_bones = load_fixture(animal_name)
+    result = run_analysis(all_bones, weighted_bones)
     assert result is not None, f"{animal_name}: 분석 실패 (root를 찾을 수 없음)"
     return result
 
@@ -453,3 +454,118 @@ class TestOverallQuality:
                 seen[bone] = role
 
         assert not duplicates, f"중복 매핑: {duplicates}"
+
+
+class TestWeightFiltering:
+    """웨이트 0 본 필터링 테스트."""
+
+    def test_filter_excludes_zero_weight_bones(self):
+        """weighted_bones에 없는 deform 본은 제외되어야 함."""
+        all_bones = {
+            "Root": {
+                "name": "Root",
+                "head": (0, 0, 0),
+                "tail": (0, 0, 1),
+                "roll": 0,
+                "parent": None,
+                "children": ["Spine", "Pole_L"],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": False,
+            },
+            "Spine": {
+                "name": "Spine",
+                "head": (0, 0, 1),
+                "tail": (0, 0, 2),
+                "roll": 0,
+                "parent": "Root",
+                "children": [],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": True,
+            },
+            "Pole_L": {
+                "name": "Pole_L",
+                "head": (1, 0, 0),
+                "tail": (1, 0, 1),
+                "roll": 0,
+                "parent": "Root",
+                "children": [],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": False,
+            },
+        }
+        # Pole_L은 deform이지만 웨이트 없음
+        weighted = {"Root", "Spine"}
+        result = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
+        assert "Root" in result
+        assert "Spine" in result
+        assert "Pole_L" not in result, "웨이트 0 본이 제외되지 않음"
+
+    def test_filter_without_weight_info_keeps_all(self):
+        """weighted_bones=None이면 모든 deform 본 유지."""
+        all_bones = {
+            "A": {
+                "name": "A",
+                "head": (0, 0, 0),
+                "tail": (0, 0, 1),
+                "roll": 0,
+                "parent": None,
+                "children": ["B"],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": False,
+            },
+            "B": {
+                "name": "B",
+                "head": (0, 0, 1),
+                "tail": (0, 0, 2),
+                "roll": 0,
+                "parent": "A",
+                "children": [],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": True,
+            },
+        }
+        result = sa.filter_deform_bones(all_bones, weighted_bones=None)
+        assert len(result) == 2, "weighted_bones=None이면 모든 deform 본 유지"
+
+    def test_non_deform_bones_still_excluded(self):
+        """non-deform 본은 웨이트와 관계없이 제외."""
+        all_bones = {
+            "Deform": {
+                "name": "Deform",
+                "head": (0, 0, 0),
+                "tail": (0, 0, 1),
+                "roll": 0,
+                "parent": None,
+                "children": [],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": False,
+            },
+            "NonDeform": {
+                "name": "NonDeform",
+                "head": (0, 0, 0),
+                "tail": (0, 0, 1),
+                "roll": 0,
+                "parent": None,
+                "children": [],
+                "is_deform": False,
+                "direction": (0, 0, 1),
+                "length": 1,
+                "use_connect": False,
+            },
+        }
+        weighted = {"Deform", "NonDeform"}
+        result = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
+        assert "Deform" in result
+        assert "NonDeform" not in result, "non-deform 본은 웨이트와 관계없이 제외"

@@ -19,6 +19,7 @@ ignore = [
     "RUF012", # mutable class defaults (Blender PropertyGroup 패턴)
     "SIM108", # ternary 강제 (복잡한 조건에서 가독성 저하)
     "SIM102", # nested if 병합 (맥락상 분리가 더 명확한 경우 있음)
+    "SIM105", # contextlib.suppress 강제 (Blender API try/except/pass 관례)
     "B905",   # zip() strict (호환성)
 ]
 
