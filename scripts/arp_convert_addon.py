@@ -2120,8 +2120,22 @@ class ARPCONV_OT_BuildRig(Operator):
                 log(f"  {foot_ik_name} 미발견 또는 속성 없음", "WARN")
 
         # Step 4c: IK pole vector 위치 매칭
-        build_analysis = preview_to_analysis(preview_obj)
-        pole_vectors = build_analysis.get("pole_vectors", {})
+        # 소스 아마추어 전체 본에서 pole 탐색 (프리뷰는 weight=0 제외로 pole 누락 가능)
+        from skeleton_analyzer import extract_bone_data, find_pole_vectors
+
+        ensure_object_mode()
+        src_all_bones = extract_bone_data(source_obj)
+        # preview roles에서 legs/foot 체인 추출
+        _leg_keys = {"back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"}
+        _foot_keys = {"back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"}
+        pole_legs = {}
+        pole_feet = {}
+        for role_key, bone_names in roles.items():
+            if role_key in _leg_keys:
+                pole_legs[role_key] = bone_names
+            elif role_key in _foot_keys:
+                pole_feet[role_key] = bone_names
+        pole_vectors = find_pole_vectors(src_all_bones, pole_legs, pole_feet)
         if pole_vectors:
             log(f"IK pole vector 위치 매칭: {len(pole_vectors)}개")
             _ARP_POLE_MAP = {
