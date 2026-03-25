@@ -11,10 +11,10 @@
 
 | # | 기능 | 우선순위 | 난이도 | 상태 |
 |---|------|----------|--------|------|
-| F1 | 웨이트 0 본 프리뷰 제외 | 1 | 낮음 | 미착수 |
-| F2 | IK pole vector 위치 매칭 | 2 | 중간 | 미착수 |
-| F3 | Shape key 드라이버 보존 | 3 | 높음 | 미착수 |
-| F4 | 리타게팅 IK 모드 | 4 | 높음 | 미착수 |
+| F1 | 웨이트 0 본 프리뷰 제외 | 1 | 낮음 | 완료 |
+| F2 | IK pole vector 위치 매칭 | 2 | 중간 | 완료 |
+| F3 | Shape key 드라이버 보존 | 3 | 높음 | 완료 |
+| F4 | 리타게팅 IK 모드 | 4 | 높음 | 완료 |
 
 ---
 
@@ -55,10 +55,10 @@ def get_weighted_bones(mesh_obj):
 
 ### 완료 조건
 
-- [ ] 웨이트 0인 deform 본이 프리뷰에 포함되지 않음
-- [ ] 웨이트가 있는 deform 본은 정상적으로 포함됨
-- [ ] 기존 deer/cat fixture 테스트 통과
-- [ ] pytest 전체 통과
+- [x] 웨이트 0인 deform 본이 프리뷰에 포함되지 않음
+- [x] 웨이트가 있는 deform 본은 정상적으로 포함됨
+- [x] 기존 deer/cat fixture 테스트 통과
+- [x] pytest 전체 통과
 
 ---
 
@@ -85,9 +85,9 @@ def get_weighted_bones(mesh_obj):
 
 ### 완료 조건
 
-- [ ] 소스 리그에 pole 본이 있으면 ARP pole target이 같은 위치로 이동
-- [ ] pole 본이 없는 리그에서는 ARP 기본 위치 유지
-- [ ] Fox/Cat 모두 정상 동작
+- [x] 소스 리그에 pole 본이 있으면 ARP pole target이 같은 위치로 이동
+- [x] pole 본이 없는 리그에서는 ARP 기본 위치 유지
+- [ ] Fox/Cat 모두 정상 동작 (Blender 테스트 필요)
 
 ---
 
@@ -136,10 +136,10 @@ def scan_shape_key_drivers(mesh_obj):
 
 ### 완료 조건
 
-- [ ] transform 기반 드라이버 보존
-- [ ] 커스텀 프로퍼티 기반 드라이버 보존
-- [ ] shape key가 없는 메시에서 에러 없음
-- [ ] Cat에서 실제 shape key 동작 확인
+- [x] transform 기반 드라이버 보존
+- [x] 커스텀 프로퍼티 기반 드라이버 보존
+- [x] shape key가 없는 메시에서 에러 없음
+- [ ] Cat에서 실제 shape key 동작 확인 (Blender 테스트 필요)
 
 ---
 
@@ -166,9 +166,9 @@ def scan_shape_key_drivers(mesh_obj):
 
 ### 완료 조건
 
-- [ ] IK 모드로 리타게팅 시 발 슬라이딩 감소
-- [ ] FK 모드도 기존대로 동작 (후방 호환)
-- [ ] 걷기/달리기 애니메이션에서 정상 동작 확인
+- [ ] IK 모드로 리타게팅 시 발 슬라이딩 감소 (Blender 테스트 필요)
+- [x] FK 모드도 기존대로 동작 (후방 호환 — 기본값 off)
+- [ ] 걷기/달리기 애니메이션에서 정상 동작 확인 (Blender 테스트 필요)
 
 ---
 
