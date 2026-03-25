@@ -2313,97 +2313,85 @@ class ARPCONV_OT_BuildRig(Operator):
 # FK → IK 베이크
 # ═══════════════════════════════════════════════════════════════
 
-# ARP quadruped FK → IK 본 매핑 (dog 프리셋)
-_FK_IK_PAIRS = [
-    # (FK foot, IK foot) — back legs
-    ("c_foot_fk.l", "c_foot_ik.l"),
-    ("c_foot_fk.r", "c_foot_ik.r"),
-    # front legs (quadruped dupli — biped의 c_hand_fk가 아님)
-    ("c_foot_fk_dupli_001.l", "c_foot_ik_dupli_001.l"),
-    ("c_foot_fk_dupli_001.r", "c_foot_ik_dupli_001.r"),
-]
+
+def _detect_leg_sides(arp_obj):
+    """ARP 아마추어에서 모든 leg side 접미사를 탐지 (dupli 포함).
+
+    Returns: set of side strings, e.g. {".l", ".r", "_dupli_001.l", "_dupli_001.r"}
+    """
+    sides = set()
+    for pb in arp_obj.pose.bones:
+        if pb.name.startswith("c_foot_fk"):
+            if "_dupli_" in pb.name:
+                sides.add(pb.name[-12:])  # "_dupli_001.l"
+            else:
+                sides.add(pb.name[-2:])  # ".l"
+    return sides
 
 
 def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
-    """FK 리타겟 결과를 IK 컨트롤러에 베이크 (two-phase).
+    """FK 리타겟 결과를 IK 컨트롤러에 베이크.
 
-    Phase 1: FK 모드 상태에서 FK 발 world 위치를 모든 프레임에 대해 기록.
-    Phase 2: IK 모드로 전환 후, IK 컨트롤러를 절대 위치로 배치·키프레임.
+    ARP 네이티브 ik_to_fk_leg() 함수를 사용하여 FK 포즈를 IK 컨트롤러에 스냅.
+    3-bone Type 1 leg의 c_thigh_b 공유 본, pole vector 등을 자동 처리.
     """
-    from mathutils import Vector
+    from bl_ext.user_default.auto_rig_pro.src.rig_functions import ik_to_fk_leg
 
-    pose_bones = arp_obj.pose.bones
-    valid_pairs = []
-    for fk_name, ik_name in _FK_IK_PAIRS:
-        fk_pb = pose_bones.get(fk_name)
-        ik_pb = pose_bones.get(ik_name)
-        if fk_pb and ik_pb:
-            valid_pairs.append((fk_name, ik_name))
-            log(f"  FK→IK 쌍: {fk_name} → {ik_name}")
+    from arp_utils import ensure_object_mode, select_only
 
-    if not valid_pairs:
-        log("  FK→IK 베이크: 유효한 FK/IK 쌍 없음", "WARN")
+    sides = _detect_leg_sides(arp_obj)
+    if not sides:
+        log("  FK→IK 베이크: leg side 미발견", "WARN")
         return 0
 
+    log(f"  FK→IK 베이크: sides = {sorted(sides)}")
+
     scene = bpy.context.scene
-    world_mat = arp_obj.matrix_world
+    pose_bones = arp_obj.pose.bones
 
-    # ── Phase 1: FK 모드에서 FK 발 world 위치 기록 ──────────────
-    fk_positions = {}  # {frame: {ik_name: Vector}}
-    for frame in range(f_start, f_end + 1):
-        scene.frame_set(frame)
-        positions = {}
-        for fk_name, ik_name in valid_pairs:
-            fk_pb = pose_bones[fk_name]
-            positions[ik_name] = (world_mat @ fk_pb.matrix).translation.copy()
-        fk_positions[frame] = positions
-    log(f"  Phase 1 완료: {len(fk_positions)}프레임 x {len(valid_pairs)}개 발 위치 기록")
+    # Pose 모드 진입 (ik_to_fk_leg는 active_object 기반)
+    ensure_object_mode()
+    select_only(arp_obj)
+    bpy.ops.object.mode_set(mode="POSE")
 
-    # ── Phase 2: IK 모드 전환 + 절대 위치 베이크 ───────────────
-    # ik_fk_switch를 IK(0.0)로 설정
-    ik_switch_bones = []
-    for _, ik_name in valid_pairs:
-        ik_pb = pose_bones[ik_name]
-        if "ik_fk_switch" in ik_pb:
-            ik_pb["ik_fk_switch"] = 0.0
-            ik_switch_bones.append(ik_name)
+    # ── 3-bone Type 1: c_thigh_b 회전 사전 저장 ──────────────
+    # c_thigh_b는 IK/FK 체인에서 공유되므로 스냅 시 덮어쓰기 발생.
+    # 모든 프레임의 원래 회전을 먼저 저장한 뒤 스냅 전 복원한다.
+    thigh_b_saved = {}  # {side: {frame: Euler}}
+    for s in sides:
+        thigh_b = pose_bones.get("c_thigh_b" + s)
+        foot_ik = pose_bones.get("c_foot_ik" + s)
+        leg_ik3 = pose_bones.get("c_leg_ik3" + s)
+        if thigh_b and foot_ik and leg_ik3 is None and "three_bones_ik" in foot_ik:
+            thigh_b_saved[s] = {}
+            for frame in range(f_start, f_end + 1):
+                scene.frame_set(frame)
+                thigh_b_saved[s][frame] = thigh_b.rotation_euler.copy()
+            log(f"  3-bone Type 1 c_thigh_b{s}: {f_end - f_start + 1}프레임 회전 저장")
+
+    # ── 프레임별 IK 스냅 + 키프레임 ──────────────────────────
+    autokey = scene.tool_settings.use_keyframes_insert_auto
+    scene.tool_settings.use_keyframes_insert_auto = False
 
     keyframed = 0
     for frame in range(f_start, f_end + 1):
         scene.frame_set(frame)
+        for s in sides:
+            # c_thigh_b 회전 복원 (3-bone Type 1)
+            if s in thigh_b_saved:
+                thigh_b = pose_bones.get("c_thigh_b" + s)
+                if thigh_b:
+                    thigh_b.rotation_euler = thigh_b_saved[s][frame]
 
-        # Step A: 모든 IK 컨트롤러 location을 (0,0,0)으로 리셋
-        for _, ik_name in valid_pairs:
-            pose_bones[ik_name].location = Vector((0, 0, 0))
-        bpy.context.view_layer.update()
-
-        # Step B: "기본" world 위치 읽고 → 원하는 FK 위치까지의 오프셋 계산
-        for _, ik_name in valid_pairs:
-            ik_pb = pose_bones[ik_name]
-            desired_world = fk_positions[frame][ik_name]
-
-            # IK 본의 현재 world matrix (location=0 상태)
-            ik_mat_world = world_mat @ ik_pb.matrix
-            ik_rest_pos = ik_mat_world.translation
-            ik_rot_3x3 = ik_mat_world.to_3x3()
-
-            # World offset → bone-local offset
-            offset_world = desired_world - ik_rest_pos
-            offset_local = ik_rot_3x3.inverted() @ offset_world
-
-            ik_pb.location = offset_local
-            ik_pb.keyframe_insert(data_path="location", frame=frame)
+            ik_to_fk_leg(arp_obj, s, add_keyframe=True)
             keyframed += 1
 
-    # IK/FK switch 키프레임 (시작·끝)
-    for ik_name in ik_switch_bones:
-        ik_pb = pose_bones[ik_name]
-        ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_start)
-        ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_end)
+    scene.tool_settings.use_keyframes_insert_auto = autokey
+    bpy.ops.object.mode_set(mode="OBJECT")
 
-    if ik_switch_bones:
-        log(f"  IK/FK switch → IK(0.0): {', '.join(ik_switch_bones)}")
-
+    log(
+        f"  FK→IK 베이크 완료: {keyframed}회 스냅 ({f_end - f_start + 1}프레임 x {len(sides)} sides)"
+    )
     return keyframed
 
 
