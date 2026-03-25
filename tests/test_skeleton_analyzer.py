@@ -168,6 +168,24 @@ EXPECTED = {
         "has_front_leg_r": True,
         "has_tail": True,
     },
+    "cat": {
+        "root": "Root",
+        "spine_contains": ["Spine_01", "Spine_02", "Spine_03"],
+        # neck: Neck_01이 spine 끝에 포함될 수 있으므로 Neck_01.001만 기대
+        "neck_contains": ["Neck_01.001"],
+        "head": "Head",
+        "has_back_leg_l": True,
+        "has_back_leg_r": True,
+        "has_front_leg_l": True,
+        "has_front_leg_r": True,
+        "back_leg_l_contains": ["Thigh_B01_L", "Foot_B02_L"],
+        "back_leg_r_contains": ["Thigh_B01_R", "Foot_B02_R"],
+        "front_leg_l_min_count": 3,
+        "front_leg_r_min_count": 3,
+        "has_tail": True,
+        "has_ear_l": True,
+        "has_ear_r": True,
+    },
 }
 
 
