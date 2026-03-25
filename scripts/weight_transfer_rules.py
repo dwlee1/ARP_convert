@@ -7,7 +7,6 @@ unit tested with plain Python metadata dictionaries.
 
 from math import sqrt
 
-
 LEG_ROLE_PREFIXES = ("back_leg_", "front_leg_")
 FOOT_ROLE_PREFIXES = ("back_foot_", "front_foot_")
 
@@ -37,11 +36,7 @@ def build_weight_map(
     reserved_targets = set()
     fallback_sources = {}
 
-    non_aux_arp = {
-        name: meta
-        for name, meta in arp_meta.items()
-        if not meta.get("is_auxiliary")
-    }
+    non_aux_arp = {name: meta for name, meta in arp_meta.items() if not meta.get("is_auxiliary")}
     arp_by_owner_ref = {}
     for name, meta in non_aux_arp.items():
         owner_ref = meta.get("owner_ref")
@@ -98,9 +93,7 @@ def build_weight_map(
     )
 
     generic_candidates = {
-        name: meta
-        for name, meta in non_aux_arp.items()
-        if name not in reserved_targets
+        name: meta for name, meta in non_aux_arp.items() if name not in reserved_targets
     }
     generic_map = _build_generic_weight_map(
         generic_sources,
@@ -135,11 +128,7 @@ def _resolve_leg_mapping(
     if not family_names:
         return None, f"no ARP family for {mapped_ref}"
 
-    primary_names = [
-        name
-        for name in family_names
-        if arp_meta[name].get("family_kind") == "main"
-    ]
+    primary_names = [name for name in family_names if arp_meta[name].get("family_kind") == "main"]
     if not primary_names:
         return None, f"no primary deform owner for {mapped_ref}"
 
@@ -161,9 +150,7 @@ def _resolve_leg_mapping(
         if arp_meta[name].get("side") == src_side
         and arp_meta[name].get("family_kind") in {"twist", "stretch"}
     ]
-    family = [primary_name] + [
-        name for name in owned_names if name != primary_name
-    ]
+    family = [primary_name] + [name for name in owned_names if name != primary_name]
     return _split_by_lengths(family, arp_meta), None
 
 
@@ -328,10 +315,7 @@ def _split_by_lengths(names, meta_lookup):
         ratio = 1.0 / len(unique_names)
         return [(name, ratio) for name in unique_names]
 
-    return [
-        (name, _safe_length(meta_lookup[name]) / total_length)
-        for name in unique_names
-    ]
+    return [(name, _safe_length(meta_lookup[name]) / total_length) for name in unique_names]
 
 
 def _normalize_ratios(mappings):

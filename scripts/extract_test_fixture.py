@@ -15,31 +15,32 @@ Blender에서 실행하여 소스 아마추어의 bone data를 JSON으로 저장
   tests/fixtures/<name>.json
 """
 
-import bpy
 import json
 import os
 import sys
+
+import bpy
 
 
 def extract_all_bone_data(armature_obj):
     """
     아마추어에서 모든 본의 데이터를 추출 (skeleton_analyzer.extract_bone_data와 동일 로직).
     """
-    if bpy.context.mode != 'OBJECT':
+    if bpy.context.mode != "OBJECT":
         try:
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode="OBJECT")
         except RuntimeError:
             pass
 
     try:
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
     except RuntimeError:
         pass
 
     armature_obj.hide_set(False)
     armature_obj.select_set(True)
     bpy.context.view_layer.objects.active = armature_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     world_matrix = armature_obj.matrix_world
     bones = {}
@@ -55,26 +56,27 @@ def extract_all_bone_data(armature_obj):
         dy = tail_t[1] - head_t[1]
         dz = tail_t[2] - head_t[2]
         import math
-        length = math.sqrt(dx*dx + dy*dy + dz*dz)
+
+        length = math.sqrt(dx * dx + dy * dy + dz * dz)
         if length > 1e-8:
-            direction = [dx/length, dy/length, dz/length]
+            direction = [dx / length, dy / length, dz / length]
         else:
             direction = [0, 0, 0]
 
         bones[ebone.name] = {
-            'name': ebone.name,
-            'head': head_t,
-            'tail': tail_t,
-            'roll': ebone.roll,
-            'parent': ebone.parent.name if ebone.parent else None,
-            'children': [c.name for c in ebone.children],
-            'is_deform': ebone.use_deform,
-            'direction': direction,
-            'length': length,
-            'use_connect': ebone.use_connect,
+            "name": ebone.name,
+            "head": head_t,
+            "tail": tail_t,
+            "roll": ebone.roll,
+            "parent": ebone.parent.name if ebone.parent else None,
+            "children": [c.name for c in ebone.children],
+            "is_deform": ebone.use_deform,
+            "direction": direction,
+            "length": length,
+            "use_connect": ebone.use_connect,
         }
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
     return bones
 
 
@@ -83,17 +85,17 @@ def save_fixture(armature_obj, name, output_dir):
     all_bones = extract_all_bone_data(armature_obj)
 
     fixture = {
-        'name': name,
-        'source_armature': armature_obj.name,
-        'bone_count': len(all_bones),
-        'deform_count': sum(1 for b in all_bones.values() if b['is_deform']),
-        'all_bones': all_bones,
+        "name": name,
+        "source_armature": armature_obj.name,
+        "bone_count": len(all_bones),
+        "deform_count": sum(1 for b in all_bones.values() if b["is_deform"]),
+        "all_bones": all_bones,
     }
 
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, f"{name}.json")
 
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(fixture, f, indent=2, ensure_ascii=False)
 
     print(f"[Fixture] 저장 완료: {path}")
@@ -105,8 +107,8 @@ def main():
     # 커맨드라인 인수에서 이름 추출
     argv = sys.argv
     name = None
-    if '--' in argv:
-        args_after = argv[argv.index('--') + 1:]
+    if "--" in argv:
+        args_after = argv[argv.index("--") + 1 :]
         if args_after:
             name = args_after[0]
 
@@ -121,21 +123,21 @@ def main():
         # 방법 2: 고정 경로
         candidates.append(r"C:\Users\manag\Desktop\BlenderRigConvert")
         for c in candidates:
-            if os.path.exists(os.path.join(c, 'CLAUDE.md')):
+            if os.path.exists(os.path.join(c, "CLAUDE.md")):
                 return c
         return candidates[-1]
 
     project_root = _find_project_root()
-    output_dir = os.path.join(project_root, 'tests', 'fixtures')
+    output_dir = os.path.join(project_root, "tests", "fixtures")
 
     # 활성 아마추어 또는 첫 번째 아마추어 사용
     armature_obj = None
     active = bpy.context.view_layer.objects.active
-    if active and active.type == 'ARMATURE':
+    if active and active.type == "ARMATURE":
         armature_obj = active
     else:
         for obj in bpy.data.objects:
-            if obj.type == 'ARMATURE':
+            if obj.type == "ARMATURE":
                 armature_obj = obj
                 break
 
@@ -151,5 +153,5 @@ def main():
     save_fixture(armature_obj, name, output_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

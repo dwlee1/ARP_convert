@@ -11,13 +11,13 @@
   아래 CONFIG 수정 후 ▶ Run Script
 """
 
-import bpy
+import json
 import os
 import sys
-import json
 import time
 import traceback
 
+import bpy
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIG (커맨드라인 인자로 오버라이드 가능)
@@ -32,6 +32,7 @@ SAVE_BLEND = True  # 변환 완료 후 .blend 저장 여부
 # 커맨드라인 인자 파싱
 # ═══════════════════════════════════════════════════════════════
 
+
 def parse_args():
     """'--' 이후의 커맨드라인 인자를 파싱"""
     argv = sys.argv
@@ -39,7 +40,7 @@ def parse_args():
         return {}
 
     args = {}
-    custom_args = argv[argv.index("--") + 1:]
+    custom_args = argv[argv.index("--") + 1 :]
     i = 0
     while i < len(custom_args):
         if custom_args[i] == "--profile" and i + 1 < len(custom_args):
@@ -62,6 +63,7 @@ def parse_args():
 # ═══════════════════════════════════════════════════════════════
 # 스크립트 경로 설정
 # ═══════════════════════════════════════════════════════════════
+
 
 def _find_scripts_dir():
     """scripts/arp_utils.py가 있는 폴더를 찾는다."""
@@ -92,6 +94,7 @@ if _SCRIPT_DIR and _SCRIPT_DIR not in sys.path:
 # ═══════════════════════════════════════════════════════════════
 # 결과 기록
 # ═══════════════════════════════════════════════════════════════
+
 
 class ConversionResult:
     """변환 결과 수집 및 JSON 저장"""
@@ -128,7 +131,7 @@ class ConversionResult:
             "retarget_stats": self.retarget_stats,
             "elapsed_sec": round(self.elapsed_sec, 1),
         }
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return path
 
@@ -137,25 +140,30 @@ class ConversionResult:
 # 상태 스냅샷
 # ═══════════════════════════════════════════════════════════════
 
+
 def snapshot_state():
     """현재 씬의 아마추어/액션 상태를 딕셔너리로 반환"""
     armatures = []
     for obj in bpy.data.objects:
-        if obj.type == 'ARMATURE':
-            c_bones = len([b for b in obj.data.bones if b.name.startswith('c_')])
-            armatures.append({
-                "name": obj.name,
-                "bone_count": len(obj.data.bones),
-                "is_arp": c_bones > 5,
-            })
+        if obj.type == "ARMATURE":
+            c_bones = len([b for b in obj.data.bones if b.name.startswith("c_")])
+            armatures.append(
+                {
+                    "name": obj.name,
+                    "bone_count": len(obj.data.bones),
+                    "is_arp": c_bones > 5,
+                }
+            )
 
     actions = []
     for action in bpy.data.actions:
-        actions.append({
-            "name": action.name,
-            "frame_start": int(action.frame_range[0]),
-            "frame_end": int(action.frame_range[1]),
-        })
+        actions.append(
+            {
+                "name": action.name,
+                "frame_start": int(action.frame_range[0]),
+                "frame_end": int(action.frame_range[1]),
+            }
+        )
 
     return {
         "armatures": armatures,
@@ -167,6 +175,7 @@ def snapshot_state():
 # ═══════════════════════════════════════════════════════════════
 # 메인
 # ═══════════════════════════════════════════════════════════════
+
 
 def main():
     start_time = time.time()
@@ -188,7 +197,7 @@ def main():
 
     mode_str = "자동 분석" if auto_mode else f"프로필: {profile_name}"
     print("=" * 60)
-    print(f"파이프라인 러너 시작")
+    print("파이프라인 러너 시작")
     print(f"  파일: {blend_path}")
     print(f"  모드: {mode_str}")
     print("=" * 60)
@@ -201,9 +210,14 @@ def main():
     print("\n--- Step 1: ARP 리그 생성 ---")
     try:
         from arp_utils import (
-            log, ensure_object_mode, select_only,
-            run_arp_operator, find_arp_armature, find_mesh_objects,
-            load_mapping_profile, find_source_armature,
+            ensure_object_mode,
+            find_arp_armature,
+            find_mesh_objects,
+            find_source_armature,
+            load_mapping_profile,
+            log,
+            run_arp_operator,
+            select_only,
         )
 
         ensure_object_mode()
@@ -219,25 +233,28 @@ def main():
         # 매핑 생성 (자동 분석 또는 프로필)
         if auto_mode:
             from skeleton_analyzer import (
-                analyze_skeleton, generate_arp_mapping,
-                generate_verification_report, save_auto_mapping,
+                analyze_skeleton,
+                generate_arp_mapping,
+                generate_verification_report,
+                save_auto_mapping,
             )
+
             analysis = analyze_skeleton(source_obj)
-            if 'error' in analysis:
+            if "error" in analysis:
                 result.add_error(f"구조 분석 실패: {analysis['error']}")
-                raise RuntimeError(analysis['error'])
+                raise RuntimeError(analysis["error"])
 
             print(generate_verification_report(analysis))
             save_auto_mapping(analysis, output_dir)
 
             mapping = generate_arp_mapping(analysis)
-            deform_to_ref = mapping['deform_to_ref']
-            arp_preset = mapping.get('arp_preset', 'dog')
+            deform_to_ref = mapping["deform_to_ref"]
+            arp_preset = mapping.get("arp_preset", "dog")
             result.add_step("auto_analyzed")
         else:
             profile = load_mapping_profile(profile_name)
-            deform_to_ref = profile['deform_to_ref']
-            arp_preset = profile.get('arp_preset', 'dog')
+            deform_to_ref = profile["deform_to_ref"]
+            arp_preset = profile.get("arp_preset", "dog")
             result.add_step("profile_loaded")
 
         # ARP 리그 추가
@@ -253,18 +270,19 @@ def main():
 
         # ref 본 위치 정렬
         from mathutils import Vector
+
         ensure_object_mode()
 
         # 소스 본 위치 추출
         bpy.context.view_layer.objects.active = source_obj
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode="EDIT")
         src_matrix = source_obj.matrix_world
         source_positions = {}
         for ebone in source_obj.data.edit_bones:
             world_head = src_matrix @ ebone.head.copy()
             world_tail = src_matrix @ ebone.tail.copy()
             source_positions[ebone.name] = (world_head, world_tail, ebone.roll)
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode="OBJECT")
 
         # 목표 위치 결정
         resolved = {}
@@ -274,7 +292,7 @@ def main():
 
         # ARP ref 본에 위치 적용 (하이어라키 순서: 부모 → 자식)
         bpy.context.view_layer.objects.active = arp_obj
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode="EDIT")
         arp_matrix_inv = arp_obj.matrix_world.inverted()
         edit_bones = arp_obj.data.edit_bones
         aligned = 0
@@ -308,7 +326,7 @@ def main():
             ebone.roll = roll
             aligned += 1
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode="OBJECT")
         log(f"ref 본 정렬 완료: {aligned}개")
         result.add_step("ref_bones_aligned")
 
@@ -334,9 +352,10 @@ def main():
         # auto 모드: 동적 .bmap 생성
         if auto_mode:
             from skeleton_analyzer import generate_bmap_content
+
             analysis_for_bmap = {
-                'chains': {k: v for k, v in analysis.items() if k == 'chains'}.get('chains', {}),
-                'unmapped': analysis.get('unmapped', []),
+                "chains": {k: v for k, v in analysis.items() if k == "chains"}.get("chains", {}),
+                "unmapped": analysis.get("unmapped", []),
             }
             # analysis 변수가 auto 모드에서만 존재
             bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj)
@@ -345,16 +364,30 @@ def main():
             # ARP presets 폴더에 저장
             blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
             for presets_dir in [
-                os.path.join(os.environ.get("APPDATA", ""),
-                    "Blender Foundation", "Blender", blender_ver,
-                    "extensions", "user_default", "auto_rig_pro", "remap_presets"),
-                os.path.join(os.environ.get("APPDATA", ""),
-                    "Blender Foundation", "Blender", blender_ver,
-                    "config", "addons", "auto_rig_pro-master", "remap_presets"),
+                os.path.join(
+                    os.environ.get("APPDATA", ""),
+                    "Blender Foundation",
+                    "Blender",
+                    blender_ver,
+                    "extensions",
+                    "user_default",
+                    "auto_rig_pro",
+                    "remap_presets",
+                ),
+                os.path.join(
+                    os.environ.get("APPDATA", ""),
+                    "Blender Foundation",
+                    "Blender",
+                    blender_ver,
+                    "config",
+                    "addons",
+                    "auto_rig_pro-master",
+                    "remap_presets",
+                ),
             ]:
                 if os.path.isdir(presets_dir):
                     bmap_path = os.path.join(presets_dir, f"{bmap_name}.bmap")
-                    with open(bmap_path, 'w', encoding='utf-8') as f:
+                    with open(bmap_path, "w", encoding="utf-8") as f:
                         f.write(bmap_content)
                     log(f"동적 .bmap 생성: {bmap_path}")
                     break
@@ -393,20 +426,22 @@ def main():
     print("\n--- Step 3: 액션별 리타게팅 ---")
     actions = []
     for action in bpy.data.actions:
-        actions.append({
-            'name': action.name,
-            'frame_start': int(action.frame_range[0]),
-            'frame_end': int(action.frame_range[1]),
-        })
+        actions.append(
+            {
+                "name": action.name,
+                "frame_start": int(action.frame_range[0]),
+                "frame_end": int(action.frame_range[1]),
+            }
+        )
 
     success_count = 0
     fail_count = 0
 
     for i, act in enumerate(actions):
-        name = act['name']
-        f_start = act['frame_start']
-        f_end = act['frame_end']
-        log(f"[{i+1}/{len(actions)}] '{name}' ({f_start}~{f_end})")
+        name = act["name"]
+        f_start = act["frame_start"]
+        f_end = act["frame_end"]
+        log(f"[{i + 1}/{len(actions)}] '{name}' ({f_start}~{f_end})")
 
         try:
             action = bpy.data.actions.get(name)
@@ -425,7 +460,7 @@ def main():
                 frame_start=f_start,
                 frame_end=f_end,
                 fake_user_action=True,
-                interpolation_type='LINEAR',
+                interpolation_type="LINEAR",
             )
             success_count += 1
         except Exception as e:

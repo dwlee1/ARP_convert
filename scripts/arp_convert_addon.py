@@ -18,23 +18,28 @@ bl_info = {
     "category": "Rigging",
 }
 
-import bpy
 import json
 import os
 import sys
 import time
 import traceback
-from mathutils import Vector
-from bpy.props import (
-    StringProperty, FloatProperty, IntProperty,
-    BoolProperty, EnumProperty, PointerProperty,
-)
-from bpy.types import PropertyGroup, Operator, Panel
 
+import bpy
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    IntProperty,
+    PointerProperty,
+    StringProperty,
+)
+from bpy.types import Operator, Panel, PropertyGroup
+from mathutils import Vector
 
 # ═══════════════════════════════════════════════════════════════
 # scripts/ 경로 설정
 # ═══════════════════════════════════════════════════════════════
+
 
 def _ensure_scripts_path():
     """scripts/ 폴더를 sys.path에 추가"""
@@ -62,7 +67,8 @@ def _ensure_scripts_path():
 def _reload_modules():
     """개발 중 모듈 리로드"""
     import importlib
-    for mod_name in ['skeleton_analyzer', 'arp_utils', 'weight_transfer_rules']:
+
+    for mod_name in ["skeleton_analyzer", "arp_utils", "weight_transfer_rules"]:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
 
@@ -76,8 +82,8 @@ def _build_preview_hierarchy(preview_obj):
     hierarchy = {}
     for bone in preview_obj.data.bones:
         hierarchy[bone.name] = {
-            'parent': bone.parent.name if bone.parent else None,
-            'use_connect': bool(getattr(bone, 'use_connect', False)),
+            "parent": bone.parent.name if bone.parent else None,
+            "use_connect": bool(getattr(bone, "use_connect", False)),
         }
     return hierarchy
 
@@ -89,19 +95,21 @@ def _iter_preview_ancestors(source_bone_name, preview_hierarchy):
     while current_name and current_name not in visited:
         visited.add(current_name)
         bone_info = preview_hierarchy.get(current_name, {})
-        parent_name = bone_info.get('parent')
+        parent_name = bone_info.get("parent")
         if not parent_name:
             break
         yield parent_name
         current_name = parent_name
 
 
-def _should_connect_cc_bone(source_bone_name, resolved_parent_name, preview_hierarchy, custom_bone_names):
+def _should_connect_cc_bone(
+    source_bone_name, resolved_parent_name, preview_hierarchy, custom_bone_names
+):
     bone_info = preview_hierarchy.get(source_bone_name)
-    if not bone_info or not bone_info.get('use_connect'):
+    if not bone_info or not bone_info.get("use_connect"):
         return False
 
-    direct_parent_name = bone_info.get('parent')
+    direct_parent_name = bone_info.get("parent")
     if direct_parent_name not in custom_bone_names:
         return False
 
@@ -123,12 +131,17 @@ def _ensure_nonzero_bone_length(local_head, local_tail):
 # ARP 네이티브 체인 조정 래퍼
 # ═══════════════════════════════════════════════════════════════
 
+
 def _get_arp_set_functions():
     """ARP 내부 set_spine/set_neck/set_tail/set_ears 함수를 import."""
     try:
         from bl_ext.user_default.auto_rig_pro.src.auto_rig import (
-            set_spine, set_neck, set_tail, set_ears,
+            set_ears,
+            set_neck,
+            set_spine,
+            set_tail,
         )
+
         return set_spine, set_neck, set_tail, set_ears
     except ImportError:
         return None, None, None, None
@@ -137,7 +150,7 @@ def _get_arp_set_functions():
 def _select_edit_bone(arp_obj, bone_name):
     """Edit Mode에서 특정 본을 선택하고 active로 설정."""
     edit_bones = arp_obj.data.edit_bones
-    bpy.ops.armature.select_all(action='DESELECT')
+    bpy.ops.armature.select_all(action="DESELECT")
     eb = edit_bones.get(bone_name)
     if eb:
         eb.select = True
@@ -165,9 +178,9 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
 
     # 조정 대상: (역할, ARP 함수, 파라미터 이름, 선택할 ref 본 찾기 키워드)
     adjustments = [
-        ('spine', set_spine, 'count', 'spine_01_ref'),
-        ('neck',  set_neck,  'neck_count', 'neck_ref'),
-        ('tail',  set_tail,  'tail_count', 'tail_00_ref'),
+        ("spine", set_spine, "count", "spine_01_ref"),
+        ("neck", set_neck, "neck_count", "neck_ref"),
+        ("tail", set_tail, "tail_count", "tail_00_ref"),
     ]
 
     for chain_role, set_func, param_name, ref_search_key in adjustments:
@@ -200,7 +213,7 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
 
         try:
             # ARP set_spine은 root를 포함한 카운트 → ref 본 수 = count - 1
-            call_count = src_count + 1 if chain_role == 'spine' else src_count
+            call_count = src_count + 1 if chain_role == "spine" else src_count
             kwargs = {param_name: call_count}
             set_func(**kwargs)
             log(f"    → ARP {chain_role} 개수를 {call_count}으로 변경 완료 (소스 {src_count}본)")
@@ -210,7 +223,7 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
 
     # ear: L/R 개별 호출
     if set_ears:
-        for side_key, side_arg in [('ear_l', '.l'), ('ear_r', '.r')]:
+        for side_key, side_arg in [("ear_l", ".l"), ("ear_r", ".r")]:
             source_bones = roles.get(side_key, [])
             arp_refs = arp_chains.get(side_key, [])
 
@@ -241,17 +254,17 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
 
 def _get_bone_side(name):
     """본 이름에서 사이드 추출 (.l/_L → L, .r/_R → R, .x/기타 → X)"""
-    if name.endswith('.l'):
-        return 'L'
-    if name.endswith('.r'):
-        return 'R'
-    if name.endswith('.x'):
-        return 'X'
-    if name.endswith('_L') or name.endswith('_l'):
-        return 'L'
-    if name.endswith('_R') or name.endswith('_r'):
-        return 'R'
-    return 'X'
+    if name.endswith(".l"):
+        return "L"
+    if name.endswith(".r"):
+        return "R"
+    if name.endswith(".x"):
+        return "X"
+    if name.endswith("_L") or name.endswith("_l"):
+        return "L"
+    if name.endswith("_R") or name.endswith("_r"):
+        return "R"
+    return "X"
 
 
 def _vector_to_tuple(vec):
@@ -260,18 +273,18 @@ def _vector_to_tuple(vec):
 
 def _is_auxiliary_arp_deform(name):
     lowered = name.lower()
-    return 'heel' in lowered or 'bank' in lowered
+    return "heel" in lowered or "bank" in lowered
 
 
 def _classify_arp_family_kind(name):
     lowered = name.lower()
-    if 'twist' in lowered:
-        return 'twist'
-    if 'stretch' in lowered:
-        return 'stretch'
-    if lowered.startswith('toes') or 'toes' in lowered:
-        return 'toe'
-    return 'main'
+    if "twist" in lowered:
+        return "twist"
+    if "stretch" in lowered:
+        return "stretch"
+    if lowered.startswith("toes") or "toes" in lowered:
+        return "toe"
+    return "main"
 
 
 def _build_ref_metadata(arp_obj, arp_chains):
@@ -286,19 +299,19 @@ def _build_ref_metadata(arp_obj, arp_chains):
             ref_to_index[ref_name] = index
 
     for bone in arp_obj.data.bones:
-        if '_ref' not in bone.name:
+        if "_ref" not in bone.name:
             continue
         head_w = arp_matrix @ bone.head_local
         tail_w = arp_matrix @ bone.tail_local
         ref_meta[bone.name] = {
-            'name': bone.name,
-            'head': _vector_to_tuple(head_w),
-            'tail': _vector_to_tuple(tail_w),
-            'mid': _vector_to_tuple((head_w + tail_w) * 0.5),
-            'length': (tail_w - head_w).length,
-            'side': _get_bone_side(bone.name),
-            'role': ref_to_role.get(bone.name, ''),
-            'segment_index': ref_to_index.get(bone.name),
+            "name": bone.name,
+            "head": _vector_to_tuple(head_w),
+            "tail": _vector_to_tuple(tail_w),
+            "mid": _vector_to_tuple((head_w + tail_w) * 0.5),
+            "length": (tail_w - head_w).length,
+            "side": _get_bone_side(bone.name),
+            "role": ref_to_role.get(bone.name, ""),
+            "segment_index": ref_to_index.get(bone.name),
         }
 
     return ref_meta
@@ -306,29 +319,31 @@ def _build_ref_metadata(arp_obj, arp_chains):
 
 def _find_nearest_ref_name(position, side, ref_meta):
     best_name = None
-    best_distance = float('inf')
+    best_distance = float("inf")
 
     for ref_name, meta in ref_meta.items():
-        ref_side = meta.get('side')
-        if side != 'X' and ref_side != side:
+        ref_side = meta.get("side")
+        if side != "X" and ref_side != side:
             continue
-        ref_pos = meta.get('mid') or meta.get('head')
+        ref_pos = meta.get("mid") or meta.get("head")
         if not ref_pos:
             continue
-        distance = ((position[0] - ref_pos[0]) ** 2
-                    + (position[1] - ref_pos[1]) ** 2
-                    + (position[2] - ref_pos[2]) ** 2)
+        distance = (
+            (position[0] - ref_pos[0]) ** 2
+            + (position[1] - ref_pos[1]) ** 2
+            + (position[2] - ref_pos[2]) ** 2
+        )
         if distance < best_distance:
             best_distance = distance
             best_name = ref_name
 
-    if best_name is None and side != 'X':
-        return _find_nearest_ref_name(position, 'X', ref_meta)
+    if best_name is None and side != "X":
+        return _find_nearest_ref_name(position, "X", ref_meta)
     return best_name
 
 
 def _build_arp_deform_metadata(arp_obj, ref_meta, log):
-    deform_col = arp_obj.data.collections_all.get('Deform')
+    deform_col = arp_obj.data.collections_all.get("Deform")
     if not deform_col:
         log("  Deform 컬렉션 미발견", "ERROR")
         return {}
@@ -339,7 +354,7 @@ def _build_arp_deform_metadata(arp_obj, ref_meta, log):
     for bone in arp_obj.data.bones:
         if deform_col not in bone.collections.values():
             continue
-        if '_ref' in bone.name:
+        if "_ref" in bone.name:
             continue
 
         head_w = arp_matrix @ bone.head_local
@@ -353,16 +368,16 @@ def _build_arp_deform_metadata(arp_obj, ref_meta, log):
         owner_meta = ref_meta.get(owner_ref, {})
 
         arp_meta[bone.name] = {
-            'name': bone.name,
-            'head': _vector_to_tuple(head_w),
-            'tail': _vector_to_tuple(tail_w),
-            'length': (tail_w - head_w).length,
-            'side': side,
-            'family_kind': _classify_arp_family_kind(bone.name),
-            'owner_ref': owner_ref,
-            'owner_role': owner_meta.get('role', ''),
-            'segment_index': owner_meta.get('segment_index'),
-            'is_auxiliary': _is_auxiliary_arp_deform(bone.name),
+            "name": bone.name,
+            "head": _vector_to_tuple(head_w),
+            "tail": _vector_to_tuple(tail_w),
+            "length": (tail_w - head_w).length,
+            "side": side,
+            "family_kind": _classify_arp_family_kind(bone.name),
+            "owner_ref": owner_ref,
+            "owner_role": owner_meta.get("role", ""),
+            "segment_index": owner_meta.get("segment_index"),
+            "is_auxiliary": _is_auxiliary_arp_deform(bone.name),
         }
 
     return arp_meta
@@ -378,23 +393,19 @@ def _build_source_deform_metadata(source_obj, preview_role_by_bone):
         head_w = src_matrix @ bone.head_local
         tail_w = src_matrix @ bone.tail_local
         source_meta[bone.name] = {
-            'name': bone.name,
-            'head': _vector_to_tuple(head_w),
-            'tail': _vector_to_tuple(tail_w),
-            'length': (tail_w - head_w).length,
-            'side': _get_bone_side(bone.name),
-            'role': preview_role_by_bone.get(bone.name, ''),
+            "name": bone.name,
+            "head": _vector_to_tuple(head_w),
+            "tail": _vector_to_tuple(tail_w),
+            "length": (tail_w - head_w).length,
+            "side": _get_bone_side(bone.name),
+            "role": preview_role_by_bone.get(bone.name, ""),
         }
 
     return source_meta
 
 
 def _distance_sq(a, b):
-    return (
-        (a[0] - b[0]) ** 2
-        + (a[1] - b[1]) ** 2
-        + (a[2] - b[2]) ** 2
-    )
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
 
 
 def _build_primary_deform_bones_by_ref(arp_obj, arp_chains, log):
@@ -404,36 +415,37 @@ def _build_primary_deform_bones_by_ref(arp_obj, arp_chains, log):
 
     for ref_name, ref_info in ref_meta.items():
         main_candidates = [
-            meta for meta in arp_meta.values()
-            if meta.get('owner_ref') == ref_name
-            and meta.get('family_kind') == 'main'
-            and not meta.get('is_auxiliary')
+            meta
+            for meta in arp_meta.values()
+            if meta.get("owner_ref") == ref_name
+            and meta.get("family_kind") == "main"
+            and not meta.get("is_auxiliary")
         ]
         if not main_candidates:
             continue
 
-        ref_anchor = ref_info.get('head') or ref_info.get('mid')
+        ref_anchor = ref_info.get("head") or ref_info.get("mid")
         main_candidates.sort(
             key=lambda meta: (
-                _distance_sq(meta.get('head') or meta.get('tail'), ref_anchor),
-                meta.get('name', ''),
+                _distance_sq(meta.get("head") or meta.get("tail"), ref_anchor),
+                meta.get("name", ""),
             )
         )
-        primary_by_ref[ref_name] = main_candidates[0]['name']
+        primary_by_ref[ref_name] = main_candidates[0]["name"]
 
     return primary_by_ref
 
 
 def _resolve_root_deform_parent_name(arp_obj, primary_deform_by_ref):
     for candidate_name in [
-        primary_deform_by_ref.get('root_ref.x'),
-        'root.x',
-        'root',
-        'root_ref.x',
+        primary_deform_by_ref.get("root_ref.x"),
+        "root.x",
+        "root",
+        "root_ref.x",
     ]:
         if candidate_name and arp_obj.data.bones.get(candidate_name):
             return candidate_name
-    return 'root_ref.x'
+    return "root_ref.x"
 
 
 def _build_cc_parent_targets(arp_obj, arp_chains, deform_to_ref, log):
@@ -497,7 +509,7 @@ def _create_cc_bones_from_preview(
 
     ordered_custom_bones = order_bones_by_hierarchy(custom_bone_names, preview_hierarchy)
 
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
     edit_bones = arp_obj.data.edit_bones
     arp_matrix_inv = arp_obj.matrix_world.inverted()
     created = 0
@@ -550,7 +562,7 @@ def _create_cc_bones_from_preview(
         cc_bone_map[bone_name] = cc_name
         log(f"  cc_ 계층 적용: {bone_name} -> {cc_name} (parent={parent_name})")
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     for bone_name in ordered_custom_bones:
         cc_name = _make_cc_bone_name(bone_name)
@@ -580,7 +592,7 @@ def _build_position_weight_map(
         return {}
 
     source_meta = _build_source_deform_metadata(source_obj, preview_role_by_bone)
-    aux_count = sum(1 for meta in arp_meta.values() if meta.get('is_auxiliary'))
+    aux_count = sum(1 for meta in arp_meta.values() if meta.get("is_auxiliary"))
     log(f"  Deform 매핑 후보: {len(arp_meta)}개 (heel/bank 제외 {aux_count}개)")
 
     weight_map = build_weight_map(
@@ -619,6 +631,7 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
         log: 로그 함수
     """
     from arp_utils import find_mesh_objects
+
     meshes = find_mesh_objects(source_obj)
     total_groups = 0
 
@@ -648,7 +661,7 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
                 for v in mesh_obj.data.vertices:
                     for g in v.groups:
                         if g.group == src_vg.index:
-                            arp_vg.add([v.index], g.weight * ratio, 'REPLACE')
+                            arp_vg.add([v.index], g.weight * ratio, "REPLACE")
                             break
 
             total_groups += 1
@@ -668,7 +681,7 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
 
         # Armature modifier를 ARP로 변경
         for mod in mesh_obj.modifiers:
-            if mod.type == 'ARMATURE' and mod.object == source_obj:
+            if mod.type == "ARMATURE" and mod.object == source_obj:
                 mod.object = arp_obj
                 log(f"  Armature modifier 변경: {source_obj.name} → {arp_obj.name}")
                 break
@@ -678,19 +691,19 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
 
 
 SUPPORTED_CUSTOM_CONSTRAINTS = {
-    'COPY_ROTATION',
-    'COPY_LOCATION',
-    'COPY_SCALE',
-    'DAMPED_TRACK',
-    'LIMIT_ROTATION',
-    'LIMIT_LOCATION',
-    'LIMIT_SCALE',
-    'STRETCH_TO',
-    'TRACK_TO',
-    'LOCKED_TRACK',
-    'CHILD_OF',
-    'COPY_TRANSFORMS',
-    'TRANSFORMATION',
+    "COPY_ROTATION",
+    "COPY_LOCATION",
+    "COPY_SCALE",
+    "DAMPED_TRACK",
+    "LIMIT_ROTATION",
+    "LIMIT_LOCATION",
+    "LIMIT_SCALE",
+    "STRETCH_TO",
+    "TRACK_TO",
+    "LOCKED_TRACK",
+    "CHILD_OF",
+    "COPY_TRANSFORMS",
+    "TRANSFORMATION",
 }
 
 
@@ -703,42 +716,81 @@ def _map_source_bone_to_target_bone(source_bone_name, custom_bone_names, deform_
 def _copy_constraint_settings(src_constraint, dst_constraint):
     common_props = [
         # 기본
-        'name', 'mute', 'influence',
-        'owner_space', 'target_space',
-        'mix_mode',
+        "name",
+        "mute",
+        "influence",
+        "owner_space",
+        "target_space",
+        "mix_mode",
         # 축 사용/반전
-        'use_x', 'use_y', 'use_z',
-        'invert_x', 'invert_y', 'invert_z',
-        'use_offset',
-        'head_tail',
+        "use_x",
+        "use_y",
+        "use_z",
+        "invert_x",
+        "invert_y",
+        "invert_z",
+        "use_offset",
+        "head_tail",
         # 트래킹
-        'track_axis', 'up_axis', 'lock_axis',
+        "track_axis",
+        "up_axis",
+        "lock_axis",
         # 제한
-        'use_limit_x', 'use_limit_y', 'use_limit_z',
-        'use_min_x', 'use_min_y', 'use_min_z',
-        'use_max_x', 'use_max_y', 'use_max_z',
-        'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z',
-        'use_transform_limit',
+        "use_limit_x",
+        "use_limit_y",
+        "use_limit_z",
+        "use_min_x",
+        "use_min_y",
+        "use_min_z",
+        "use_max_x",
+        "use_max_y",
+        "use_max_z",
+        "min_x",
+        "max_x",
+        "min_y",
+        "max_y",
+        "min_z",
+        "max_z",
+        "use_transform_limit",
         # 스케일/변환
-        'power',
-        'use_make_uniform',
+        "power",
+        "use_make_uniform",
         # STRETCH_TO
-        'rest_length', 'bulge', 'volume',
-        'keep_axis',
+        "rest_length",
+        "bulge",
+        "volume",
+        "keep_axis",
         # CHILD_OF
-        'use_location_x', 'use_location_y', 'use_location_z',
-        'use_rotation_x', 'use_rotation_y', 'use_rotation_z',
-        'use_scale_x', 'use_scale_y', 'use_scale_z',
+        "use_location_x",
+        "use_location_y",
+        "use_location_z",
+        "use_rotation_x",
+        "use_rotation_y",
+        "use_rotation_z",
+        "use_scale_x",
+        "use_scale_y",
+        "use_scale_z",
         # COPY_TRANSFORMS
-        'remove_target_shear',
+        "remove_target_shear",
         # TRANSFORMATION
-        'use_motion_extrapolate',
-        'map_from', 'map_to',
-        'from_min_x', 'from_max_x', 'from_min_y', 'from_max_y',
-        'from_min_z', 'from_max_z',
-        'to_min_x', 'to_max_x', 'to_min_y', 'to_max_y',
-        'to_min_z', 'to_max_z',
-        'map_to_x_from', 'map_to_y_from', 'map_to_z_from',
+        "use_motion_extrapolate",
+        "map_from",
+        "map_to",
+        "from_min_x",
+        "from_max_x",
+        "from_min_y",
+        "from_max_y",
+        "from_min_z",
+        "from_max_z",
+        "to_min_x",
+        "to_max_x",
+        "to_min_y",
+        "to_max_y",
+        "to_min_z",
+        "to_max_z",
+        "map_to_x_from",
+        "map_to_y_from",
+        "map_to_z_from",
     ]
 
     for prop_name in common_props:
@@ -765,7 +817,7 @@ def _copy_custom_bone_constraints(
     created = 0
     source_custom_bones = set(custom_bone_names)
 
-    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.object.mode_set(mode="POSE")
     src_pose_bones = source_obj.pose.bones
     dst_pose_bones = arp_obj.pose.bones
 
@@ -777,21 +829,24 @@ def _copy_custom_bone_constraints(
 
         for src_constraint in src_pbone.constraints:
             if src_constraint.type not in SUPPORTED_CUSTOM_CONSTRAINTS:
-                log(f"  constraint 건너뜀 (미지원): {source_bone_name} / {src_constraint.type}", "WARN")
+                log(
+                    f"  constraint 건너뜀 (미지원): {source_bone_name} / {src_constraint.type}",
+                    "WARN",
+                )
                 continue
 
             try:
                 dst_constraint = dst_pbone.constraints.new(src_constraint.type)
                 _copy_constraint_settings(src_constraint, dst_constraint)
 
-                if hasattr(src_constraint, 'target') and hasattr(dst_constraint, 'target'):
+                if hasattr(src_constraint, "target") and hasattr(dst_constraint, "target"):
                     target_obj = src_constraint.target
                     if target_obj == source_obj:
                         dst_constraint.target = arp_obj
                     else:
                         dst_constraint.target = target_obj
 
-                if hasattr(src_constraint, 'subtarget') and hasattr(dst_constraint, 'subtarget'):
+                if hasattr(src_constraint, "subtarget") and hasattr(dst_constraint, "subtarget"):
                     mapped_subtarget = _map_source_bone_to_target_bone(
                         src_constraint.subtarget,
                         source_custom_bones,
@@ -802,9 +857,12 @@ def _copy_custom_bone_constraints(
                 created += 1
                 log(f"  constraint 복제: {source_bone_name} / {src_constraint.type}")
             except Exception as e:
-                log(f"  constraint 복제 실패 ({source_bone_name}, {src_constraint.type}): {e}", "WARN")
+                log(
+                    f"  constraint 복제 실패 ({source_bone_name}, {src_constraint.type}): {e}",
+                    "WARN",
+                )
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
     return created
 
 
@@ -813,22 +871,22 @@ def _copy_custom_bone_constraints(
 # ═══════════════════════════════════════════════════════════════
 
 ROLE_ITEMS = [
-    ('root', "Root", "루트 본"),
-    ('spine', "Spine", "스파인 체인"),
-    ('neck', "Neck", "목"),
-    ('head', "Head", "머리"),
-    ('back_leg_l', "Back Leg L", "뒷다리 좌"),
-    ('back_leg_r', "Back Leg R", "뒷다리 우"),
-    ('back_foot_l', "Back Foot L", "뒷발 좌"),
-    ('back_foot_r', "Back Foot R", "뒷발 우"),
-    ('front_leg_l', "Front Leg L", "앞다리 좌"),
-    ('front_leg_r', "Front Leg R", "앞다리 우"),
-    ('front_foot_l', "Front Foot L", "앞발 좌"),
-    ('front_foot_r', "Front Foot R", "앞발 우"),
-    ('ear_l', "Ear L", "귀 좌"),
-    ('ear_r', "Ear R", "귀 우"),
-    ('tail', "Tail", "꼬리"),
-    ('unmapped', "Unmapped", "미매핑 (cc_ 커스텀 본)"),
+    ("root", "Root", "루트 본"),
+    ("spine", "Spine", "스파인 체인"),
+    ("neck", "Neck", "목"),
+    ("head", "Head", "머리"),
+    ("back_leg_l", "Back Leg L", "뒷다리 좌"),
+    ("back_leg_r", "Back Leg R", "뒷다리 우"),
+    ("back_foot_l", "Back Foot L", "뒷발 좌"),
+    ("back_foot_r", "Back Foot R", "뒷발 우"),
+    ("front_leg_l", "Front Leg L", "앞다리 좌"),
+    ("front_leg_r", "Front Leg R", "앞다리 우"),
+    ("front_foot_l", "Front Foot L", "앞발 좌"),
+    ("front_foot_r", "Front Foot R", "앞발 우"),
+    ("ear_l", "Ear L", "귀 좌"),
+    ("ear_r", "Ear R", "귀 우"),
+    ("tail", "Tail", "꼬리"),
+    ("unmapped", "Unmapped", "미매핑 (cc_ 커스텀 본)"),
 ]
 ROLE_IDS = {item[0] for item in ROLE_ITEMS}
 
@@ -837,8 +895,10 @@ ROLE_IDS = {item[0] for item in ROLE_ITEMS}
 # 프로퍼티
 # ═══════════════════════════════════════════════════════════════
 
+
 class ARPCONV_Props(PropertyGroup):
     """전역 프로퍼티"""
+
     preview_armature: StringProperty(name="Preview Armature", default="")
     source_armature: StringProperty(name="소스 Armature", default="")
     is_analyzed: BoolProperty(name="분석 완료", default=False)
@@ -846,12 +906,12 @@ class ARPCONV_Props(PropertyGroup):
     regression_fixture: StringProperty(
         name="Fixture JSON",
         default="",
-        subtype='FILE_PATH',
+        subtype="FILE_PATH",
     )
     regression_report_dir: StringProperty(
         name="Report Dir",
         default="",
-        subtype='DIR_PATH',
+        subtype="DIR_PATH",
     )
     regression_run_retarget: BoolProperty(
         name="Retarget 포함",
@@ -870,12 +930,14 @@ class ARPCONV_Props(PropertyGroup):
 # 오퍼레이터: Step 1 — 분석 + Preview 생성
 # ═══════════════════════════════════════════════════════════════
 
+
 class ARPCONV_OT_CreatePreview(Operator):
     """소스 deform 본 추출 → Preview Armature 생성"""
+
     bl_idname = "arp_convert.create_preview"
     bl_label = "리그 분석 + Preview 생성"
     bl_description = "소스 deform 본을 분석하여 역할별 색상이 적용된 Preview Armature를 생성"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         _ensure_scripts_path()
@@ -883,18 +945,19 @@ class ARPCONV_OT_CreatePreview(Operator):
 
         try:
             from skeleton_analyzer import (
-                analyze_skeleton, create_preview_armature,
+                analyze_skeleton,
+                create_preview_armature,
                 generate_verification_report,
             )
         except ImportError as e:
-            self.report({'ERROR'}, f"skeleton_analyzer 임포트 실패: {e}")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"skeleton_analyzer 임포트 실패: {e}")
+            return {"CANCELLED"}
 
         # 소스 아마추어 찾기
         source_obj = self._find_source(context)
         if source_obj is None:
-            self.report({'ERROR'}, "소스 아마추어를 찾을 수 없습니다.")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, "소스 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
 
         # 기존 Preview 제거
         props = context.scene.arp_convert_props
@@ -903,14 +966,14 @@ class ARPCONV_OT_CreatePreview(Operator):
             bpy.data.objects.remove(old_preview, do_unlink=True)
 
         # Object 모드 확보
-        if bpy.context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
+        if bpy.context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
 
         # 분석
         analysis = analyze_skeleton(source_obj)
-        if 'error' in analysis:
-            self.report({'ERROR'}, analysis['error'])
-            return {'CANCELLED'}
+        if "error" in analysis:
+            self.report({"ERROR"}, analysis["error"])
+            return {"CANCELLED"}
 
         # 검증 리포트 출력
         print(generate_verification_report(analysis))
@@ -918,41 +981,42 @@ class ARPCONV_OT_CreatePreview(Operator):
         # Preview Armature 생성
         preview_obj = create_preview_armature(source_obj, analysis)
         if preview_obj is None:
-            self.report({'ERROR'}, "Preview Armature 생성 실패")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, "Preview Armature 생성 실패")
+            return {"CANCELLED"}
 
         # 프로퍼티 저장
         props.source_armature = source_obj.name
         props.preview_armature = preview_obj.name
         props.is_analyzed = True
-        props.confidence = analysis.get('confidence', 0)
+        props.confidence = analysis.get("confidence", 0)
 
         # Preview 선택
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
         preview_obj.select_set(True)
         context.view_layer.objects.active = preview_obj
 
-        self.report({'INFO'},
+        self.report(
+            {"INFO"},
             f"Preview 생성 완료 (신뢰도: {props.confidence:.0%}). "
-            f"본 선택 → 사이드바에서 역할 변경 가능.")
-        return {'FINISHED'}
+            f"본 선택 → 사이드바에서 역할 변경 가능.",
+        )
+        return {"FINISHED"}
 
     def _find_source(self, context):
         """소스 아마추어 찾기: 선택된 것 우선, 없으면 자동"""
-        if context.active_object and context.active_object.type == 'ARMATURE':
-            c_count = len([b for b in context.active_object.data.bones
-                          if b.name.startswith('c_')])
-            if c_count <= 5 and '_preview' not in context.active_object.name:
+        if context.active_object and context.active_object.type == "ARMATURE":
+            c_count = len([b for b in context.active_object.data.bones if b.name.startswith("c_")])
+            if c_count <= 5 and "_preview" not in context.active_object.name:
                 return context.active_object
 
         best_obj = None
         best_count = 0
         for obj in bpy.data.objects:
-            if obj.type != 'ARMATURE':
+            if obj.type != "ARMATURE":
                 continue
-            if '_preview' in obj.name:
+            if "_preview" in obj.name:
                 continue
-            c_count = len([b for b in obj.data.bones if b.name.startswith('c_')])
+            c_count = len([b for b in obj.data.bones if b.name.startswith("c_")])
             if c_count > 5:
                 continue
             total = len(obj.data.bones)
@@ -966,14 +1030,14 @@ class ARPCONV_OT_CreatePreview(Operator):
 # 오퍼레이터: 역할 변경
 # ═══════════════════════════════════════════════════════════════
 
-FOOT_ROLES = {'back_foot_l', 'back_foot_r', 'front_foot_l', 'front_foot_r'}
+FOOT_ROLES = {"back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"}
 # bank/heel 가이드 본 접미사
 GUIDE_SUFFIX_HEEL = "_heel"
 GUIDE_SUFFIX_BANK = "_bank"
 # 기본 오프셋 (foot 본 head 기준, 로컬 좌표)
-HEEL_OFFSET_Z = -0.02    # 바닥 방향
-HEEL_OFFSET_Y = -0.01    # 뒤쪽
-BANK_OFFSET_X = 0.015    # 좌우
+HEEL_OFFSET_Z = -0.02  # 바닥 방향
+HEEL_OFFSET_Y = -0.01  # 뒤쪽
+BANK_OFFSET_X = 0.015  # 좌우
 GUIDE_DEFAULT_TOLERANCE = 0.002
 AUTO_HEEL_BACK_RATIO = 0.18
 AUTO_HEEL_DOWN_RATIO = 0.08
@@ -983,9 +1047,9 @@ AUTO_GUIDE_MAX_OFFSET = 0.03
 
 
 def _set_preview_pose_bone_role(pbone, role, role_colors, role_prop_key):
-    color = role_colors.get(role, role_colors['unmapped'])
+    color = role_colors.get(role, role_colors["unmapped"])
     pbone[role_prop_key] = role
-    pbone.color.palette = 'CUSTOM'
+    pbone.color.palette = "CUSTOM"
     pbone.color.custom.normal = color
     pbone.color.custom.select = tuple(min(c + 0.3, 1.0) for c in color)
     pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
@@ -997,20 +1061,20 @@ def _create_foot_guides_for_role(context, preview_obj, foot_bone_names, role, ro
     SetRole 오퍼레이터와 회귀 테스트 러너에서 공통 사용한다.
     """
     prev_mode = context.mode
-    if prev_mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
+    if prev_mode != "OBJECT":
+        bpy.ops.object.mode_set(mode="OBJECT")
 
-    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.select_all(action="DESELECT")
     preview_obj.select_set(True)
     context.view_layer.objects.active = preview_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     edit_bones = preview_obj.data.edit_bones
     created = 0
 
-    side = role.rsplit('_', 1)[-1]
-    prefix = role.rsplit('_', 2)[0]
-    prefix_short = prefix.replace('_foot', '')
+    side = role.rsplit("_", 1)[-1]
+    prefix = role.rsplit("_", 2)[0]
+    prefix_short = prefix.replace("_foot", "")
 
     for foot_name in foot_bone_names:
         foot_eb = edit_bones.get(foot_name)
@@ -1036,7 +1100,7 @@ def _create_foot_guides_for_role(context, preview_obj, foot_bone_names, role, ro
         if old_bank:
             edit_bones.remove(old_bank)
 
-        bank_x = BANK_OFFSET_X if side == 'l' else -BANK_OFFSET_X
+        bank_x = BANK_OFFSET_X if side == "l" else -BANK_OFFSET_X
         bank_eb = edit_bones.new(bank_name)
         bank_eb.head = foot_head + Vector((bank_x, 0, HEEL_OFFSET_Z))
         bank_eb.tail = bank_eb.head + Vector((0, 0, 0.005))
@@ -1044,27 +1108,27 @@ def _create_foot_guides_for_role(context, preview_obj, foot_bone_names, role, ro
         bank_eb.parent = foot_eb
         created += 1
 
-    bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.mode_set(mode="POSE")
     guide_color = (0.9, 0.9, 0.0)
 
     for foot_name in foot_bone_names:
         for suffix, guide_role in [
-            (GUIDE_SUFFIX_HEEL, f'{prefix_short}_heel_{side}'),
-            (GUIDE_SUFFIX_BANK, f'{prefix_short}_bank_{side}'),
+            (GUIDE_SUFFIX_HEEL, f"{prefix_short}_heel_{side}"),
+            (GUIDE_SUFFIX_BANK, f"{prefix_short}_bank_{side}"),
         ]:
             guide_name = f"{foot_name}{suffix}"
             pbone = preview_obj.pose.bones.get(guide_name)
             if pbone:
                 pbone[role_prop_key] = guide_role
-                pbone.color.palette = 'CUSTOM'
+                pbone.color.palette = "CUSTOM"
                 pbone.color.custom.normal = guide_color
                 pbone.color.custom.select = (1.0, 1.0, 0.3)
                 pbone.color.custom.active = (1.0, 1.0, 0.5)
 
-    bpy.ops.object.mode_set(mode='OBJECT')
-    if prev_mode == 'POSE':
-        bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.object.mode_set(mode="OBJECT")
+    if prev_mode == "POSE":
+        bpy.ops.object.mode_set(mode="POSE")
 
     return created
 
@@ -1091,10 +1155,10 @@ def _load_regression_fixture(fixture_path):
     if not resolved_path or not os.path.exists(resolved_path):
         raise FileNotFoundError(f"Fixture JSON 미발견: {resolved_path or fixture_path}")
 
-    with open(resolved_path, 'r', encoding='utf-8') as f:
+    with open(resolved_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    roles = data.get('roles')
+    roles = data.get("roles")
     if not isinstance(roles, dict):
         raise ValueError("Fixture JSON에는 'roles' 객체가 필요합니다.")
 
@@ -1102,44 +1166,46 @@ def _load_regression_fixture(fixture_path):
     for role, bone_names in roles.items():
         if role not in ROLE_IDS:
             raise ValueError(f"지원하지 않는 role: {role}")
-        if not isinstance(bone_names, list) or not all(isinstance(name, str) for name in bone_names):
+        if not isinstance(bone_names, list) or not all(
+            isinstance(name, str) for name in bone_names
+        ):
             raise ValueError(f"role '{role}'의 값은 문자열 리스트여야 합니다.")
         normalized_roles[role] = bone_names
 
-    apply_mode = str(data.get('apply_mode', 'replace')).lower()
-    if apply_mode not in {'replace', 'overlay'}:
+    apply_mode = str(data.get("apply_mode", "replace")).lower()
+    if apply_mode not in {"replace", "overlay"}:
         raise ValueError("apply_mode는 'replace' 또는 'overlay'여야 합니다.")
 
     return {
-        'path': resolved_path,
-        'description': data.get('description', ''),
-        'apply_mode': apply_mode,
-        'roles': normalized_roles,
-        'run_retarget': bool(data.get('run_retarget', True)),
+        "path": resolved_path,
+        "description": data.get("description", ""),
+        "apply_mode": apply_mode,
+        "roles": normalized_roles,
+        "run_retarget": bool(data.get("run_retarget", True)),
     }
 
 
 def _apply_fixture_roles(context, preview_obj, fixture_data):
     from skeleton_analyzer import ROLE_COLORS, ROLE_PROP_KEY
 
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
+    if bpy.context.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode="OBJECT")
 
-    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.select_all(action="DESELECT")
     preview_obj.select_set(True)
     context.view_layer.objects.active = preview_obj
-    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.object.mode_set(mode="POSE")
 
-    if fixture_data['apply_mode'] == 'replace':
+    if fixture_data["apply_mode"] == "replace":
         for pbone in preview_obj.pose.bones:
-            _set_preview_pose_bone_role(pbone, 'unmapped', ROLE_COLORS, ROLE_PROP_KEY)
+            _set_preview_pose_bone_role(pbone, "unmapped", ROLE_COLORS, ROLE_PROP_KEY)
 
     assigned = {}
     duplicate_bones = []
     missing_bones = []
     foot_roles = {}
 
-    for role, bone_names in fixture_data['roles'].items():
+    for role, bone_names in fixture_data["roles"].items():
         for bone_name in bone_names:
             pbone = preview_obj.pose.bones.get(bone_name)
             if pbone is None:
@@ -1148,11 +1214,13 @@ def _apply_fixture_roles(context, preview_obj, fixture_data):
 
             previous_role = assigned.get(bone_name)
             if previous_role and previous_role != role:
-                duplicate_bones.append({
-                    'bone': bone_name,
-                    'previous_role': previous_role,
-                    'new_role': role,
-                })
+                duplicate_bones.append(
+                    {
+                        "bone": bone_name,
+                        "previous_role": previous_role,
+                        "new_role": role,
+                    }
+                )
 
             _set_preview_pose_bone_role(pbone, role, ROLE_COLORS, ROLE_PROP_KEY)
             assigned[bone_name] = role
@@ -1160,7 +1228,7 @@ def _apply_fixture_roles(context, preview_obj, fixture_data):
             if role in FOOT_ROLES:
                 foot_roles.setdefault(role, []).append(bone_name)
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     guide_count = 0
     for role, foot_bones in foot_roles.items():
@@ -1177,36 +1245,36 @@ def _apply_fixture_roles(context, preview_obj, fixture_data):
         role_counts[role] = role_counts.get(role, 0) + 1
 
     return {
-        'assigned_count': len(assigned),
-        'guide_count': guide_count,
-        'missing_bones': missing_bones,
-        'duplicate_bones': duplicate_bones,
-        'role_counts': role_counts,
-        'apply_mode': fixture_data['apply_mode'],
+        "assigned_count": len(assigned),
+        "guide_count": guide_count,
+        "missing_bones": missing_bones,
+        "duplicate_bones": duplicate_bones,
+        "role_counts": role_counts,
+        "apply_mode": fixture_data["apply_mode"],
     }
 
 
 def _detect_guide_kind(role_label, bone_name):
-    if '_heel_' in role_label or bone_name.endswith(GUIDE_SUFFIX_HEEL):
-        return 'heel'
-    if '_bank_' in role_label or bone_name.endswith(GUIDE_SUFFIX_BANK):
-        return 'bank'
+    if "_heel_" in role_label or bone_name.endswith(GUIDE_SUFFIX_HEEL):
+        return "heel"
+    if "_bank_" in role_label or bone_name.endswith(GUIDE_SUFFIX_BANK):
+        return "bank"
     return None
 
 
 def _detect_guide_side(role_label, foot_name):
-    if role_label.endswith('_l') or foot_name.endswith('_L') or foot_name.endswith('.l'):
-        return 'l'
-    if role_label.endswith('_r') or foot_name.endswith('_R') or foot_name.endswith('.r'):
-        return 'r'
-    return 'l'
+    if role_label.endswith("_l") or foot_name.endswith("_L") or foot_name.endswith(".l"):
+        return "l"
+    if role_label.endswith("_r") or foot_name.endswith("_R") or foot_name.endswith(".r"):
+        return "r"
+    return "l"
 
 
 def _guide_default_local_head(foot_head, kind, side):
-    if kind == 'heel':
+    if kind == "heel":
         return foot_head + Vector((0.0, HEEL_OFFSET_Y, HEEL_OFFSET_Z))
 
-    bank_x = BANK_OFFSET_X if side == 'l' else -BANK_OFFSET_X
+    bank_x = BANK_OFFSET_X if side == "l" else -BANK_OFFSET_X
     return foot_head + Vector((bank_x, 0.0, HEEL_OFFSET_Z))
 
 
@@ -1221,8 +1289,9 @@ def _is_default_foot_guide(preview_local_positions, guide_name, foot_name, kind,
     return (current_head - expected_head).length <= GUIDE_DEFAULT_TOLERANCE
 
 
-def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side,
-                                    toe_world_tail=None):
+def _compute_auto_foot_guide_world(
+    foot_world_head, foot_world_tail, kind, side, toe_world_tail=None
+):
     foot_length = (foot_world_tail - foot_world_head).length
     toe_length = (toe_world_tail - foot_world_tail).length if toe_world_tail else 0
     total_length = max(foot_length + toe_length, 0.001)
@@ -1239,7 +1308,7 @@ def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side,
     else:
         lateral.normalize()
 
-    if side == 'r':
+    if side == "r":
         lateral.negate()
 
     back_offset = min(total_length * AUTO_HEEL_BACK_RATIO, AUTO_GUIDE_MAX_OFFSET)
@@ -1247,7 +1316,7 @@ def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side,
 
     base = Vector((foot_world_head.x, foot_world_head.y, 0.0))
 
-    if kind == 'heel':
+    if kind == "heel":
         head = base - forward * back_offset
     else:  # bank
         head = base + lateral * side_offset
@@ -1261,9 +1330,10 @@ def _compute_auto_foot_guide_world(foot_world_head, foot_world_tail, kind, side,
 
 class ARPCONV_OT_SetRole(Operator):
     """선택된 본의 역할을 변경"""
+
     bl_idname = "arp_convert.set_role"
     bl_label = "역할 설정"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     role: EnumProperty(name="역할", items=ROLE_ITEMS)
 
@@ -1272,15 +1342,15 @@ class ARPCONV_OT_SetRole(Operator):
         from skeleton_analyzer import ROLE_COLORS, ROLE_PROP_KEY
 
         preview_obj = context.active_object
-        if not preview_obj or preview_obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "Preview Armature를 선택하세요.")
-            return {'CANCELLED'}
+        if not preview_obj or preview_obj.type != "ARMATURE":
+            self.report({"ERROR"}, "Preview Armature를 선택하세요.")
+            return {"CANCELLED"}
 
         # 선택된 본에 역할 적용
         changed = 0
         foot_bones = []  # foot 역할로 변경된 본 이름 수집
 
-        if context.mode == 'POSE':
+        if context.mode == "POSE":
             selected = context.selected_pose_bones
         else:
             selected = []
@@ -1298,55 +1368,61 @@ class ARPCONV_OT_SetRole(Operator):
                 foot_bones.append(pbone.name)
 
         if changed == 0:
-            self.report({'WARNING'}, "본이 선택되지 않았습니다.")
-            return {'FINISHED'}
+            self.report({"WARNING"}, "본이 선택되지 않았습니다.")
+            return {"FINISHED"}
 
         # foot 역할이면 bank/heel 가이드 본 자동 생성
         if foot_bones:
             guide_count = _create_foot_guides_for_role(
-                context, preview_obj, foot_bones, self.role, ROLE_PROP_KEY)
-            self.report({'INFO'},
-                f"{changed}개 본 → {self.role} + 가이드 {guide_count}개 생성")
+                context, preview_obj, foot_bones, self.role, ROLE_PROP_KEY
+            )
+            self.report({"INFO"}, f"{changed}개 본 → {self.role} + 가이드 {guide_count}개 생성")
         else:
-            self.report({'INFO'}, f"{changed}개 본 → {self.role}")
+            self.report({"INFO"}, f"{changed}개 본 → {self.role}")
 
-        return {'FINISHED'}
+        return {"FINISHED"}
 
 
 # ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: Step 3 — ARP 리그 생성
 # ═══════════════════════════════════════════════════════════════
 
+
 class ARPCONV_OT_BuildRig(Operator):
     """Preview Armature 기반으로 ARP 리그 생성"""
+
     bl_idname = "arp_convert.build_rig"
     bl_label = "ARP 리그 생성"
     bl_description = "Preview → append_arp → ref 본 위치 복사 → match_to_rig"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         _ensure_scripts_path()
         _reload_modules()
 
         try:
-            from skeleton_analyzer import (
-                preview_to_analysis, build_preview_to_ref_mapping,
-                ROLE_PROP_KEY,
-            )
             from arp_utils import (
-                log, ensure_object_mode, select_only,
-                run_arp_operator, find_arp_armature,
+                ensure_object_mode,
+                find_arp_armature,
+                log,
+                run_arp_operator,
+                select_only,
+            )
+            from skeleton_analyzer import (
+                ROLE_PROP_KEY,
+                build_preview_to_ref_mapping,
+                preview_to_analysis,
             )
         except ImportError as e:
-            self.report({'ERROR'}, f"모듈 임포트 실패: {e}")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
+            return {"CANCELLED"}
 
         props = context.scene.arp_convert_props
         preview_obj = bpy.data.objects.get(props.preview_armature)
 
         if preview_obj is None:
-            self.report({'ERROR'}, "Preview Armature가 없습니다. 먼저 [리그 분석]을 실행하세요.")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, "Preview Armature가 없습니다. 먼저 [리그 분석]을 실행하세요.")
+            return {"CANCELLED"}
 
         ensure_object_mode()
 
@@ -1355,33 +1431,34 @@ class ARPCONV_OT_BuildRig(Operator):
 
         source_obj = bpy.data.objects.get(props.source_armature)
         if source_obj is None:
-            self.report({'ERROR'}, f"소스 아마추어 '{props.source_armature}'를 찾을 수 없습니다.")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"소스 아마추어 '{props.source_armature}'를 찾을 수 없습니다.")
+            return {"CANCELLED"}
 
         select_only(source_obj)
         try:
-            run_arp_operator(bpy.ops.arp.append_arp, rig_preset='dog')
+            run_arp_operator(bpy.ops.arp.append_arp, rig_preset="dog")
         except Exception as e:
-            self.report({'ERROR'}, f"ARP 리그 추가 실패: {e}")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"ARP 리그 추가 실패: {e}")
+            return {"CANCELLED"}
 
         arp_obj = find_arp_armature()
         if arp_obj is None:
-            self.report({'ERROR'}, "ARP 아마추어를 찾을 수 없습니다.")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, "ARP 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
 
         # face/skull 비활성화
         try:
             ensure_object_mode()
             select_only(arp_obj)
-            bpy.ops.object.mode_set(mode='EDIT')
-            head_ref = arp_obj.data.edit_bones.get('head_ref')
+            bpy.ops.object.mode_set(mode="EDIT")
+            head_ref = arp_obj.data.edit_bones.get("head_ref")
             if head_ref:
                 head_ref.select = True
                 arp_obj.data.edit_bones.active = head_ref
             from bl_ext.user_default.auto_rig_pro.src.auto_rig import set_facial
+
             set_facial(enable=False, skull_bones=False)
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode="OBJECT")
             log("face/skull 비활성화 완료")
         except Exception as e:
             log(f"face/skull 비활성화 실패 (무시): {e}")
@@ -1390,15 +1467,16 @@ class ARPCONV_OT_BuildRig(Operator):
         # Step 2: Preview 본 위치 추출 (Edit 모드 1회)
         log("Preview 본 위치 추출")
         from skeleton_analyzer import (
-            read_preview_roles, map_role_chain,
+            map_role_chain,
+            read_preview_roles,
         )
 
         ensure_object_mode()
 
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
         preview_obj.select_set(True)
         bpy.context.view_layer.objects.active = preview_obj
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode="EDIT")
         preview_matrix = preview_obj.matrix_world
         preview_positions = {}
         preview_local_positions = {}
@@ -1411,7 +1489,7 @@ class ARPCONV_OT_BuildRig(Operator):
                 ebone.tail.copy(),
                 ebone.roll,
             )
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode="OBJECT")
 
         # Preview 역할 읽기 (Pose 모드 데이터, Edit 불필요)
         roles = read_preview_roles(preview_obj)
@@ -1425,10 +1503,10 @@ class ARPCONV_OT_BuildRig(Operator):
         log("ARP ref 본 검색 + 위치 정렬 (단일 Edit 세션)")
         ensure_object_mode()
 
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
         arp_obj.select_set(True)
         bpy.context.view_layer.objects.active = arp_obj
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode="EDIT")
 
         edit_bones = arp_obj.data.edit_bones
         arp_matrix_inv = arp_obj.matrix_world.inverted()
@@ -1437,7 +1515,7 @@ class ARPCONV_OT_BuildRig(Operator):
         ref_names = set()
         ref_depth = {}
         for eb in edit_bones:
-            if '_ref' in eb.name:
+            if "_ref" in eb.name:
                 ref_names.add(eb.name)
                 d = 0
                 p = eb.parent
@@ -1461,10 +1539,11 @@ class ARPCONV_OT_BuildRig(Operator):
                 chain.append(current_name)
 
                 child_candidates = [
-                    child.name for child in eb.children
-                    if '_ref' in child.name
-                    and 'bank' not in child.name
-                    and 'heel' not in child.name
+                    child.name
+                    for child in eb.children
+                    if "_ref" in child.name
+                    and "bank" not in child.name
+                    and "heel" not in child.name
                 ]
                 if not child_candidates:
                     break
@@ -1483,70 +1562,83 @@ class ARPCONV_OT_BuildRig(Operator):
             return chain
 
         # 역할별 ref 본 분류 (인라인)
-        FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
+        FOOT_AUX_PREFIXES = ["foot_bank", "foot_heel"]
 
         arp_chains = {}
 
         # Root/Spine/Neck/Head/Tail
         for name in ref_names:
-            if name.startswith('root_ref'):
-                arp_chains.setdefault('root', []).append(name)
-            elif 'spine_' in name and '_ref' in name:
-                arp_chains.setdefault('spine', []).append(name)
-            elif 'neck' in name and '_ref' in name:
-                arp_chains.setdefault('neck', []).append(name)
-            elif name.startswith('head_ref'):
-                arp_chains.setdefault('head', []).append(name)
-            elif 'tail_' in name and '_ref' in name:
-                arp_chains.setdefault('tail', []).append(name)
+            if name.startswith("root_ref"):
+                arp_chains.setdefault("root", []).append(name)
+            elif "spine_" in name and "_ref" in name:
+                arp_chains.setdefault("spine", []).append(name)
+            elif "neck" in name and "_ref" in name:
+                arp_chains.setdefault("neck", []).append(name)
+            elif name.startswith("head_ref"):
+                arp_chains.setdefault("head", []).append(name)
+            elif "tail_" in name and "_ref" in name:
+                arp_chains.setdefault("tail", []).append(name)
 
         # 정렬
-        for key in ['root', 'spine', 'neck', 'head', 'tail']:
+        for key in ["root", "spine", "neck", "head", "tail"]:
             if key in arp_chains:
-                arp_chains[key] = sorted(arp_chains[key],
-                    key=lambda x: ref_depth.get(x, 0))
+                arp_chains[key] = sorted(arp_chains[key], key=lambda x: ref_depth.get(x, 0))
 
         # Legs/Feet/Ear (side별)
-        for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
-            for is_dupli, leg_prefix in [(False, 'back'), (True, 'front')]:
-                thigh_roots = [n for n in ref_names
-                               if n.startswith('thigh_b_ref')
-                               and n.endswith(side_suffix)
-                               and ('dupli' in n) == is_dupli]
+        for side_suffix, side_key in [(".l", "l"), (".r", "r")]:
+            for is_dupli, leg_prefix in [(False, "back"), (True, "front")]:
+                thigh_roots = [
+                    n
+                    for n in ref_names
+                    if n.startswith("thigh_b_ref")
+                    and n.endswith(side_suffix)
+                    and ("dupli" in n) == is_dupli
+                ]
                 if not thigh_roots:
-                    thigh_roots = [n for n in ref_names
-                                   if n.startswith('thigh_ref')
-                                   and n.endswith(side_suffix)
-                                   and ('dupli' in n) == is_dupli]
+                    thigh_roots = [
+                        n
+                        for n in ref_names
+                        if n.startswith("thigh_ref")
+                        and n.endswith(side_suffix)
+                        and ("dupli" in n) == is_dupli
+                    ]
 
                 if thigh_roots:
                     thigh_roots.sort(key=lambda x: ref_depth.get(x, 0))
                     limb_chain = collect_connected_ref_chain(thigh_roots[0])
-                    leg_bones = [n for n in limb_chain if n.startswith('thigh') or n.startswith('leg')]
-                    foot_bones = [n for n in limb_chain if n.startswith('foot') or n.startswith('toes')]
+                    leg_bones = [
+                        n for n in limb_chain if n.startswith("thigh") or n.startswith("leg")
+                    ]
+                    foot_bones = [
+                        n for n in limb_chain if n.startswith("foot") or n.startswith("toes")
+                    ]
                     if leg_bones:
-                        arp_chains[f'{leg_prefix}_leg_{side_key}'] = leg_bones
+                        arp_chains[f"{leg_prefix}_leg_{side_key}"] = leg_bones
                     if foot_bones:
-                        arp_chains[f'{leg_prefix}_foot_{side_key}'] = foot_bones
+                        arp_chains[f"{leg_prefix}_foot_{side_key}"] = foot_bones
 
                 # Bank/Heel
                 for aux_pfx in FOOT_AUX_PREFIXES:
-                    aux_key = aux_pfx.replace('foot_', '')
-                    cands = [n for n in ref_names
-                             if n.startswith(aux_pfx) and '_ref' in n
-                             and n.endswith(side_suffix)
-                             and ('dupli' in n) == is_dupli]
+                    aux_key = aux_pfx.replace("foot_", "")
+                    cands = [
+                        n
+                        for n in ref_names
+                        if n.startswith(aux_pfx)
+                        and "_ref" in n
+                        and n.endswith(side_suffix)
+                        and ("dupli" in n) == is_dupli
+                    ]
                     if cands:
                         cands.sort(key=lambda x: ref_depth.get(x, 0))
-                        arp_chains[f'{leg_prefix}_{aux_key}_{side_key}'] = cands
+                        arp_chains[f"{leg_prefix}_{aux_key}_{side_key}"] = cands
 
             # Ear
-            ear_cands = sorted([n for n in ref_names
-                                if 'ear' in n and '_ref' in n
-                                and n.endswith(side_suffix)],
-                               key=lambda x: ref_depth.get(x, 0))
+            ear_cands = sorted(
+                [n for n in ref_names if "ear" in n and "_ref" in n and n.endswith(side_suffix)],
+                key=lambda x: ref_depth.get(x, 0),
+            )
             if ear_cands:
-                arp_chains[f'ear_{side_key}'] = ear_cands
+                arp_chains[f"ear_{side_key}"] = ear_cands
 
         # 검색 결과 로그
         log("  --- ARP ref 체인 ---")
@@ -1558,15 +1650,15 @@ class ARPCONV_OT_BuildRig(Operator):
 
         if chain_adjusted:
             # set_* 함수가 Edit Mode를 변경할 수 있으므로 재진입
-            if bpy.context.mode != 'EDIT_ARMATURE':
-                bpy.ops.object.mode_set(mode='EDIT')
+            if bpy.context.mode != "EDIT_ARMATURE":
+                bpy.ops.object.mode_set(mode="EDIT")
 
             # ref 본 재탐색 (set_* 호출로 이름/구조가 변경되었을 수 있음)
             edit_bones = arp_obj.data.edit_bones
             ref_names = set()
             ref_depth = {}
             for eb in edit_bones:
-                if '_ref' in eb.name:
+                if "_ref" in eb.name:
                     ref_names.add(eb.name)
                     d = 0
                     p = eb.parent
@@ -1581,60 +1673,77 @@ class ARPCONV_OT_BuildRig(Operator):
             arp_chains = {}
 
             for name in ref_names:
-                if name.startswith('root_ref'):
-                    arp_chains.setdefault('root', []).append(name)
-                elif 'spine_' in name and '_ref' in name:
-                    arp_chains.setdefault('spine', []).append(name)
-                elif 'neck' in name and '_ref' in name:
-                    arp_chains.setdefault('neck', []).append(name)
-                elif name.startswith('head_ref'):
-                    arp_chains.setdefault('head', []).append(name)
-                elif 'tail_' in name and '_ref' in name:
-                    arp_chains.setdefault('tail', []).append(name)
+                if name.startswith("root_ref"):
+                    arp_chains.setdefault("root", []).append(name)
+                elif "spine_" in name and "_ref" in name:
+                    arp_chains.setdefault("spine", []).append(name)
+                elif "neck" in name and "_ref" in name:
+                    arp_chains.setdefault("neck", []).append(name)
+                elif name.startswith("head_ref"):
+                    arp_chains.setdefault("head", []).append(name)
+                elif "tail_" in name and "_ref" in name:
+                    arp_chains.setdefault("tail", []).append(name)
 
-            for key in ['root', 'spine', 'neck', 'head', 'tail']:
+            for key in ["root", "spine", "neck", "head", "tail"]:
                 if key in arp_chains:
-                    arp_chains[key] = sorted(arp_chains[key],
-                        key=lambda x: ref_depth.get(x, 0))
+                    arp_chains[key] = sorted(arp_chains[key], key=lambda x: ref_depth.get(x, 0))
 
-            for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
-                for is_dupli, leg_prefix in [(False, 'back'), (True, 'front')]:
-                    thigh_roots = [n for n in ref_names
-                                   if n.startswith('thigh_b_ref')
-                                   and n.endswith(side_suffix)
-                                   and ('dupli' in n) == is_dupli]
+            for side_suffix, side_key in [(".l", "l"), (".r", "r")]:
+                for is_dupli, leg_prefix in [(False, "back"), (True, "front")]:
+                    thigh_roots = [
+                        n
+                        for n in ref_names
+                        if n.startswith("thigh_b_ref")
+                        and n.endswith(side_suffix)
+                        and ("dupli" in n) == is_dupli
+                    ]
                     if not thigh_roots:
-                        thigh_roots = [n for n in ref_names
-                                       if n.startswith('thigh_ref')
-                                       and n.endswith(side_suffix)
-                                       and ('dupli' in n) == is_dupli]
+                        thigh_roots = [
+                            n
+                            for n in ref_names
+                            if n.startswith("thigh_ref")
+                            and n.endswith(side_suffix)
+                            and ("dupli" in n) == is_dupli
+                        ]
 
                     if thigh_roots:
                         thigh_roots.sort(key=lambda x: ref_depth.get(x, 0))
                         limb_chain = collect_connected_ref_chain(thigh_roots[0])
-                        leg_bones = [n for n in limb_chain if n.startswith('thigh') or n.startswith('leg')]
-                        foot_bones = [n for n in limb_chain if n.startswith('foot') or n.startswith('toes')]
+                        leg_bones = [
+                            n for n in limb_chain if n.startswith("thigh") or n.startswith("leg")
+                        ]
+                        foot_bones = [
+                            n for n in limb_chain if n.startswith("foot") or n.startswith("toes")
+                        ]
                         if leg_bones:
-                            arp_chains[f'{leg_prefix}_leg_{side_key}'] = leg_bones
+                            arp_chains[f"{leg_prefix}_leg_{side_key}"] = leg_bones
                         if foot_bones:
-                            arp_chains[f'{leg_prefix}_foot_{side_key}'] = foot_bones
+                            arp_chains[f"{leg_prefix}_foot_{side_key}"] = foot_bones
 
                     for aux_pfx in FOOT_AUX_PREFIXES:
-                        aux_key = aux_pfx.replace('foot_', '')
-                        cands = [n for n in ref_names
-                                 if n.startswith(aux_pfx) and '_ref' in n
-                                 and n.endswith(side_suffix)
-                                 and ('dupli' in n) == is_dupli]
+                        aux_key = aux_pfx.replace("foot_", "")
+                        cands = [
+                            n
+                            for n in ref_names
+                            if n.startswith(aux_pfx)
+                            and "_ref" in n
+                            and n.endswith(side_suffix)
+                            and ("dupli" in n) == is_dupli
+                        ]
                         if cands:
                             cands.sort(key=lambda x: ref_depth.get(x, 0))
-                            arp_chains[f'{leg_prefix}_{aux_key}_{side_key}'] = cands
+                            arp_chains[f"{leg_prefix}_{aux_key}_{side_key}"] = cands
 
-                ear_cands = sorted([n for n in ref_names
-                                    if 'ear' in n and '_ref' in n
-                                    and n.endswith(side_suffix)],
-                                   key=lambda x: ref_depth.get(x, 0))
+                ear_cands = sorted(
+                    [
+                        n
+                        for n in ref_names
+                        if "ear" in n and "_ref" in n and n.endswith(side_suffix)
+                    ],
+                    key=lambda x: ref_depth.get(x, 0),
+                )
                 if ear_cands:
-                    arp_chains[f'ear_{side_key}'] = ear_cands
+                    arp_chains[f"ear_{side_key}"] = ear_cands
 
             log("  --- ARP ref 체인 (조정 후) ---")
             for role, bones in arp_chains.items():
@@ -1647,7 +1756,7 @@ class ARPCONV_OT_BuildRig(Operator):
             if not preview_bones:
                 return
             if not target_refs:
-                if 'heel' not in role_label and 'bank' not in role_label:
+                if "heel" not in role_label and "bank" not in role_label:
                     log(f"  [WARN] 역할 '{role_label}' → ARP ref 없음")
                 return
 
@@ -1655,7 +1764,7 @@ class ARPCONV_OT_BuildRig(Operator):
             deform_to_ref.update(chain_map)
 
         for role, preview_bones in roles.items():
-            if role == 'unmapped':
+            if role == "unmapped":
                 continue
             add_chain_mapping(role, preview_bones, arp_chains.get(role, []))
 
@@ -1664,9 +1773,9 @@ class ARPCONV_OT_BuildRig(Operator):
             log(f"  {src:25s} → {ref}")
 
         if not deform_to_ref:
-            bpy.ops.object.mode_set(mode='OBJECT')
-            self.report({'ERROR'}, "매핑 생성 실패")
-            return {'CANCELLED'}
+            bpy.ops.object.mode_set(mode="OBJECT")
+            self.report({"ERROR"}, "매핑 생성 실패")
+            return {"CANCELLED"}
 
         # --- 위치 설정 (같은 Edit 세션에서) ---
         # 원칙: ARP 기본 parent/use_connect 구조를 보존하고 위치만 설정
@@ -1678,12 +1787,14 @@ class ARPCONV_OT_BuildRig(Operator):
         for src_name, ref_name in deform_to_ref.items():
             if src_name in preview_positions:
                 resolved_value = preview_positions[src_name]
-                role_label = preview_role_by_bone.get(src_name, '')
+                role_label = preview_role_by_bone.get(src_name, "")
                 guide_kind = _detect_guide_kind(role_label, src_name)
 
                 if guide_kind:
                     preview_bone = preview_obj.data.bones.get(src_name)
-                    foot_name = preview_bone.parent.name if preview_bone and preview_bone.parent else None
+                    foot_name = (
+                        preview_bone.parent.name if preview_bone and preview_bone.parent else None
+                    )
                     guide_side = _detect_guide_side(role_label, foot_name or src_name)
 
                     if foot_name and _is_default_foot_guide(
@@ -1703,7 +1814,10 @@ class ARPCONV_OT_BuildRig(Operator):
                                 for child in foot_bone_preview.children:
                                     if child.name in preview_positions and child.name != src_name:
                                         child_pos = preview_positions[child.name]
-                                        if toe_world_tail is None or child_pos[1].z < toe_world_tail.z:
+                                        if (
+                                            toe_world_tail is None
+                                            or child_pos[1].z < toe_world_tail.z
+                                        ):
                                             toe_world_tail = child_pos[1]
                             auto_head, auto_tail = _compute_auto_foot_guide_world(
                                 foot_world[0],
@@ -1715,20 +1829,22 @@ class ARPCONV_OT_BuildRig(Operator):
                             orig_head = resolved_value[0]
                             resolved_value = (auto_head, auto_tail, resolved_value[2])
                             offset = (auto_head - orig_head).length
-                            log(f"  {src_name}: 자동 {guide_kind} 보정 (side={guide_side}, "
-                                f"foot_len={foot_len:.4f}, offset={offset:.4f})")
+                            log(
+                                f"  {src_name}: 자동 {guide_kind} 보정 (side={guide_side}, "
+                                f"foot_len={foot_len:.4f}, offset={offset:.4f})"
+                            )
                     else:
                         log(f"  {src_name}: {guide_kind} 가이드 사용자 위치 유지")
 
                 resolved[ref_name] = resolved_value
 
         # --- heel/bank ref 본 위치 설정 (foot ref 기준) ---
-        FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
+        FOOT_AUX_PREFIXES = ["foot_bank", "foot_heel"]
         for role, ref_chain in arp_chains.items():
-            if 'heel' not in role and 'bank' not in role:
+            if "heel" not in role and "bank" not in role:
                 continue
             # 대응하는 foot 역할 찾기 (back_heel_l → back_foot_l)
-            foot_role = role.replace('_heel_', '_foot_').replace('_bank_', '_foot_')
+            foot_role = role.replace("_heel_", "_foot_").replace("_bank_", "_foot_")
             foot_refs = arp_chains.get(foot_role, [])
             if not foot_refs:
                 continue
@@ -1749,11 +1865,14 @@ class ARPCONV_OT_BuildRig(Operator):
                 if toe_ref_name in resolved:
                     toe_world_tail = resolved[toe_ref_name][1]
 
-            side = 'r' if role.endswith('_r') else 'l'
+            side = "r" if role.endswith("_r") else "l"
 
             # heel 먼저 계산
             heel_head, heel_tail = _compute_auto_foot_guide_world(
-                foot_world_head, foot_world_tail, 'heel', side,
+                foot_world_head,
+                foot_world_tail,
+                "heel",
+                side,
                 toe_world_tail=toe_world_tail,
             )
 
@@ -1768,7 +1887,7 @@ class ARPCONV_OT_BuildRig(Operator):
                 lat = Vector((1.0, 0.0, 0.0))
             else:
                 lat.normalize()
-            if side == 'r':
+            if side == "r":
                 lat.negate()
 
             foot_length = (foot_world_tail - foot_world_head).length
@@ -1782,24 +1901,24 @@ class ARPCONV_OT_BuildRig(Operator):
                 if not aux_eb:
                     continue
 
-                if 'heel' in aux_ref_name:
+                if "heel" in aux_ref_name:
                     auto_head = heel_head.copy()
                     auto_tail = heel_tail.copy()
-                    guide_kind = 'heel'
-                elif 'bank_01' in aux_ref_name:
+                    guide_kind = "heel"
+                elif "bank_01" in aux_ref_name:
                     # bank_01 = inner (같은 side 방향)
                     auto_head = heel_head + lat * bank_offset
                     auto_head.z = 0.0
                     auto_tail = auto_head + fwd * bone_len
                     auto_tail.z = 0.0
-                    guide_kind = 'bank_inner'
+                    guide_kind = "bank_inner"
                 else:
                     # bank_02 = outer (반대 방향)
                     auto_head = heel_head - lat * bank_offset
                     auto_head.z = 0.0
                     auto_tail = auto_head + fwd * bone_len
                     auto_tail.z = 0.0
-                    guide_kind = 'bank_outer'
+                    guide_kind = "bank_outer"
 
                 resolved[aux_ref_name] = (auto_head, auto_tail, 0.0)
                 log(f"  {aux_ref_name}: 자동 {guide_kind} 배치 (Z=0, foot={foot_ref_name})")
@@ -1832,11 +1951,12 @@ class ARPCONV_OT_BuildRig(Operator):
 
             while current:
                 candidates = [
-                    child for child in current.children
+                    child
+                    for child in current.children
                     if child.use_connect
-                    and '_ref' in child.name
-                    and 'bank' not in child.name
-                    and 'heel' not in child.name
+                    and "_ref" in child.name
+                    and "bank" not in child.name
+                    and "heel" not in child.name
                 ]
                 if not candidates:
                     return helpers, None
@@ -1886,8 +2006,10 @@ class ARPCONV_OT_BuildRig(Operator):
                         factor = float(idx + 2) / float(segment_count)
                         helper_tail = current_head.lerp(next_head, factor)
                         helper_eb.tail = helper_tail
-                        log(f"  {helper_eb.name}: helper tail 설정 ({next_resolved_child.name}.head/{segment_count}분할)")
-            elif helper_chain and ref_name.startswith('foot'):
+                        log(
+                            f"  {helper_eb.name}: helper tail 설정 ({next_resolved_child.name}.head/{segment_count}분할)"
+                        )
+            elif helper_chain and ref_name.startswith("foot"):
                 # 소스 발 본만 있고 toe 본이 없는 경우:
                 # 마지막 소스 본의 tail까지를 ARP foot/toes 체인으로 분할해
                 # virtual toe 구간을 만든다.
@@ -1900,10 +2022,16 @@ class ARPCONV_OT_BuildRig(Operator):
                     factor = float(idx + 2) / float(segment_count)
                     helper_tail = current_head.lerp(source_end, factor)
                     helper_eb.tail = helper_tail
-                    log(f"  {helper_eb.name}: virtual toe tail 설정 (프리뷰.tail/{segment_count}분할)")
+                    log(
+                        f"  {helper_eb.name}: virtual toe tail 설정 (프리뷰.tail/{segment_count}분할)"
+                    )
 
             # root_ref: spine 방향, tail을 원래 pelvis.head에 맞춰 head를 뒤로 이동
-            if ref_name.startswith('root_ref') and next_resolved_child and next_resolved_child.name in resolved:
+            if (
+                ref_name.startswith("root_ref")
+                and next_resolved_child
+                and next_resolved_child.name in resolved
+            ):
                 spine_world_tail = resolved[next_resolved_child.name][1]
                 spine_local_tail = arp_matrix_inv @ spine_world_tail
                 spine_dir = spine_local_tail - current_head
@@ -1913,7 +2041,7 @@ class ARPCONV_OT_BuildRig(Operator):
                     local_tail = current_head.copy()
                     local_head = current_head - spine_dir.normalized() * bone_len
                     current_head = local_head
-                    tail_source = f"root→spine 방향 (head 후방 이동)"
+                    tail_source = "root→spine 방향 (head 후방 이동)"
                 else:
                     bone_len = max((preview_tail - current_head).length, 0.02)
                     local_tail = current_head + Vector((0, 0, bone_len))
@@ -1950,11 +2078,13 @@ class ARPCONV_OT_BuildRig(Operator):
                 h = eb.head
                 t = eb.tail
                 parent_name = eb.parent.name if eb.parent else "None"
-                log(f"  {ref_name}: head=({h.x:.4f},{h.y:.4f},{h.z:.4f}) "
+                log(
+                    f"  {ref_name}: head=({h.x:.4f},{h.y:.4f},{h.z:.4f}) "
                     f"tail=({t.x:.4f},{t.y:.4f},{t.z:.4f}) "
-                    f"connected={eb.use_connect} parent={parent_name}")
+                    f"connected={eb.use_connect} parent={parent_name}"
+                )
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode="OBJECT")
         log(f"ref 본 정렬 완료: {aligned}/{len(resolved)}개")
 
         # Step 4: match_to_rig (Edit 모드 재진입 없이 바로 실행)
@@ -1964,14 +2094,14 @@ class ARPCONV_OT_BuildRig(Operator):
         try:
             run_arp_operator(bpy.ops.arp.match_to_rig)
         except Exception as e:
-            self.report({'ERROR'}, f"match_to_rig 실패: {e}")
+            self.report({"ERROR"}, f"match_to_rig 실패: {e}")
             log(f"  match_to_rig 에러: {e}", "ERROR")
-            return {'CANCELLED'}
+            return {"CANCELLED"}
 
         # Step 4b: 앞다리 3 Bones IK 값 설정
         front_ik_val = props.front_3bones_ik
         log(f"앞다리 3 Bones IK 값 설정: {front_ik_val}")
-        for side in ('.l', '.r'):
+        for side in (".l", ".r"):
             foot_ik_name = f"c_foot_ik_dupli_001{side}"
             pb = arp_obj.pose.bones.get(foot_ik_name)
             if pb and "three_bones_ik" in pb:
@@ -1982,9 +2112,11 @@ class ARPCONV_OT_BuildRig(Operator):
 
         # Step 5: unmapped cc_ 커스텀 본 추가
         from skeleton_analyzer import read_preview_roles
+
         roles = read_preview_roles(preview_obj)
         custom_bones = [
-            bone_name for bone_name in roles.get('unmapped', [])
+            bone_name
+            for bone_name in roles.get("unmapped", [])
             if not bone_name.endswith(GUIDE_SUFFIX_HEEL)
             and not bone_name.endswith(GUIDE_SUFFIX_BANK)
         ]
@@ -2015,9 +2147,9 @@ class ARPCONV_OT_BuildRig(Operator):
                 if copied_constraints:
                     log(f"  constraint 복제 완료: {copied_constraints}개")
             except Exception as e:
-                self.report({'ERROR'}, f"cc_ 커스텀 본 생성 실패: {e}")
+                self.report({"ERROR"}, f"cc_ 커스텀 본 생성 실패: {e}")
                 log(f"  cc_ 생성 에러: {traceback.format_exc()}", "ERROR")
-                return {'CANCELLED'}
+                return {"CANCELLED"}
         else:
             cc_bone_map = {}
 
@@ -2044,37 +2176,43 @@ class ARPCONV_OT_BuildRig(Operator):
             log(f"  weight 전송 실패 (무시): {e}", "WARN")
             log(traceback.format_exc(), "WARN")
 
-        self.report({'INFO'}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
-        return {'FINISHED'}
+        self.report({"INFO"}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
+        return {"FINISHED"}
 
 
 # ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: Step 4 — 리타게팅
 # ═══════════════════════════════════════════════════════════════
 
+
 class ARPCONV_OT_Retarget(Operator):
     """동적 .bmap 생성 + 애니메이션 리타게팅"""
+
     bl_idname = "arp_convert.retarget"
     bl_label = "애니메이션 리타게팅"
     bl_description = "Preview 매핑으로 .bmap 자동 생성 후 리타게팅"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         _ensure_scripts_path()
         _reload_modules()
 
         try:
-            from skeleton_analyzer import (
-                preview_to_analysis, generate_bmap_content,
-            )
             from arp_utils import (
-                log, ensure_object_mode, select_only,
-                run_arp_operator, find_arp_armature,
+                ensure_object_mode,
                 ensure_retarget_context,
+                find_arp_armature,
+                log,
+                run_arp_operator,
+                select_only,
+            )
+            from skeleton_analyzer import (
+                generate_bmap_content,
+                preview_to_analysis,
             )
         except ImportError as e:
-            self.report({'ERROR'}, f"모듈 임포트 실패: {e}")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
+            return {"CANCELLED"}
 
         props = context.scene.arp_convert_props
         preview_obj = bpy.data.objects.get(props.preview_armature)
@@ -2082,8 +2220,8 @@ class ARPCONV_OT_Retarget(Operator):
         arp_obj = find_arp_armature()
 
         if not all([preview_obj, source_obj, arp_obj]):
-            self.report({'ERROR'}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
+            return {"CANCELLED"}
 
         ensure_object_mode()
 
@@ -2096,16 +2234,30 @@ class ARPCONV_OT_Retarget(Operator):
         blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
 
         for presets_dir in [
-            os.path.join(os.environ.get("APPDATA", ""),
-                "Blender Foundation", "Blender", blender_ver,
-                "extensions", "user_default", "auto_rig_pro", "remap_presets"),
-            os.path.join(os.environ.get("APPDATA", ""),
-                "Blender Foundation", "Blender", blender_ver,
-                "config", "addons", "auto_rig_pro-master", "remap_presets"),
+            os.path.join(
+                os.environ.get("APPDATA", ""),
+                "Blender Foundation",
+                "Blender",
+                blender_ver,
+                "extensions",
+                "user_default",
+                "auto_rig_pro",
+                "remap_presets",
+            ),
+            os.path.join(
+                os.environ.get("APPDATA", ""),
+                "Blender Foundation",
+                "Blender",
+                blender_ver,
+                "config",
+                "addons",
+                "auto_rig_pro-master",
+                "remap_presets",
+            ),
         ]:
             if os.path.isdir(presets_dir):
                 bmap_path = os.path.join(presets_dir, f"{bmap_name}.bmap")
-                with open(bmap_path, 'w', encoding='utf-8') as f:
+                with open(bmap_path, "w", encoding="utf-8") as f:
                     f.write(bmap_content)
                 log(f".bmap 저장: {bmap_path}")
                 break
@@ -2128,9 +2280,9 @@ class ARPCONV_OT_Retarget(Operator):
             run_arp_operator(bpy.ops.arp.save_pose_rest)
             ensure_object_mode()
         except Exception as e:
-            self.report({'ERROR'}, f"리타게팅 설정 실패: {e}")
+            self.report({"ERROR"}, f"리타게팅 설정 실패: {e}")
             log(traceback.format_exc(), "ERROR")
-            return {'CANCELLED'}
+            return {"CANCELLED"}
 
         # 액션별 리타게팅
         log("액션별 리타게팅")
@@ -2141,7 +2293,7 @@ class ARPCONV_OT_Retarget(Operator):
         for i, action in enumerate(actions):
             f_start = int(action.frame_range[0])
             f_end = int(action.frame_range[1])
-            log(f"  [{i+1}/{len(actions)}] '{action.name}' ({f_start}~{f_end})")
+            log(f"  [{i + 1}/{len(actions)}] '{action.name}' ({f_start}~{f_end})")
 
             try:
                 if source_obj.animation_data is None:
@@ -2155,27 +2307,29 @@ class ARPCONV_OT_Retarget(Operator):
                     frame_start=f_start,
                     frame_end=f_end,
                     fake_user_action=True,
-                    interpolation_type='LINEAR',
+                    interpolation_type="LINEAR",
                 )
                 success += 1
             except Exception as e:
                 fail += 1
                 log(f"    실패: {e}", "WARN")
 
-        self.report({'INFO'}, f"리타게팅 완료: {success}/{len(actions)} 성공")
-        return {'FINISHED'}
+        self.report({"INFO"}, f"리타게팅 완료: {success}/{len(actions)} 성공")
+        return {"FINISHED"}
 
 
 # ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: 회귀 테스트
 # ═══════════════════════════════════════════════════════════════
 
+
 class ARPCONV_OT_RunRegression(Operator):
     """Fixture 기반 Preview 회귀 테스트"""
+
     bl_idname = "arp_convert.run_regression"
     bl_label = "회귀 테스트 실행"
     bl_description = "Fixture JSON으로 역할을 적용하고 BuildRig/Retarget까지 자동 실행"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         _ensure_scripts_path()
@@ -2184,36 +2338,36 @@ class ARPCONV_OT_RunRegression(Operator):
         try:
             from arp_utils import log
         except ImportError as e:
-            self.report({'ERROR'}, f"모듈 임포트 실패: {e}")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
+            return {"CANCELLED"}
 
         props = context.scene.arp_convert_props
         fixture_path = props.regression_fixture.strip()
         if not fixture_path:
-            self.report({'ERROR'}, "Fixture JSON 경로를 지정하세요.")
-            return {'CANCELLED'}
+            self.report({"ERROR"}, "Fixture JSON 경로를 지정하세요.")
+            return {"CANCELLED"}
 
         started = time.time()
         report = {
-            'success': False,
-            'fixture_path': '',
-            'report_path': '',
-            'source_armature': '',
-            'preview_armature': '',
-            'build_rig': False,
-            'retarget': False,
-            'role_application': {},
-            'warnings': [],
-            'elapsed_sec': 0.0,
+            "success": False,
+            "fixture_path": "",
+            "report_path": "",
+            "source_armature": "",
+            "preview_armature": "",
+            "build_rig": False,
+            "retarget": False,
+            "role_application": {},
+            "warnings": [],
+            "elapsed_sec": 0.0,
         }
 
         try:
             fixture_data = _load_regression_fixture(fixture_path)
-            report['fixture_path'] = fixture_data['path']
+            report["fixture_path"] = fixture_data["path"]
             log(f"회귀 테스트 fixture 로드: {fixture_data['path']}")
 
             result = bpy.ops.arp_convert.create_preview()
-            if 'FINISHED' not in result:
+            if "FINISHED" not in result:
                 raise RuntimeError("Preview 생성 실패")
 
             preview_obj = bpy.data.objects.get(props.preview_armature)
@@ -2221,17 +2375,17 @@ class ARPCONV_OT_RunRegression(Operator):
             if preview_obj is None or source_obj is None:
                 raise RuntimeError("Preview 또는 source armature를 찾을 수 없습니다.")
 
-            report['preview_armature'] = preview_obj.name
-            report['source_armature'] = source_obj.name
+            report["preview_armature"] = preview_obj.name
+            report["source_armature"] = source_obj.name
 
             role_summary = _apply_fixture_roles(context, preview_obj, fixture_data)
-            report['role_application'] = role_summary
-            if role_summary['missing_bones']:
-                report['warnings'].append(
+            report["role_application"] = role_summary
+            if role_summary["missing_bones"]:
+                report["warnings"].append(
                     f"fixture bone 미발견: {', '.join(role_summary['missing_bones'])}"
                 )
-            if role_summary['duplicate_bones']:
-                report['warnings'].append(
+            if role_summary["duplicate_bones"]:
+                report["warnings"].append(
                     f"중복 role 지정 본 {len(role_summary['duplicate_bones'])}개"
                 )
 
@@ -2242,44 +2396,47 @@ class ARPCONV_OT_RunRegression(Operator):
             )
 
             result = bpy.ops.arp_convert.build_rig()
-            if 'FINISHED' not in result:
+            if "FINISHED" not in result:
                 raise RuntimeError("BuildRig 실패")
-            report['build_rig'] = True
+            report["build_rig"] = True
 
-            should_run_retarget = props.regression_run_retarget and fixture_data['run_retarget']
+            should_run_retarget = props.regression_run_retarget and fixture_data["run_retarget"]
             if should_run_retarget:
                 result = bpy.ops.arp_convert.retarget()
-                if 'FINISHED' not in result:
+                if "FINISHED" not in result:
                     raise RuntimeError("Retarget 실패")
-                report['retarget'] = True
+                report["retarget"] = True
 
-            report['success'] = True
-            self.report({'INFO'}, "회귀 테스트 완료")
-            return {'FINISHED'}
+            report["success"] = True
+            self.report({"INFO"}, "회귀 테스트 완료")
+            return {"FINISHED"}
 
         except Exception as e:
             log(f"회귀 테스트 실패: {e}", "ERROR")
             log(traceback.format_exc(), "ERROR")
-            self.report({'ERROR'}, f"회귀 테스트 실패: {e}")
-            report['warnings'].append(str(e))
-            return {'CANCELLED'}
+            self.report({"ERROR"}, f"회귀 테스트 실패: {e}")
+            report["warnings"].append(str(e))
+            return {"CANCELLED"}
 
         finally:
-            report['elapsed_sec'] = round(time.time() - started, 2)
+            report["elapsed_sec"] = round(time.time() - started, 2)
             report_dir = _resolve_regression_path(props.regression_report_dir.strip())
             if not report_dir:
                 report_dir = _default_regression_report_dir()
             os.makedirs(report_dir, exist_ok=True)
 
-            blend_name = os.path.splitext(os.path.basename(bpy.data.filepath or "untitled.blend"))[0]
+            blend_name = os.path.splitext(os.path.basename(bpy.data.filepath or "untitled.blend"))[
+                0
+            ]
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             report_path = os.path.join(report_dir, f"{blend_name}_{timestamp}.json")
-            report['report_path'] = report_path
-            with open(report_path, 'w', encoding='utf-8') as f:
+            report["report_path"] = report_path
+            with open(report_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, ensure_ascii=False)
 
             try:
                 from arp_utils import log
+
                 log(f"회귀 테스트 리포트 저장: {report_path}")
             except Exception:
                 pass
@@ -2289,12 +2446,14 @@ class ARPCONV_OT_RunRegression(Operator):
 # UI 패널
 # ═══════════════════════════════════════════════════════════════
 
+
 class ARPCONV_PT_MainPanel(Panel):
     """ARP 리그 변환 메인 패널"""
+
     bl_label = "ARP 리그 변환"
     bl_idname = "ARPCONV_PT_main"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
     bl_category = "ARP Convert"
 
     def draw(self, context):
@@ -2303,20 +2462,20 @@ class ARPCONV_PT_MainPanel(Panel):
 
         # Step 1: 분석 + Preview
         box = layout.box()
-        box.label(text="Step 1: 분석", icon='VIEWZOOM')
+        box.label(text="Step 1: 분석", icon="VIEWZOOM")
         if props.source_armature:
             box.label(text=f"소스: {props.source_armature}")
         row = box.row()
         row.scale_y = 1.5
-        row.operator("arp_convert.create_preview", icon='ARMATURE_DATA')
+        row.operator("arp_convert.create_preview", icon="ARMATURE_DATA")
 
         if not props.is_analyzed:
             layout.separator()
-            layout.label(text="소스 아마추어를 선택하고 분석을 실행하세요.", icon='INFO')
+            layout.label(text="소스 아마추어를 선택하고 분석을 실행하세요.", icon="INFO")
             return
 
         # 신뢰도
-        layout.label(text=f"신뢰도: {props.confidence:.0%}", icon='CHECKMARK')
+        layout.label(text=f"신뢰도: {props.confidence:.0%}", icon="CHECKMARK")
         if props.preview_armature:
             layout.label(text=f"Preview: {props.preview_armature}")
 
@@ -2324,7 +2483,7 @@ class ARPCONV_PT_MainPanel(Panel):
 
         # Step 2: 역할 수정
         box = layout.box()
-        box.label(text="Step 2: 역할 수정", icon='BONE_DATA')
+        box.label(text="Step 2: 역할 수정", icon="BONE_DATA")
         box.label(text="본 선택 후 역할을 변경하세요:")
 
         # 역할 버튼 — 카테고리별 정리
@@ -2332,7 +2491,7 @@ class ARPCONV_PT_MainPanel(Panel):
         sub = box.column(align=True)
         sub.label(text="Body:")
         grid = sub.grid_flow(columns=3, align=True)
-        for role_id in ['root', 'spine', 'neck', 'head', 'tail']:
+        for role_id in ["root", "spine", "neck", "head", "tail"]:
             op = grid.operator("arp_convert.set_role", text=role_id.capitalize())
             op.role = role_id
 
@@ -2340,8 +2499,13 @@ class ARPCONV_PT_MainPanel(Panel):
         sub = box.column(align=True)
         sub.label(text="Legs:")
         grid = sub.grid_flow(columns=2, align=True)
-        for role_id in ['back_leg_l', 'back_leg_r', 'front_leg_l', 'front_leg_r']:
-            label = role_id.replace('_', ' ').title().replace('Back Leg', 'BLeg').replace('Front Leg', 'FLeg')
+        for role_id in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
+            label = (
+                role_id.replace("_", " ")
+                .title()
+                .replace("Back Leg", "BLeg")
+                .replace("Front Leg", "FLeg")
+            )
             op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
@@ -2349,8 +2513,13 @@ class ARPCONV_PT_MainPanel(Panel):
         sub = box.column(align=True)
         sub.label(text="Feet (★ bank/heel 자동 생성):")
         grid = sub.grid_flow(columns=2, align=True)
-        for role_id in ['back_foot_l', 'back_foot_r', 'front_foot_l', 'front_foot_r']:
-            label = role_id.replace('_', ' ').title().replace('Back Foot', 'BFoot').replace('Front Foot', 'FFoot')
+        for role_id in ["back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"]:
+            label = (
+                role_id.replace("_", " ")
+                .title()
+                .replace("Back Foot", "BFoot")
+                .replace("Front Foot", "FFoot")
+            )
             op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
@@ -2358,50 +2527,51 @@ class ARPCONV_PT_MainPanel(Panel):
         sub = box.column(align=True)
         sub.label(text="Head:")
         grid = sub.grid_flow(columns=2, align=True)
-        for role_id in ['ear_l', 'ear_r']:
-            label = {'ear_l': 'Ear L', 'ear_r': 'Ear R'}[role_id]
+        for role_id in ["ear_l", "ear_r"]:
+            label = {"ear_l": "Ear L", "ear_r": "Ear R"}[role_id]
             op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
         # Unmapped (cc_ custom bones)
         row = box.row()
         op = row.operator("arp_convert.set_role", text="Unmapped (cc_)")
-        op.role = 'unmapped'
+        op.role = "unmapped"
 
         # 현재 선택된 본의 역할 표시
-        if context.active_object and context.active_object.type == 'ARMATURE':
+        if context.active_object and context.active_object.type == "ARMATURE":
             active_bone = context.active_bone
             if active_bone:
                 pbone = context.active_object.pose.bones.get(active_bone.name)
                 if pbone:
                     _ensure_scripts_path()
                     from skeleton_analyzer import ROLE_PROP_KEY
-                    current_role = pbone.get(ROLE_PROP_KEY, 'unmapped')
+
+                    current_role = pbone.get(ROLE_PROP_KEY, "unmapped")
                     box.separator()
-                    box.label(text=f"선택: {active_bone.name}", icon='BONE_DATA')
+                    box.label(text=f"선택: {active_bone.name}", icon="BONE_DATA")
                     box.label(text=f"현재 역할: {current_role}")
 
         layout.separator()
 
         # Step 3: 리그 생성
         box = layout.box()
-        box.label(text="Step 3: 적용", icon='PLAY')
+        box.label(text="Step 3: 적용", icon="PLAY")
         box.prop(props, "front_3bones_ik", slider=True)
         col = box.column(align=True)
         col.scale_y = 1.3
-        col.operator("arp_convert.build_rig", icon='MOD_ARMATURE')
-        col.operator("arp_convert.retarget", icon='ACTION')
+        col.operator("arp_convert.build_rig", icon="MOD_ARMATURE")
+        col.operator("arp_convert.retarget", icon="ACTION")
 
         layout.separator()
 
         box = layout.box()
-        box.label(text="Regression", icon='FILE_TEXT')
+        box.label(text="Regression", icon="FILE_TEXT")
         box.prop(props, "regression_fixture", text="Fixture")
         box.prop(props, "regression_report_dir", text="Report Dir")
         box.prop(props, "regression_run_retarget")
         row = box.row()
         row.scale_y = 1.2
-        row.operator("arp_convert.run_regression", icon='CHECKMARK')
+        row.operator("arp_convert.run_regression", icon="CHECKMARK")
 
 
 # ═══════════════════════════════════════════════════════════════

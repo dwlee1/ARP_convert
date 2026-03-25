@@ -10,12 +10,12 @@
   mapping = generate_arp_mapping(analysis)
 """
 
-import bpy
 import json
-import os
 import math
+import os
 from collections import defaultdict
 
+import bpy
 
 # ═══════════════════════════════════════════════════════════════
 # 상수
@@ -34,46 +34,44 @@ MAX_EAR_CHAIN_LENGTH = 3
 FACE_BONE_KEYWORDS = ["eye", "ear", "jaw", "mouth", "tongue"]
 
 # cc_ 커스텀 본 강제 전환 패턴 — 이 패턴이 포함된 본은 어떤 역할이든 cc_ 후보
-CC_NAME_PATTERNS = ['eye', 'jaw', 'mouth', 'tongue', 'food']
+CC_NAME_PATTERNS = ["eye", "jaw", "mouth", "tongue", "food"]
 
 # ARP dog 프리셋 ref 본 구조
 ARP_REF_MAP = {
-    "root":        ["root_ref.x"],
-    "spine":       ["spine_01_ref.x", "spine_02_ref.x", "spine_03_ref.x"],
-    "neck":        ["neck_ref.x"],
-    "head":        ["head_ref.x"],
-    "back_leg_l":  ["thigh_b_ref.l", "thigh_ref.l", "leg_ref.l"],
-    "back_leg_r":  ["thigh_b_ref.r", "thigh_ref.r", "leg_ref.r"],
+    "root": ["root_ref.x"],
+    "spine": ["spine_01_ref.x", "spine_02_ref.x", "spine_03_ref.x"],
+    "neck": ["neck_ref.x"],
+    "head": ["head_ref.x"],
+    "back_leg_l": ["thigh_b_ref.l", "thigh_ref.l", "leg_ref.l"],
+    "back_leg_r": ["thigh_b_ref.r", "thigh_ref.r", "leg_ref.r"],
     "back_foot_l": ["foot_ref.l", "toes_ref.l"],
     "back_foot_r": ["foot_ref.r", "toes_ref.r"],
-    "front_leg_l": ["thigh_b_ref_dupli_001.l", "thigh_ref_dupli_001.l",
-                    "leg_ref_dupli_001.l"],
-    "front_leg_r": ["thigh_b_ref_dupli_001.r", "thigh_ref_dupli_001.r",
-                    "leg_ref_dupli_001.r"],
+    "front_leg_l": ["thigh_b_ref_dupli_001.l", "thigh_ref_dupli_001.l", "leg_ref_dupli_001.l"],
+    "front_leg_r": ["thigh_b_ref_dupli_001.r", "thigh_ref_dupli_001.r", "leg_ref_dupli_001.r"],
     "front_foot_l": ["foot_ref_dupli_001.l", "toes_ref_dupli_001.l"],
     "front_foot_r": ["foot_ref_dupli_001.r", "toes_ref_dupli_001.r"],
-    "tail":        ["tail_00_ref.x", "tail_01_ref.x", "tail_02_ref.x", "tail_03_ref.x"],
-    "ear_l":       ["ear_01_ref.l", "ear_02_ref.l"],
-    "ear_r":       ["ear_01_ref.r", "ear_02_ref.r"],
+    "tail": ["tail_00_ref.x", "tail_01_ref.x", "tail_02_ref.x", "tail_03_ref.x"],
+    "ear_l": ["ear_01_ref.l", "ear_02_ref.l"],
+    "ear_r": ["ear_01_ref.r", "ear_02_ref.r"],
 }
 
 # ARP 컨트롤러 본 매핑 (.bmap용)
 ARP_CTRL_MAP = {
-    "root":        ["c_root_master.x"],
-    "spine":       ["c_spine_01.x", "c_spine_02.x", "c_spine_03.x"],
-    "neck":        ["c_neck.x"],
-    "head":        ["c_head.x"],
-    "back_leg_l":  ["c_thigh_fk.l", "c_leg_fk.l", "c_foot_fk.l"],
-    "back_leg_r":  ["c_thigh_fk.r", "c_leg_fk.r", "c_foot_fk.r"],
+    "root": ["c_root_master.x"],
+    "spine": ["c_spine_01.x", "c_spine_02.x", "c_spine_03.x"],
+    "neck": ["c_neck.x"],
+    "head": ["c_head.x"],
+    "back_leg_l": ["c_thigh_fk.l", "c_leg_fk.l", "c_foot_fk.l"],
+    "back_leg_r": ["c_thigh_fk.r", "c_leg_fk.r", "c_foot_fk.r"],
     "back_foot_l": ["c_toes.l"],
     "back_foot_r": ["c_toes.r"],
     "front_leg_l": ["c_shoulder.l", "c_arm_fk.l", "c_forearm_fk.l"],
     "front_leg_r": ["c_shoulder.r", "c_arm_fk.r", "c_forearm_fk.r"],
     "front_foot_l": ["c_hand_fk.l"],
     "front_foot_r": ["c_hand_fk.r"],
-    "tail":        ["c_tail_00.x", "c_tail_01.x", "c_tail_02.x", "c_tail_03.x"],
-    "ear_l":       ["c_ear_01.l", "c_ear_02.l"],
-    "ear_r":       ["c_ear_01.r", "c_ear_02.r"],
+    "tail": ["c_tail_00.x", "c_tail_01.x", "c_tail_02.x", "c_tail_03.x"],
+    "ear_l": ["c_ear_01.l", "c_ear_02.l"],
+    "ear_r": ["c_ear_01.r", "c_ear_02.r"],
 }
 
 
@@ -81,26 +79,33 @@ ARP_CTRL_MAP = {
 # 벡터 유틸리티 (외부 의존성 없음)
 # ═══════════════════════════════════════════════════════════════
 
+
 def vec_sub(a, b):
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
 
 def vec_add(a, b):
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
+
 def vec_scale(v, s):
     return (v[0] * s, v[1] * s, v[2] * s)
 
+
 def vec_length(v):
-    return math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+    return math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
+
 
 def vec_normalize(v):
     l = vec_length(v)
     if l < 1e-8:
         return (0, 0, 0)
-    return (v[0]/l, v[1]/l, v[2]/l)
+    return (v[0] / l, v[1] / l, v[2] / l)
+
 
 def vec_dot(a, b):
-    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
 
 def vec_avg(vectors):
     n = len(vectors)
@@ -109,7 +114,7 @@ def vec_avg(vectors):
     s = (0, 0, 0)
     for v in vectors:
         s = vec_add(s, v)
-    return vec_scale(s, 1.0/n)
+    return vec_scale(s, 1.0 / n)
 
 
 def order_bones_by_hierarchy(bone_names, bone_data):
@@ -146,7 +151,7 @@ def order_bones_by_hierarchy(bone_names, bone_data):
             missing.append(bone_name)
             continue
 
-        parent_name = info.get('parent')
+        parent_name = info.get("parent")
         if parent_name in bone_set and parent_name != bone_name:
             children_map[parent_name].append(bone_name)
         else:
@@ -205,7 +210,7 @@ def build_preview_parent_overrides(bone_names, original_bone_data):
         if info is None:
             continue
 
-        parent_name = info.get('parent')
+        parent_name = info.get("parent")
         if parent_name in valid_bones and parent_name != bone_name:
             overrides[bone_name] = parent_name
         else:
@@ -218,6 +223,7 @@ def build_preview_parent_overrides(bone_names, original_bone_data):
 # 본 데이터 추출
 # ═══════════════════════════════════════════════════════════════
 
+
 def extract_bone_data(armature_obj):
     """
     아마추어에서 모든 본의 월드 좌표, 하이어라키, deform 여부를 추출.
@@ -229,20 +235,20 @@ def extract_bone_data(armature_obj):
     # Object 모드로 전환 (활성 객체 없거나 삭제된 경우 대응)
     try:
         current = bpy.context.view_layer.objects.active
-        if current and current.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
+        if current and current.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
     except (RuntimeError, ReferenceError):
         pass
 
     # 아마추어 선택 & 활성화 (select_all도 실패할 수 있음)
     try:
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
     except RuntimeError:
         pass
     armature_obj.hide_set(False)
     armature_obj.select_set(True)
     bpy.context.view_layer.objects.active = armature_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     world_matrix = armature_obj.matrix_world
     bones = {}
@@ -258,19 +264,19 @@ def extract_bone_data(armature_obj):
         length = vec_length(vec_sub(tail_t, head_t))
 
         bones[ebone.name] = {
-            'name': ebone.name,
-            'head': head_t,
-            'tail': tail_t,
-            'roll': ebone.roll,
-            'parent': ebone.parent.name if ebone.parent else None,
-            'children': [c.name for c in ebone.children],
-            'is_deform': ebone.use_deform,
-            'direction': direction,
-            'length': length,
-            'use_connect': ebone.use_connect,
+            "name": ebone.name,
+            "head": head_t,
+            "tail": tail_t,
+            "roll": ebone.roll,
+            "parent": ebone.parent.name if ebone.parent else None,
+            "children": [c.name for c in ebone.children],
+            "is_deform": ebone.use_deform,
+            "direction": direction,
+            "length": length,
+            "use_connect": ebone.use_connect,
         }
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
     return bones
 
 
@@ -279,28 +285,28 @@ def filter_deform_bones(all_bones):
     deform 본만 추출하고, deform 본 간의 하이어라키를 재구성.
     비-deform 중간 본을 건너뛰어 직접적인 부모-자식 관계를 유지.
     """
-    deform_names = {name for name, b in all_bones.items() if b['is_deform']}
+    deform_names = {name for name, b in all_bones.items() if b["is_deform"]}
     deform_bones = {}
 
     for name in deform_names:
         b = dict(all_bones[name])
 
         # 부모 찾기: deform 본인 가장 가까운 조상
-        parent_name = b['parent']
+        parent_name = b["parent"]
         while parent_name and parent_name not in deform_names:
-            parent_name = all_bones[parent_name]['parent']
-        b['parent'] = parent_name
+            parent_name = all_bones[parent_name]["parent"]
+        b["parent"] = parent_name
 
         # 자식 찾기: deform 본인 직접 후손
         deform_children = []
-        queue = list(b['children'])
+        queue = list(b["children"])
         while queue:
             child_name = queue.pop(0)
             if child_name in deform_names:
                 deform_children.append(child_name)
             elif child_name in all_bones:
-                queue.extend(all_bones[child_name]['children'])
-        b['children'] = deform_children
+                queue.extend(all_bones[child_name]["children"])
+        b["children"] = deform_children
 
         deform_bones[name] = b
 
@@ -331,11 +337,11 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
 
     def _find_deform_ancestor(bone_name):
         """all_bones에서 deform 조상을 찾아 올라감."""
-        ancestor = all_bones.get(bone_name, {}).get('parent')
+        ancestor = all_bones.get(bone_name, {}).get("parent")
         while ancestor:
             if ancestor in deform_names:
                 return ancestor
-            ancestor = all_bones.get(ancestor, {}).get('parent')
+            ancestor = all_bones.get(ancestor, {}).get("parent")
         return None
 
     def _try_set_parent(child_name, parent_name, method):
@@ -349,24 +355,24 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
                 print(f"    → 순환 감지 ({method}), 건너뜀")
                 return False
             visited.add(ancestor)
-            ancestor = deform_bones[ancestor]['parent']
+            ancestor = deform_bones[ancestor]["parent"]
         bone = deform_bones[child_name]
-        bone['parent'] = parent_name
-        if child_name not in deform_bones[parent_name]['children']:
-            deform_bones[parent_name]['children'].append(child_name)
+        bone["parent"] = parent_name
+        if child_name not in deform_bones[parent_name]["children"]:
+            deform_bones[parent_name]["children"].append(child_name)
         print(f"    → {child_name} 부모를 {parent_name}로 설정 ({method})")
         return True
 
     def _min_bone_distance(bone_a, bone_b):
         """두 본 사이의 최소 거리 (head/tail 4조합 중 최소)."""
         return min(
-            vec_length(vec_sub(bone_a['tail'], bone_b['head'])),
-            vec_length(vec_sub(bone_a['head'], bone_b['head'])),
-            vec_length(vec_sub(bone_a['tail'], bone_b['tail'])),
-            vec_length(vec_sub(bone_a['head'], bone_b['tail'])),
+            vec_length(vec_sub(bone_a["tail"], bone_b["head"])),
+            vec_length(vec_sub(bone_a["head"], bone_b["head"])),
+            vec_length(vec_sub(bone_a["tail"], bone_b["tail"])),
+            vec_length(vec_sub(bone_a["head"], bone_b["tail"])),
         )
 
-    avg_len = sum(b['length'] for b in deform_bones.values()) / total
+    avg_len = sum(b["length"] for b in deform_bones.values()) / total
     threshold_tight = max(avg_len * 0.3, 1e-4)
     threshold_head = max(avg_len * 0.5, 1e-4)
     threshold_broad = max(avg_len * 1.5, 1e-4)
@@ -376,7 +382,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         remaining = []
         changed = False
         for name in parentless:
-            if deform_bones[name]['parent'] is not None:
+            if deform_bones[name]["parent"] is not None:
                 continue
             if step_func(name):
                 changed = True
@@ -390,7 +396,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         for other_name, other_bone in deform_bones.items():
             if other_name == name:
                 continue
-            dist = vec_length(vec_sub(other_bone['tail'], bone['head']))
+            dist = vec_length(vec_sub(other_bone["tail"], bone["head"]))
             if dist < best_dist:
                 best_dist = dist
                 best_parent = other_name
@@ -405,7 +411,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         for other_name, other_bone in all_bones.items():
             if other_name == name or other_name in deform_names:
                 continue
-            dist = vec_length(vec_sub(other_bone['tail'], bone['head']))
+            dist = vec_length(vec_sub(other_bone["tail"], bone["head"]))
             if dist < best_bridge_dist:
                 deform_anc = _find_deform_ancestor(other_name)
                 if deform_anc and deform_anc != name:
@@ -422,7 +428,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         for other_name, other_bone in deform_bones.items():
             if other_name == name:
                 continue
-            dist = vec_length(vec_sub(other_bone['head'], bone['head']))
+            dist = vec_length(vec_sub(other_bone["head"], bone["head"]))
             if dist < best_head_dist:
                 best_head_dist = dist
                 best_head = other_name
@@ -431,12 +437,12 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
 
         name_is_root = any(h in name.lower() for h in ROOT_NAME_HINTS)
         other_is_root = any(h in best_head.lower() for h in ROOT_NAME_HINTS)
-        other_has_parent = deform_bones[best_head]['parent'] is not None
+        other_has_parent = deform_bones[best_head]["parent"] is not None
 
         print(f"  [RECON-3] {name}: head≈head {best_head}, dist={best_head_dist:.6f}")
 
         if name_is_root and not other_is_root:
-            if deform_bones[best_head]['parent'] is None:
+            if deform_bones[best_head]["parent"] is None:
                 return _try_set_parent(best_head, name, "head≈head-rootname")
         elif other_is_root and not name_is_root:
             return _try_set_parent(name, best_head, "head≈head-rootname")
@@ -455,14 +461,14 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         bone = deform_bones[name]
         # 원본에서 고립 본(부모도 자식도 없음)은 RECON-4 제외 → unmapped로 유지
         orig = (original_hierarchy or {}).get(name)
-        if orig and orig['parent'] is None and not orig['children']:
+        if orig and orig["parent"] is None and not orig["children"]:
             print(f"  [RECON-4] {name}: 고립 본 → 스킵")
             return False
         my_descendants = set()
         _collect = [name]
         while _collect:
             _cur = _collect.pop()
-            for _ch in deform_bones[_cur]['children']:
+            for _ch in deform_bones[_cur]["children"]:
                 if _ch not in my_descendants:
                     my_descendants.add(_ch)
                     _collect.append(_ch)
@@ -471,8 +477,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         for other_name, other_bone in deform_bones.items():
             if other_name == name or other_name in my_descendants:
                 continue
-            in_tree = (other_bone['parent'] is not None or
-                       len(other_bone['children']) > 0)
+            in_tree = other_bone["parent"] is not None or len(other_bone["children"]) > 0
             if not in_tree:
                 continue
             dist = _min_bone_distance(other_bone, bone)
@@ -486,7 +491,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
             # 방향 판단: ROOT_NAME_HINT 또는 후손 수가 많은 쪽이 부모
             name_is_root = any(h in name.lower() for h in ROOT_NAME_HINTS)
             other_is_root = any(h in best_near.lower() for h in ROOT_NAME_HINTS)
-            other_parentless = deform_bones[best_near]['parent'] is None
+            other_parentless = deform_bones[best_near]["parent"] is None
 
             if other_parentless:
                 other_desc = count_descendants(best_near, deform_bones)
@@ -506,7 +511,7 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
 
     # 반복: 각 패스에서 RECON-1→2→3→4 순서로 전체 실행
     for _pass in range(4):
-        parentless = [n for n, b in deform_bones.items() if b['parent'] is None]
+        parentless = [n for n, b in deform_bones.items() if b["parent"] is None]
         if len(parentless) <= 1:
             break
 
@@ -528,10 +533,11 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
 # 구조 식별
 # ═══════════════════════════════════════════════════════════════
 
+
 def count_descendants(bone_name, bones):
     """하위 본 수 재귀 카운트"""
     count = 0
-    for child in bones[bone_name]['children']:
+    for child in bones[bone_name]["children"]:
         count += 1 + count_descendants(child, bones)
     return count
 
@@ -544,7 +550,7 @@ def find_root_bone(deform_bones):
     candidates = []
 
     # 모든 본의 중심점 계산
-    all_heads = [b['head'] for b in deform_bones.values()]
+    all_heads = [b["head"] for b in deform_bones.values()]
     center_of_mass = vec_avg(all_heads)
 
     max_descendants = max(count_descendants(name, deform_bones) for name in deform_bones)
@@ -554,7 +560,7 @@ def find_root_bone(deform_bones):
     # 전체 아마추어 크기 (거리 정규화용)
     max_dist = 0
     for b in deform_bones.values():
-        d = vec_length(vec_sub(b['head'], center_of_mass))
+        d = vec_length(vec_sub(b["head"], center_of_mass))
         if d > max_dist:
             max_dist = d
     if max_dist < 1e-8:
@@ -566,31 +572,39 @@ def find_root_bone(deform_bones):
         score_descendants = desc_count / max_descendants
 
         # 중심 근접 점수 (가까울수록 높음)
-        dist_to_center = vec_length(vec_sub(bone['head'], center_of_mass))
+        dist_to_center = vec_length(vec_sub(bone["head"], center_of_mass))
         score_center = 1.0 - min(dist_to_center / max_dist, 1.0)
 
         # 최상위 점수 (부모 없으면 1.0, 있으면 깊이에 따라 감소)
         depth = 0
-        p = bone['parent']
+        p = bone["parent"]
         while p:
             depth += 1
-            p = deform_bones[p]['parent'] if p in deform_bones else None
+            p = deform_bones[p]["parent"] if p in deform_bones else None
         score_top = 1.0 / (1.0 + depth)
 
         total = score_descendants * 0.5 + score_center * 0.3 + score_top * 0.2
-        candidates.append((name, total, {
-            'descendants': score_descendants,
-            'center': score_center,
-            'top': score_top,
-        }))
+        candidates.append(
+            (
+                name,
+                total,
+                {
+                    "descendants": score_descendants,
+                    "center": score_center,
+                    "top": score_top,
+                },
+            )
+        )
 
     candidates.sort(key=lambda x: x[1], reverse=True)
     # 디버그: 상위 5개 후보 출력
-    print(f"[DEBUG] root 후보 (상위 5):")
+    print("[DEBUG] root 후보 (상위 5):")
     for name, score, details in candidates[:5]:
         desc = count_descendants(name, deform_bones)
-        print(f"  {name}: total={score:.3f} desc={details['descendants']:.3f}({desc}) "
-              f"center={details['center']:.3f} top={details['top']:.3f}")
+        print(
+            f"  {name}: total={score:.3f} desc={details['descendants']:.3f}({desc}) "
+            f"center={details['center']:.3f} top={details['top']:.3f}"
+        )
     return candidates[0] if candidates else None
 
 
@@ -606,7 +620,7 @@ def trace_spine_chain(root_name, deform_bones):
         bone = deform_bones[current]
         chain.append(current)
 
-        children = bone['children']
+        children = bone["children"]
         if not children:
             break
 
@@ -625,22 +639,25 @@ def trace_spine_chain(root_name, deform_bones):
         # 가중치: 후손 수(0.5) + +Z 방향(0.2) + 위치 Z 변화(0.15) + 중심 X(0.15)
         # 사족 동물은 척추가 수평(+Y)이므로 방향보다 후손 수를 우선
         best_child = None
-        best_score = -float('inf')
+        best_score = -float("inf")
 
-        max_desc = max(
-            (count_descendants(c, deform_bones) for c in spine_candidates),
-            default=1,
-        ) or 1
+        max_desc = (
+            max(
+                (count_descendants(c, deform_bones) for c in spine_candidates),
+                default=1,
+            )
+            or 1
+        )
 
         for child_name in spine_candidates:
             child = deform_bones[child_name]
-            dir_z = child['direction'][2]
+            dir_z = child["direction"][2]
             # 자식 head가 부모 head와 같은 위치이면 자식 tail의 Z를 기준으로 판단
-            pos_z_delta = child['head'][2] - bone['head'][2]
+            pos_z_delta = child["head"][2] - bone["head"][2]
             if abs(pos_z_delta) < 1e-6:
-                pos_z_delta = child['tail'][2] - bone['head'][2]
+                pos_z_delta = child["tail"][2] - bone["head"][2]
             desc_count = count_descendants(child_name, deform_bones)
-            center_x = 1.0 - min(abs(child['head'][0]) / 0.1, 1.0)
+            center_x = 1.0 - min(abs(child["head"][0]) / 0.1, 1.0)
 
             score = (
                 dir_z * 0.2
@@ -659,8 +676,9 @@ def trace_spine_chain(root_name, deform_bones):
 
         # head 감지: face 자식이 필터링된 상태에서 best_child에 후손이 없으면
         # 장식 본(flower 등)이지 spine 연속이 아님 → 중단
-        if (count_descendants(best_child, deform_bones) == 0
-                and len(spine_candidates) < len(children)):
+        if count_descendants(best_child, deform_bones) == 0 and len(spine_candidates) < len(
+            children
+        ):
             break
 
         current = best_child
@@ -678,7 +696,7 @@ def find_downward_branches(spine_chain, deform_bones):
 
     for spine_bone_name in spine_chain:
         bone = deform_bones[spine_bone_name]
-        for child_name in bone['children']:
+        for child_name in bone["children"]:
             if child_name in spine_set:
                 continue
 
@@ -686,8 +704,9 @@ def find_downward_branches(spine_chain, deform_bones):
             # 아래로 향하는 체인인지 확인
             # 1. 방향이 강하게 아래(-Z)이거나
             # 2. 방향이 약간이라도 아래이면서 tail이 부모 head보다 아래인 경우
-            if (child['direction'][2] < DOWNWARD_THRESHOLD or
-                    (child['direction'][2] < 0 and child['tail'][2] < bone['head'][2])):
+            if child["direction"][2] < DOWNWARD_THRESHOLD or (
+                child["direction"][2] < 0 and child["tail"][2] < bone["head"][2]
+            ):
                 # 체인 따라가기
                 chain = trace_chain(child_name, deform_bones, spine_set)
                 if len(chain) >= MIN_LEG_CHAIN_LENGTH:
@@ -709,7 +728,7 @@ def trace_chain(start_name, deform_bones, exclude_set=None):
 
     while True:
         bone = deform_bones[current]
-        children = [c for c in bone['children'] if c not in exclude_set]
+        children = [c for c in bone["children"] if c not in exclude_set]
 
         if not children:
             break
@@ -757,8 +776,10 @@ def classify_legs(branches, spine_chain, deform_bones):
         spine_mid = len(spine_chain) / 2.0
 
     result = {
-        'back_leg_l': None, 'back_leg_r': None,
-        'front_leg_l': None, 'front_leg_r': None,
+        "back_leg_l": None,
+        "back_leg_r": None,
+        "front_leg_l": None,
+        "front_leg_r": None,
     }
 
     # 분기점의 스파인 위치로 앞/뒤 분류
@@ -768,14 +789,16 @@ def classify_legs(branches, spine_chain, deform_bones):
     for branch_point, chain in branches:
         idx = spine_index.get(branch_point, 0)
         # 체인의 평균 X 좌표로 좌우 판별
-        avg_x = sum(deform_bones[name]['head'][0] for name in chain) / len(chain)
+        avg_x = sum(deform_bones[name]["head"][0] for name in chain) / len(chain)
 
         info = {
-            'chain': chain,
-            'branch_point': branch_point,
-            'spine_idx': idx,
-            'avg_x': avg_x,
-            'side': 'l' if avg_x > CENTER_X_THRESHOLD else ('r' if avg_x < -CENTER_X_THRESHOLD else 'c'),
+            "chain": chain,
+            "branch_point": branch_point,
+            "spine_idx": idx,
+            "avg_x": avg_x,
+            "side": "l"
+            if avg_x > CENTER_X_THRESHOLD
+            else ("r" if avg_x < -CENTER_X_THRESHOLD else "c"),
         }
 
         if idx < spine_mid:
@@ -785,16 +808,16 @@ def classify_legs(branches, spine_chain, deform_bones):
 
     # L/R 쌍 매칭
     def assign_pair(candidates, prefix):
-        left = [c for c in candidates if c['side'] == 'l']
-        right = [c for c in candidates if c['side'] == 'r']
+        left = [c for c in candidates if c["side"] == "l"]
+        right = [c for c in candidates if c["side"] == "r"]
 
         if left:
-            result[f'{prefix}_l'] = left[0]['chain']
+            result[f"{prefix}_l"] = left[0]["chain"]
         if right:
-            result[f'{prefix}_r'] = right[0]['chain']
+            result[f"{prefix}_r"] = right[0]["chain"]
 
-    assign_pair(back_candidates, 'back_leg')
-    assign_pair(front_candidates, 'front_leg')
+    assign_pair(back_candidates, "back_leg")
+    assign_pair(front_candidates, "front_leg")
 
     return result
 
@@ -818,7 +841,7 @@ def split_leg_foot(chain, deform_bones):
 
     for i in range(len(chain) - 1, -1, -1):
         bone = deform_bones[chain[i]]
-        if bone['direction'][2] < DOWNWARD_THRESHOLD:
+        if bone["direction"][2] < DOWNWARD_THRESHOLD:
             foot_start = i + 1
             break
 
@@ -846,22 +869,22 @@ def find_tail_chain(root_name, spine_chain, deform_bones):
 
     # spine 방향 파악: 꼬리는 이 방향의 반대
     if len(spine_chain) > 1:
-        spine_dir = deform_bones[spine_chain[1]]['direction']
+        spine_dir = deform_bones[spine_chain[1]]["direction"]
     else:
         spine_dir = (0, -1, 0)
 
     best_chain = None
-    best_score = -float('inf')
+    best_score = -float("inf")
 
-    for child_name in bone['children']:
+    for child_name in bone["children"]:
         if child_name in spine_set:
             continue
 
         child = deform_bones[child_name]
-        avg_x = abs(child['head'][0])
+        avg_x = abs(child["head"][0])
 
         # spine 반대 방향 점수 (dot이 음수 = 반대 방향 = 꼬리)
-        anti_spine = -vec_dot(child['direction'], spine_dir)
+        anti_spine = -vec_dot(child["direction"], spine_dir)
         center_x = 1.0 - min(avg_x / 0.1, 1.0)
 
         score = anti_spine * 0.6 + center_x * 0.4
@@ -888,9 +911,9 @@ def find_head_features(head_name, deform_bones):
     나머지(eye, jaw, mouth, tongue)는 cc_ 커스텀 본.
     """
     features = {
-        'face_bones': [],   # cc_ 커스텀 본 (eye, jaw, mouth, tongue)
-        'ear_l': [],        # 귀 좌 체인
-        'ear_r': [],        # 귀 우 체인
+        "face_bones": [],  # cc_ 커스텀 본 (eye, jaw, mouth, tongue)
+        "ear_l": [],  # 귀 좌 체인
+        "ear_r": [],  # 귀 우 체인
     }
 
     if head_name not in deform_bones:
@@ -902,13 +925,13 @@ def find_head_features(head_name, deform_bones):
         """본과 그 하위 본 모두 수집"""
         result = [bone_name]
         if bone_name in deform_bones:
-            for child in deform_bones[bone_name]['children']:
+            for child in deform_bones[bone_name]["children"]:
                 result.extend(collect_subtree(child))
         return result
 
     # Pass 1: 키워드 기반 분류 (ear, face)
     remaining = []
-    for child_name in head['children']:
+    for child_name in head["children"]:
         if child_name not in deform_bones:
             continue
         child = deform_bones[child_name]
@@ -918,41 +941,41 @@ def find_head_features(head_name, deform_bones):
         is_ear = any(kw in name_lower for kw in EAR_KEYWORDS)
         if is_ear:
             subtree = collect_subtree(child_name)
-            avg_x = child['head'][0]
+            avg_x = child["head"][0]
             if avg_x > 0:
-                features['ear_l'].extend(subtree)
+                features["ear_l"].extend(subtree)
             else:
-                features['ear_r'].extend(subtree)
+                features["ear_r"].extend(subtree)
             continue
 
         # face 키워드 체크 → cc_ 커스텀 본
         is_face = any(kw in name_lower for kw in FACE_ONLY_KEYWORDS)
         if is_face:
             subtree = collect_subtree(child_name)
-            features['face_bones'].extend(subtree)
+            features["face_bones"].extend(subtree)
         else:
             remaining.append(child_name)
 
     # Pass 2: 키워드 없는 본 — 키워드 귀가 이미 있으면 face로, 없으면 구조 감지
-    keyword_ears_found = bool(features['ear_l']) or bool(features['ear_r'])
+    keyword_ears_found = bool(features["ear_l"]) or bool(features["ear_r"])
 
     for child_name in remaining:
         child = deform_bones[child_name]
         chain = trace_chain(child_name, deform_bones, set())
 
         if not keyword_ears_found and len(chain) <= MAX_EAR_CHAIN_LENGTH:
-            avg_x = sum(deform_bones[n]['head'][0] for n in chain) / len(chain)
-            dir_x = abs(child['direction'][0])
+            avg_x = sum(deform_bones[n]["head"][0] for n in chain) / len(chain)
+            dir_x = abs(child["direction"][0])
 
             # 측면으로 뻗거나 중심에서 벗어나 있으면 귀로 추정
             if dir_x > 0.3 or abs(avg_x) > LATERAL_THRESHOLD:
                 if avg_x > 0:
-                    features['ear_l'].extend(chain)
+                    features["ear_l"].extend(chain)
                 else:
-                    features['ear_r'].extend(chain)
+                    features["ear_r"].extend(chain)
                 continue
 
-        features['face_bones'].extend(chain)
+        features["face_bones"].extend(chain)
 
     return features
 
@@ -960,6 +983,7 @@ def find_head_features(head_name, deform_bones):
 # ═══════════════════════════════════════════════════════════════
 # 메인 분석 함수
 # ═══════════════════════════════════════════════════════════════
+
 
 def analyze_skeleton(armature_obj):
     """
@@ -972,12 +996,12 @@ def analyze_skeleton(armature_obj):
     all_bones = extract_bone_data(armature_obj)
     deform_bones = filter_deform_bones(all_bones)
     original_deform_bones = {
-        name: dict(info, children=list(info.get('children', [])))
+        name: dict(info, children=list(info.get("children", [])))
         for name, info in deform_bones.items()
     }
 
     # 디버그: 재구성 전 상태
-    parentless_before = sum(1 for b in deform_bones.values() if b['parent'] is None)
+    parentless_before = sum(1 for b in deform_bones.values() if b["parent"] is None)
     print(f"[DEBUG] deform 본 총 {len(deform_bones)}개, 재구성 전 parentless: {parentless_before}")
     for name, b in deform_bones.items():
         print(f"  [DEBUG] {name}: parent={b['parent']}, children={b['children']}")
@@ -985,21 +1009,24 @@ def analyze_skeleton(armature_obj):
     _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_deform_bones)
 
     # 디버그: 재구성 후 상태
-    parentless_after = sum(1 for b in deform_bones.values() if b['parent'] is None)
+    parentless_after = sum(1 for b in deform_bones.values() if b["parent"] is None)
     print(f"[DEBUG] 재구성 후 parentless: {parentless_after}")
     if parentless_after != parentless_before:
         for name, b in deform_bones.items():
             print(f"  [DEBUG-after] {name}: parent={b['parent']}, children={b['children']}")
 
     if not deform_bones:
-        return {'error': 'deform 본이 없습니다.', 'chains': {},
-                'unmapped': [], 'confidence': 0}
+        return {"error": "deform 본이 없습니다.", "chains": {}, "unmapped": [], "confidence": 0}
 
     # 2. 루트 찾기
     root_result = find_root_bone(deform_bones)
     if not root_result:
-        return {'error': '루트 본을 찾을 수 없습니다.', 'chains': {},
-                'unmapped': list(deform_bones.keys()), 'confidence': 0}
+        return {
+            "error": "루트 본을 찾을 수 없습니다.",
+            "chains": {},
+            "unmapped": list(deform_bones.keys()),
+            "confidence": 0,
+        }
 
     root_name = root_result[0]
     root_confidence = root_result[1]
@@ -1024,15 +1051,18 @@ def analyze_skeleton(armature_obj):
         if len(spine_body) >= 3:
             # 구조 기반 neck 감지: head 앞에서 길이/방향 변화가 큰 구간
             core_bones = spine_body[:-2] if len(spine_body) > 3 else spine_body[:1]
-            avg_len = (sum(deform_bones[n]['length'] for n in core_bones) / len(core_bones)
-                       if core_bones else 1.0)
+            avg_len = (
+                sum(deform_bones[n]["length"] for n in core_bones) / len(core_bones)
+                if core_bones
+                else 1.0
+            )
 
             neck_start = len(spine_body) - 1  # 기본: head만 분리
             for i in range(len(spine_body) - 2, 0, -1):
                 bone = deform_bones[spine_body[i]]
                 prev_bone = deform_bones[spine_body[i - 1]]
-                length_ratio = bone['length'] / avg_len if avg_len > 0 else 1.0
-                dot = vec_dot(bone['direction'], prev_bone['direction'])
+                length_ratio = bone["length"] / avg_len if avg_len > 0 else 1.0
+                dot = vec_dot(bone["direction"], prev_bone["direction"])
 
                 # 스파인 대비 짧거나 방향이 크게 변하면 neck
                 is_neck = (length_ratio < 0.7) or (dot < 0.7 and length_ratio < 1.0)
@@ -1057,21 +1087,23 @@ def analyze_skeleton(armature_obj):
 
     # 4b. 다리/발 자동 분리
     leg_foot_pairs = {}
-    for key in ['back_leg_l', 'back_leg_r', 'front_leg_l', 'front_leg_r']:
+    for key in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
         if legs.get(key):
             leg_part, foot_part = split_leg_foot(legs[key], deform_bones)
             legs[key] = leg_part
             if foot_part:
-                foot_key = key.replace('_leg_', '_foot_')
+                foot_key = key.replace("_leg_", "_foot_")
                 leg_foot_pairs[foot_key] = foot_part
 
     # 5. 꼬리 찾기
     tail_chain = find_tail_chain(root_name, spine_chain, deform_bones)
 
     # 6. 얼굴 특징 찾기 (ear 분리)
-    face_features = find_head_features(head_name, deform_bones) if head_name else {
-        'face_bones': [], 'ear_l': [], 'ear_r': []
-    }
+    face_features = (
+        find_head_features(head_name, deform_bones)
+        if head_name
+        else {"face_bones": [], "ear_l": [], "ear_r": []}
+    )
 
     # 7. 매핑된/미매핑 본 분류
     mapped_bones = set()
@@ -1080,7 +1112,7 @@ def analyze_skeleton(armature_obj):
     mapped_bones.update(neck_bones)
     if head_name:
         mapped_bones.add(head_name)
-    for key in ['back_leg_l', 'back_leg_r', 'front_leg_l', 'front_leg_r']:
+    for key in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
         if legs.get(key):
             mapped_bones.update(legs[key])
     for key, foot_bones in leg_foot_pairs.items():
@@ -1088,57 +1120,58 @@ def analyze_skeleton(armature_obj):
     if tail_chain:
         mapped_bones.update(tail_chain)
     # face_bones는 매핑하지 않음 — unmapped에 포함시켜 cc_ 커스텀 본으로 처리
-    mapped_bones.update(face_features.get('ear_l', []))
-    mapped_bones.update(face_features.get('ear_r', []))
+    mapped_bones.update(face_features.get("ear_l", []))
+    mapped_bones.update(face_features.get("ear_r", []))
 
     unmapped = [name for name in deform_bones if name not in mapped_bones]
 
     # 8. 결과 구성
     chains = {}
-    chains['root'] = {'bones': [root_name], 'confidence': root_confidence}
+    chains["root"] = {"bones": [root_name], "confidence": root_confidence}
 
     if spine_only:
-        chains['spine'] = {'bones': spine_only, 'confidence': 0.9}
+        chains["spine"] = {"bones": spine_only, "confidence": 0.9}
     if neck_bones:
-        chains['neck'] = {'bones': neck_bones, 'confidence': 0.85}
+        chains["neck"] = {"bones": neck_bones, "confidence": 0.85}
     if head_name:
-        chains['head'] = {'bones': [head_name], 'confidence': 0.95}
+        chains["head"] = {"bones": [head_name], "confidence": 0.95}
 
-    for key in ['back_leg_l', 'back_leg_r', 'front_leg_l', 'front_leg_r']:
+    for key in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
         if legs.get(key):
-            chains[key] = {'bones': legs[key], 'confidence': 0.9}
+            chains[key] = {"bones": legs[key], "confidence": 0.9}
 
     for key, foot_bones in leg_foot_pairs.items():
-        chains[key] = {'bones': foot_bones, 'confidence': 0.85}
+        chains[key] = {"bones": foot_bones, "confidence": 0.85}
 
     if tail_chain:
-        chains['tail'] = {'bones': tail_chain, 'confidence': 0.85}
+        chains["tail"] = {"bones": tail_chain, "confidence": 0.85}
 
     # ear 독립 역할
-    if face_features.get('ear_l'):
-        chains['ear_l'] = {'bones': face_features['ear_l'], 'confidence': 0.9}
-    if face_features.get('ear_r'):
-        chains['ear_r'] = {'bones': face_features['ear_r'], 'confidence': 0.9}
+    if face_features.get("ear_l"):
+        chains["ear_l"] = {"bones": face_features["ear_l"], "confidence": 0.9}
+    if face_features.get("ear_r"):
+        chains["ear_r"] = {"bones": face_features["ear_r"], "confidence": 0.9}
 
     # 전체 신뢰도
     if chains:
-        avg_confidence = sum(c['confidence'] for c in chains.values()) / len(chains)
+        avg_confidence = sum(c["confidence"] for c in chains.values()) / len(chains)
     else:
         avg_confidence = 0
 
     return {
-        'source_armature': armature_obj.name,
-        'chains': chains,
-        'unmapped': unmapped,
-        'confidence': round(avg_confidence, 2),
-        'bone_data': deform_bones,  # 위치 정보 포함
-        'preview_parent_overrides': build_preview_parent_overrides(unmapped, original_deform_bones),
+        "source_armature": armature_obj.name,
+        "chains": chains,
+        "unmapped": unmapped,
+        "confidence": round(avg_confidence, 2),
+        "bone_data": deform_bones,  # 위치 정보 포함
+        "preview_parent_overrides": build_preview_parent_overrides(unmapped, original_deform_bones),
     }
 
 
 # ═══════════════════════════════════════════════════════════════
 # 체인 길이 매칭
 # ═══════════════════════════════════════════════════════════════
+
 
 def match_chain_lengths(source_bones, target_refs):
     """
@@ -1192,7 +1225,7 @@ def map_role_chain(role, source_bones, target_bones):
         return {}
 
     if len(target_bones) == 1:
-        if role.startswith('back_foot') or role.startswith('front_foot'):
+        if role.startswith("back_foot") or role.startswith("front_foot"):
             return {source_bones[-1]: target_bones[0]}
         return {source_bones[0]: target_bones[0]}
 
@@ -1202,6 +1235,7 @@ def map_role_chain(role, source_bones, target_bones):
 # ═══════════════════════════════════════════════════════════════
 # ARP 매핑 생성
 # ═══════════════════════════════════════════════════════════════
+
 
 def generate_arp_mapping(analysis):
     """
@@ -1214,11 +1248,11 @@ def generate_arp_mapping(analysis):
                 'ref_alignment': {'priority': {}, 'avg_lr': {}},
             }
     """
-    chains = analysis.get('chains', {})
+    chains = analysis.get("chains", {})
     deform_to_ref = {}
 
     for role, chain_info in chains.items():
-        source_bones = chain_info['bones']
+        source_bones = chain_info["bones"]
         target_refs = _dynamic_ref_names(role, len(source_bones))
 
         if not target_refs:
@@ -1230,11 +1264,11 @@ def generate_arp_mapping(analysis):
         deform_to_ref.update(chain_mapping)
 
     return {
-        'name': 'auto_generated',
-        'description': f"자동 생성 매핑 (신뢰도: {analysis.get('confidence', 0)})",
-        'arp_preset': 'dog',
-        'deform_to_ref': deform_to_ref,
-        'ref_alignment': {'priority': {}, 'avg_lr': {}},
+        "name": "auto_generated",
+        "description": f"자동 생성 매핑 (신뢰도: {analysis.get('confidence', 0)})",
+        "arp_preset": "dog",
+        "deform_to_ref": deform_to_ref,
+        "ref_alignment": {"priority": {}, "avg_lr": {}},
     }
 
 
@@ -1244,21 +1278,21 @@ def generate_arp_mapping(analysis):
 
 # 역할별 컨트롤러 이름 검색 패턴 (정규식)
 _CTRL_SEARCH_PATTERNS = {
-    'root':        [r'^c_root_master\.'],
-    'spine':       [r'^c_spine_\d+\.'],
-    'neck':        [r'^c_neck'],
-    'head':        [r'^c_head\.'],
-    'back_leg_l':  [r'^c_thigh_fk\.l', r'^c_leg_fk\.l', r'^c_foot_fk\.l'],
-    'back_leg_r':  [r'^c_thigh_fk\.r', r'^c_leg_fk\.r', r'^c_foot_fk\.r'],
-    'back_foot_l': [r'^c_toes\.l'],
-    'back_foot_r': [r'^c_toes\.r'],
-    'front_leg_l': [r'^c_shoulder\.l', r'^c_arm_fk\.l', r'^c_forearm_fk\.l'],
-    'front_leg_r': [r'^c_shoulder\.r', r'^c_arm_fk\.r', r'^c_forearm_fk\.r'],
-    'front_foot_l': [r'^c_hand_fk\.l'],
-    'front_foot_r': [r'^c_hand_fk\.r'],
-    'tail':        [r'^c_tail_\d+\.'],
-    'ear_l':       [r'^c_ear_\d+\.l'],
-    'ear_r':       [r'^c_ear_\d+\.r'],
+    "root": [r"^c_root_master\."],
+    "spine": [r"^c_spine_\d+\."],
+    "neck": [r"^c_neck"],
+    "head": [r"^c_head\."],
+    "back_leg_l": [r"^c_thigh_fk\.l", r"^c_leg_fk\.l", r"^c_foot_fk\.l"],
+    "back_leg_r": [r"^c_thigh_fk\.r", r"^c_leg_fk\.r", r"^c_foot_fk\.r"],
+    "back_foot_l": [r"^c_toes\.l"],
+    "back_foot_r": [r"^c_toes\.r"],
+    "front_leg_l": [r"^c_shoulder\.l", r"^c_arm_fk\.l", r"^c_forearm_fk\.l"],
+    "front_leg_r": [r"^c_shoulder\.r", r"^c_arm_fk\.r", r"^c_forearm_fk\.r"],
+    "front_foot_l": [r"^c_hand_fk\.l"],
+    "front_foot_r": [r"^c_hand_fk\.r"],
+    "tail": [r"^c_tail_\d+\."],
+    "ear_l": [r"^c_ear_\d+\.l"],
+    "ear_r": [r"^c_ear_\d+\.r"],
 }
 
 
@@ -1271,7 +1305,7 @@ def discover_arp_ctrl_map(arp_obj):
     """
     import re
 
-    if arp_obj is None or arp_obj.type != 'ARMATURE':
+    if arp_obj is None or arp_obj.type != "ARMATURE":
         return {}
 
     all_bones = [b.name for b in arp_obj.data.bones]
@@ -1297,10 +1331,10 @@ def discover_arp_ctrl_map(arp_obj):
 
 # 소스 개수에 맞춰 ref 이름을 동적 생성하는 패턴
 _REF_PATTERNS = {
-    'spine': ('spine_{:02d}_ref.x', 1),   # spine_01_ref.x, spine_02_ref.x, ...
-    'tail':  ('tail_{:02d}_ref.x',  0),   # tail_00_ref.x, tail_01_ref.x, ...
-    'ear_l': ('ear_{:02d}_ref.l',   1),   # ear_01_ref.l, ear_02_ref.l, ...
-    'ear_r': ('ear_{:02d}_ref.r',   1),
+    "spine": ("spine_{:02d}_ref.x", 1),  # spine_01_ref.x, spine_02_ref.x, ...
+    "tail": ("tail_{:02d}_ref.x", 0),  # tail_00_ref.x, tail_01_ref.x, ...
+    "ear_l": ("ear_{:02d}_ref.l", 1),  # ear_01_ref.l, ear_02_ref.l, ...
+    "ear_r": ("ear_{:02d}_ref.r", 1),
 }
 
 
@@ -1319,10 +1353,10 @@ def _dynamic_ref_names(role, count):
         return [pattern.format(start_idx + i) for i in range(count)]
 
     # neck: 첫 번째는 neck_ref.x, 추가분은 neck_NN_ref.x
-    if role == 'neck':
+    if role == "neck":
         result = list(base)
         for i in range(len(base), count):
-            result.append(f'neck_{i + 1:02d}_ref.x')
+            result.append(f"neck_{i + 1:02d}_ref.x")
         return result
 
     return base
@@ -1330,10 +1364,10 @@ def _dynamic_ref_names(role, count):
 
 # 소스 개수에 맞춰 컨트롤러 이름을 동적 생성하는 패턴
 _CTRL_PATTERNS = {
-    'spine': ('c_spine_{:02d}.x', 1),   # c_spine_01.x, c_spine_02.x, ...
-    'tail':  ('c_tail_{:02d}.x',  0),   # c_tail_00.x, c_tail_01.x, ...
-    'ear_l': ('c_ear_{:02d}.l',   1),   # c_ear_01.l, c_ear_02.l, ...
-    'ear_r': ('c_ear_{:02d}.r',   1),
+    "spine": ("c_spine_{:02d}.x", 1),  # c_spine_01.x, c_spine_02.x, ...
+    "tail": ("c_tail_{:02d}.x", 0),  # c_tail_00.x, c_tail_01.x, ...
+    "ear_l": ("c_ear_{:02d}.l", 1),  # c_ear_01.l, c_ear_02.l, ...
+    "ear_r": ("c_ear_{:02d}.r", 1),
 }
 
 
@@ -1353,10 +1387,10 @@ def _dynamic_ctrl_names(role, count):
         return [pattern.format(start_idx + i) for i in range(count)]
 
     # neck 등 패턴이 없는 역할: 기존 + 추가분
-    if role == 'neck':
+    if role == "neck":
         result = list(base)
         for i in range(len(base), count):
-            result.append(f'c_neck_{i + 1:02d}.x')
+            result.append(f"c_neck_{i + 1:02d}.x")
         return result
 
     return base
@@ -1373,14 +1407,14 @@ def generate_bmap_content(analysis, arp_obj=None):
     Returns:
         str: .bmap 파일 내용
     """
-    chains = analysis.get('chains', {})
+    chains = analysis.get("chains", {})
     lines = []
 
     # ARP 아마추어에서 실제 컨트롤러 이름 탐색 (가능한 경우)
     actual_ctrl_map = discover_arp_ctrl_map(arp_obj) if arp_obj else {}
 
     for role, chain_info in chains.items():
-        source_bones = chain_info['bones']
+        source_bones = chain_info["bones"]
 
         # 우선순위: 실제 ARP 이름 > 동적 패턴 > 하드코딩 맵
         ctrl_bones = actual_ctrl_map.get(role)
@@ -1394,7 +1428,7 @@ def generate_bmap_content(analysis, arp_obj=None):
         mapping = map_role_chain(role, source_bones, ctrl_bones)
 
         for src_bone, ctrl_bone in mapping.items():
-            is_root = (role == 'root')
+            is_root = role == "root"
             # .bmap 포맷: 4줄 반복
             flags = f"{'True' if is_root else 'False'}%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%"
             lines.append(f"{ctrl_bone}%{flags}")
@@ -1405,8 +1439,8 @@ def generate_bmap_content(analysis, arp_obj=None):
 
     # unmapped cc_ 본 매핑 추가
     custom_bones = order_bones_by_hierarchy(
-        list(analysis.get('unmapped', [])),
-        analysis.get('bone_data', {}),
+        list(analysis.get("unmapped", [])),
+        analysis.get("bone_data", {}),
     )
 
     for custom_bone in custom_bones:
@@ -1424,6 +1458,7 @@ def generate_bmap_content(analysis, arp_obj=None):
 # 검증 리포트
 # ═══════════════════════════════════════════════════════════════
 
+
 def generate_verification_report(analysis):
     """분석 결과를 사람이 읽기 쉬운 형식으로 출력"""
     lines = []
@@ -1434,13 +1469,13 @@ def generate_verification_report(analysis):
     lines.append(f"  전체 신뢰도: {analysis.get('confidence', 0)}")
     lines.append("-" * 55)
 
-    chains = analysis.get('chains', {})
+    chains = analysis.get("chains", {})
     for role, info in chains.items():
-        bones_str = " → ".join(info['bones'])
-        conf = info['confidence']
+        bones_str = " → ".join(info["bones"])
+        conf = info["confidence"]
         lines.append(f"  {role:14s}: {bones_str:30s} ({conf:.2f})")
 
-    unmapped = analysis.get('unmapped', [])
+    unmapped = analysis.get("unmapped", [])
     if unmapped:
         lines.append(f"  {'미매핑':14s}: {', '.join(unmapped)}")
 
@@ -1452,17 +1487,18 @@ def generate_verification_report(analysis):
 # JSON 저장/로드
 # ═══════════════════════════════════════════════════════════════
 
+
 def save_auto_mapping(analysis, output_dir):
     """분석 결과를 auto_mapping.json으로 저장"""
     # bone_data는 너무 크므로 제외
-    save_data = {k: v for k, v in analysis.items() if k != 'bone_data'}
+    save_data = {k: v for k, v in analysis.items() if k != "bone_data"}
 
     # deform_to_ref도 함께 저장
     mapping = generate_arp_mapping(analysis)
-    save_data['deform_to_ref'] = mapping['deform_to_ref']
+    save_data["deform_to_ref"] = mapping["deform_to_ref"]
 
     path = os.path.join(output_dir, "auto_mapping.json")
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(save_data, f, indent=2, ensure_ascii=False)
 
     return path
@@ -1477,21 +1513,21 @@ def load_auto_mapping(input_dir):
     if not os.path.exists(path):
         return None
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     # chains가 있으면 deform_to_ref 재생성
-    if 'chains' in data:
+    if "chains" in data:
         deform_to_ref = {}
-        for role, chain_info in data['chains'].items():
-            source_bones = chain_info.get('bones', [])
+        for role, chain_info in data["chains"].items():
+            source_bones = chain_info.get("bones", [])
             target_refs = _dynamic_ref_names(role, len(source_bones))
             if not target_refs:
                 target_refs = ARP_REF_MAP.get(role, [])
             if target_refs:
                 chain_mapping = map_role_chain(role, source_bones, target_refs)
                 deform_to_ref.update(chain_mapping)
-        data['deform_to_ref'] = deform_to_ref
+        data["deform_to_ref"] = deform_to_ref
 
     return data
 
@@ -1502,22 +1538,22 @@ def load_auto_mapping(input_dir):
 
 # 역할별 본 그룹 색상 (Blender 테마 색상 인덱스)
 ROLE_COLORS = {
-    'root':         (1.0, 0.9, 0.0),    # 노랑
-    'spine':        (0.2, 0.4, 1.0),    # 파랑
-    'neck':         (0.2, 0.4, 1.0),    # 파랑
-    'head':         (0.2, 0.4, 1.0),    # 파랑
-    'back_leg_l':   (1.0, 0.2, 0.2),    # 빨강
-    'back_leg_r':   (1.0, 0.2, 0.2),    # 빨강
-    'back_foot_l':  (0.7, 0.1, 0.1),    # 진빨강
-    'back_foot_r':  (0.7, 0.1, 0.1),    # 진빨강
-    'front_leg_l':  (0.2, 0.8, 0.2),    # 초록
-    'front_leg_r':  (0.2, 0.8, 0.2),    # 초록
-    'front_foot_l': (0.1, 0.5, 0.1),    # 진초록
-    'front_foot_r': (0.1, 0.5, 0.1),    # 진초록
-    'ear_l':        (0.0, 0.8, 0.8),    # 시안
-    'ear_r':        (0.0, 0.8, 0.8),    # 시안
-    'tail':         (1.0, 0.5, 0.0),    # 주황
-    'unmapped':     (0.5, 0.5, 0.5),    # 회색
+    "root": (1.0, 0.9, 0.0),  # 노랑
+    "spine": (0.2, 0.4, 1.0),  # 파랑
+    "neck": (0.2, 0.4, 1.0),  # 파랑
+    "head": (0.2, 0.4, 1.0),  # 파랑
+    "back_leg_l": (1.0, 0.2, 0.2),  # 빨강
+    "back_leg_r": (1.0, 0.2, 0.2),  # 빨강
+    "back_foot_l": (0.7, 0.1, 0.1),  # 진빨강
+    "back_foot_r": (0.7, 0.1, 0.1),  # 진빨강
+    "front_leg_l": (0.2, 0.8, 0.2),  # 초록
+    "front_leg_r": (0.2, 0.8, 0.2),  # 초록
+    "front_foot_l": (0.1, 0.5, 0.1),  # 진초록
+    "front_foot_r": (0.1, 0.5, 0.1),  # 진초록
+    "ear_l": (0.0, 0.8, 0.8),  # 시안
+    "ear_r": (0.0, 0.8, 0.8),  # 시안
+    "tail": (1.0, 0.5, 0.0),  # 주황
+    "unmapped": (0.5, 0.5, 0.5),  # 회색
 }
 
 # 역할 커스텀 프로퍼티 키
@@ -1538,10 +1574,10 @@ def create_preview_armature(source_obj, analysis):
     Returns:
         bpy.types.Object: 생성된 Preview Armature 오브젝트
     """
-    bone_data = analysis.get('bone_data', {})
-    chains = analysis.get('chains', {})
-    unmapped_list = analysis.get('unmapped', [])
-    preview_parent_overrides = analysis.get('preview_parent_overrides', {})
+    bone_data = analysis.get("bone_data", {})
+    chains = analysis.get("chains", {})
+    unmapped_list = analysis.get("unmapped", [])
+    preview_parent_overrides = analysis.get("preview_parent_overrides", {})
 
     if not bone_data:
         return None
@@ -1549,18 +1585,18 @@ def create_preview_armature(source_obj, analysis):
     # 본 이름 → 역할 매핑 구성
     bone_to_role = {}
     for role, chain_info in chains.items():
-        for bone_name in chain_info['bones']:
+        for bone_name in chain_info["bones"]:
             bone_to_role[bone_name] = role
     for bone_name in unmapped_list:
-        bone_to_role[bone_name] = 'unmapped'
+        bone_to_role[bone_name] = "unmapped"
 
     # Object 모드 확보
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
+    if bpy.context.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode="OBJECT")
 
     # 새 Armature 데이터 생성
     arm_data = bpy.data.armatures.new(f"{source_obj.name}_preview")
-    arm_data.display_type = 'OCTAHEDRAL'
+    arm_data.display_type = "OCTAHEDRAL"
     preview_obj = bpy.data.objects.new(f"{source_obj.name}_preview", arm_data)
 
     # 씬에 추가
@@ -1570,10 +1606,10 @@ def create_preview_armature(source_obj, analysis):
     preview_obj.matrix_world = source_obj.matrix_world.copy()
 
     # Edit Mode 진입하여 본 생성
-    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.select_all(action="DESELECT")
     preview_obj.select_set(True)
     bpy.context.view_layer.objects.active = preview_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     edit_bones = preview_obj.data.edit_bones
     src_matrix = source_obj.matrix_world
@@ -1587,20 +1623,23 @@ def create_preview_armature(source_obj, analysis):
 
         # 월드 좌표 → Preview 로컬 좌표
         from mathutils import Vector
-        world_head = Vector(binfo['head'])
-        world_tail = Vector(binfo['tail'])
+
+        world_head = Vector(binfo["head"])
+        world_tail = Vector(binfo["tail"])
         ebone.head = preview_matrix_inv @ world_head
         ebone.tail = preview_matrix_inv @ world_tail
-        ebone.roll = binfo['roll']
+        ebone.roll = binfo["roll"]
         ebone.use_deform = True
 
         created_bones[bone_name] = ebone
 
     # 부모-자식 관계 설정
     for bone_name, binfo in bone_data.items():
-        parent_name = (preview_parent_overrides[bone_name]
-                       if bone_name in preview_parent_overrides
-                       else binfo['parent'])
+        parent_name = (
+            preview_parent_overrides[bone_name]
+            if bone_name in preview_parent_overrides
+            else binfo["parent"]
+        )
         if parent_name and parent_name in created_bones:
             ebone = created_bones[bone_name]
             parent_ebone = created_bones[parent_name]
@@ -1611,9 +1650,9 @@ def create_preview_armature(source_obj, analysis):
                 ebone.use_connect = True
 
     # neck 역할이 없고 head가 spine 끝에 바로 붙어 있으면 preview에서 virtual neck 생성
-    has_neck_chain = bool(chains.get('neck', {}).get('bones'))
-    head_chain = chains.get('head', {}).get('bones', [])
-    spine_chain = chains.get('spine', {}).get('bones', [])
+    has_neck_chain = bool(chains.get("neck", {}).get("bones"))
+    head_chain = chains.get("head", {}).get("bones", [])
+    spine_chain = chains.get("spine", {}).get("bones", [])
     if (not has_neck_chain) and head_chain and spine_chain:
         head_name = head_chain[0]
         head_ebone = created_bones.get(head_name)
@@ -1640,12 +1679,12 @@ def create_preview_armature(source_obj, analysis):
                 head_ebone.use_connect = True
 
                 created_bones[VIRTUAL_NECK_BONE] = neck_ebone
-                bone_to_role[VIRTUAL_NECK_BONE] = 'neck'
+                bone_to_role[VIRTUAL_NECK_BONE] = "neck"
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     # 본 그룹 + 색상 설정 (Pose Mode에서)
-    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.object.mode_set(mode="POSE")
 
     # 역할별 본 그룹 생성
     bone_groups = {}
@@ -1659,19 +1698,19 @@ def create_preview_armature(source_obj, analysis):
         if pbone is None:
             continue
 
-        role = bone_to_role.get(bone_name, 'unmapped')
-        color = ROLE_COLORS.get(role, ROLE_COLORS['unmapped'])
+        role = bone_to_role.get(bone_name, "unmapped")
+        color = ROLE_COLORS.get(role, ROLE_COLORS["unmapped"])
 
         # 역할 커스텀 프로퍼티 저장
         pbone[ROLE_PROP_KEY] = role
 
         # Blender 4.x 본 색상 설정
-        pbone.color.palette = 'CUSTOM'
+        pbone.color.palette = "CUSTOM"
         pbone.color.custom.normal = color
         pbone.color.custom.select = tuple(min(c + 0.3, 1.0) for c in color)
         pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     return preview_obj
 
@@ -1687,12 +1726,13 @@ def read_preview_roles(preview_obj):
     roles = defaultdict(list)
 
     for pbone in preview_obj.pose.bones:
-        role = pbone.get(ROLE_PROP_KEY, 'unmapped')
+        role = pbone.get(ROLE_PROP_KEY, "unmapped")
         roles[role].append(pbone.name)
 
     # 각 역할 내에서 하이어라키 순서(부모→자식)로 정렬
     for role in roles:
         bone_names = roles[role]
+
         # depth 기준 정렬
         def get_depth(name):
             depth = 0
@@ -1701,6 +1741,7 @@ def read_preview_roles(preview_obj):
                 depth += 1
                 bone = bone.parent
             return depth
+
         roles[role] = sorted(bone_names, key=get_depth)
 
     return dict(roles)
@@ -1720,30 +1761,31 @@ def preview_to_analysis(preview_obj):
     unmapped = []
 
     for role, bone_names in roles.items():
-        if role == 'unmapped':
+        if role == "unmapped":
             unmapped = bone_names
         else:
             chains[role] = {
-                'bones': bone_names,
-                'confidence': 1.0,  # 사용자 확인 완료
+                "bones": bone_names,
+                "confidence": 1.0,  # 사용자 확인 완료
             }
 
     # bone_data 추출 (위치 정보)
     bone_data = extract_bone_data(preview_obj)
-    deform_bones = {name: bone_data[name] for name in bone_data if bone_data[name]['is_deform']}
+    deform_bones = {name: bone_data[name] for name in bone_data if bone_data[name]["is_deform"]}
 
     return {
-        'source_armature': preview_obj.name,
-        'chains': chains,
-        'unmapped': unmapped,
-        'confidence': 1.0,
-        'bone_data': deform_bones,
+        "source_armature": preview_obj.name,
+        "chains": chains,
+        "unmapped": unmapped,
+        "confidence": 1.0,
+        "bone_data": deform_bones,
     }
 
 
 # ═══════════════════════════════════════════════════════════════
 # ARP ref 본 동적 검색
 # ═══════════════════════════════════════════════════════════════
+
 
 def discover_arp_ref_chains(arp_obj):
     """
@@ -1756,25 +1798,25 @@ def discover_arp_ref_chains(arp_obj):
     Returns:
         dict: ARP_REF_MAP과 동일한 형식 {role: [ref_bone_names]}
     """
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.select_all(action='DESELECT')
+    if bpy.context.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
     arp_obj.select_set(True)
     bpy.context.view_layer.objects.active = arp_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     edit_bones = arp_obj.data.edit_bones
 
     # _ref 포함 본만 수집
     ref_bones = {}
     for eb in edit_bones:
-        if '_ref' in eb.name:
+        if "_ref" in eb.name:
             ref_bones[eb.name] = {
-                'head': (arp_obj.matrix_world @ eb.head.copy()),
-                'tail': (arp_obj.matrix_world @ eb.tail.copy()),
-                'parent': eb.parent.name if eb.parent else None,
-                'children': [child.name for child in eb.children],
-                'depth': 0,
+                "head": (arp_obj.matrix_world @ eb.head.copy()),
+                "tail": (arp_obj.matrix_world @ eb.tail.copy()),
+                "parent": eb.parent.name if eb.parent else None,
+                "children": [child.name for child in eb.children],
+                "depth": 0,
             }
             # 깊이 계산
             d = 0
@@ -1782,40 +1824,37 @@ def discover_arp_ref_chains(arp_obj):
             while p:
                 d += 1
                 p = p.parent
-            ref_bones[eb.name]['depth'] = d
+            ref_bones[eb.name]["depth"] = d
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     result = {}
     all_names = set(ref_bones.keys())
 
     # --- Root ---
-    root_candidates = [n for n in all_names if n.startswith('root_ref')]
+    root_candidates = [n for n in all_names if n.startswith("root_ref")]
     if root_candidates:
-        result['root'] = sorted(root_candidates)
+        result["root"] = sorted(root_candidates)
 
     # --- Spine ---
-    spine_candidates = sorted([n for n in all_names
-                               if 'spine_' in n and '_ref' in n])
+    spine_candidates = sorted([n for n in all_names if "spine_" in n and "_ref" in n])
     if spine_candidates:
-        result['spine'] = spine_candidates
+        result["spine"] = spine_candidates
 
     # --- Neck ---
-    neck_candidates = sorted([n for n in all_names
-                              if 'neck' in n and '_ref' in n])
+    neck_candidates = sorted([n for n in all_names if "neck" in n and "_ref" in n])
     if neck_candidates:
-        result['neck'] = neck_candidates
+        result["neck"] = neck_candidates
 
     # --- Head ---
-    head_candidates = [n for n in all_names if n.startswith('head_ref')]
+    head_candidates = [n for n in all_names if n.startswith("head_ref")]
     if head_candidates:
-        result['head'] = head_candidates
+        result["head"] = head_candidates
 
     # --- Tail ---
-    tail_candidates = sorted([n for n in all_names
-                              if 'tail_' in n and '_ref' in n])
+    tail_candidates = sorted([n for n in all_names if "tail_" in n and "_ref" in n])
     if tail_candidates:
-        result['tail'] = tail_candidates
+        result["tail"] = tail_candidates
 
     def collect_connected_ref_chain(root_name):
         """시작 ref 본에서 connected 자식 체인을 따라 limb 전체 ref 체인을 수집."""
@@ -1828,18 +1867,17 @@ def discover_arp_ref_chains(arp_obj):
             chain.append(current_name)
 
             child_candidates = [
-                child_name for child_name in ref_bones[current_name].get('children', [])
-                if child_name in ref_bones
-                and 'bank' not in child_name
-                and 'heel' not in child_name
+                child_name
+                for child_name in ref_bones[current_name].get("children", [])
+                if child_name in ref_bones and "bank" not in child_name and "heel" not in child_name
             ]
             if not child_candidates:
                 break
 
-            child_candidates.sort(key=lambda x: ref_bones[x]['depth'])
+            child_candidates.sort(key=lambda x: ref_bones[x]["depth"])
             next_name = None
             for child_name in child_candidates:
-                if ref_bones.get(child_name, {}).get('parent') == current_name:
+                if ref_bones.get(child_name, {}).get("parent") == current_name:
                     next_name = child_name
                     break
             if next_name is None:
@@ -1852,50 +1890,59 @@ def discover_arp_ref_chains(arp_obj):
     # leg: thigh_b/thigh/leg ref 본
     # foot: foot/toes ref 본
     # bank/heel: 발 보조 ref 본
-    FOOT_AUX_PREFIXES = ['foot_bank', 'foot_heel']
+    FOOT_AUX_PREFIXES = ["foot_bank", "foot_heel"]
 
-    for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
-        for is_dupli, limb_prefix in [(False, 'back'), (True, 'front')]:
-            thigh_roots = [n for n in all_names
-                           if n.startswith('thigh_b_ref')
-                           and n.endswith(side_suffix)
-                           and ('dupli' in n) == is_dupli]
+    for side_suffix, side_key in [(".l", "l"), (".r", "r")]:
+        for is_dupli, limb_prefix in [(False, "back"), (True, "front")]:
+            thigh_roots = [
+                n
+                for n in all_names
+                if n.startswith("thigh_b_ref")
+                and n.endswith(side_suffix)
+                and ("dupli" in n) == is_dupli
+            ]
             if not thigh_roots:
-                thigh_roots = [n for n in all_names
-                               if n.startswith('thigh_ref')
-                               and n.endswith(side_suffix)
-                               and ('dupli' in n) == is_dupli]
+                thigh_roots = [
+                    n
+                    for n in all_names
+                    if n.startswith("thigh_ref")
+                    and n.endswith(side_suffix)
+                    and ("dupli" in n) == is_dupli
+                ]
 
             if thigh_roots:
-                thigh_roots.sort(key=lambda x: ref_bones[x]['depth'])
+                thigh_roots.sort(key=lambda x: ref_bones[x]["depth"])
                 limb_chain = collect_connected_ref_chain(thigh_roots[0])
-                leg_bones = [n for n in limb_chain if n.startswith('thigh') or n.startswith('leg')]
-                foot_bones = [n for n in limb_chain if n.startswith('foot') or n.startswith('toes')]
+                leg_bones = [n for n in limb_chain if n.startswith("thigh") or n.startswith("leg")]
+                foot_bones = [n for n in limb_chain if n.startswith("foot") or n.startswith("toes")]
 
                 if leg_bones:
-                    result[f'{limb_prefix}_leg_{side_key}'] = leg_bones
+                    result[f"{limb_prefix}_leg_{side_key}"] = leg_bones
                 if foot_bones:
-                    result[f'{limb_prefix}_foot_{side_key}'] = foot_bones
+                    result[f"{limb_prefix}_foot_{side_key}"] = foot_bones
 
             for aux_prefix in FOOT_AUX_PREFIXES:
-                aux_key = aux_prefix.replace('foot_', '')
-                candidates = [n for n in all_names
-                              if n.startswith(aux_prefix)
-                              and '_ref' in n
-                              and n.endswith(side_suffix)
-                              and ('dupli' in n) == is_dupli]
+                aux_key = aux_prefix.replace("foot_", "")
+                candidates = [
+                    n
+                    for n in all_names
+                    if n.startswith(aux_prefix)
+                    and "_ref" in n
+                    and n.endswith(side_suffix)
+                    and ("dupli" in n) == is_dupli
+                ]
                 if candidates:
-                    candidates.sort(key=lambda x: ref_bones[x]['depth'])
-                    result[f'{limb_prefix}_{aux_key}_{side_key}'] = candidates
+                    candidates.sort(key=lambda x: ref_bones[x]["depth"])
+                    result[f"{limb_prefix}_{aux_key}_{side_key}"] = candidates
 
     # --- Ear ---
-    for side_suffix, side_key in [('.l', 'l'), ('.r', 'r')]:
-        ear_candidates = sorted([n for n in all_names
-                                  if 'ear' in n and '_ref' in n
-                                  and n.endswith(side_suffix)],
-                                 key=lambda x: ref_bones[x]['depth'])
+    for side_suffix, side_key in [(".l", "l"), (".r", "r")]:
+        ear_candidates = sorted(
+            [n for n in all_names if "ear" in n and "_ref" in n and n.endswith(side_suffix)],
+            key=lambda x: ref_bones[x]["depth"],
+        )
         if ear_candidates:
-            result[f'ear_{side_key}'] = ear_candidates
+            result[f"ear_{side_key}"] = ear_candidates
 
     # 디버그 로그
     print("=" * 55)
@@ -1936,8 +1983,10 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
             return
 
         if not target_refs:
-            if 'heel' in role_label or 'bank' in role_label:
-                print(f"  [WARN] 가이드 '{role_label}'에 대응하는 ARP ref 없음 (match_to_rig에서 처리)")
+            if "heel" in role_label or "bank" in role_label:
+                print(
+                    f"  [WARN] 가이드 '{role_label}'에 대응하는 ARP ref 없음 (match_to_rig에서 처리)"
+                )
             else:
                 print(f"  [WARN] 역할 '{role_label}'에 대응하는 ARP ref 체인 없음")
             return
@@ -1948,7 +1997,7 @@ def build_preview_to_ref_mapping(preview_obj, arp_obj):
             print(f"  {src:25s} → {ref}")
 
     for role, preview_bones in roles.items():
-        if role == 'unmapped':
+        if role == "unmapped":
             continue
         map_chain(role, preview_bones, arp_chains.get(role, []))
 

@@ -5,8 +5,9 @@
 Blender Scripting 탭에서 실행하세요.
 """
 
-import bpy
 import os
+
+import bpy
 
 print("=" * 60)
 print("리그 구조 조사")
@@ -14,7 +15,7 @@ print(f"파일: {bpy.data.filepath}")
 print("=" * 60)
 
 # 모든 아마추어 오브젝트 조사
-armatures = [obj for obj in bpy.data.objects if obj.type == 'ARMATURE']
+armatures = [obj for obj in bpy.data.objects if obj.type == "ARMATURE"]
 print(f"\n아마추어 오브젝트: {len(armatures)}개")
 
 for arm_obj in armatures:
@@ -27,15 +28,21 @@ for arm_obj in armatures:
     # 접두사별 분류
     prefixes = {}
     for bone in bones:
-        prefix = bone.name.split("-")[0] if "-" in bone.name else bone.name.split("_")[0] if "_" in bone.name else bone.name.split(".")[0]
+        prefix = (
+            bone.name.split("-")[0]
+            if "-" in bone.name
+            else bone.name.split("_")[0]
+            if "_" in bone.name
+            else bone.name.split(".")[0]
+        )
         prefixes[prefix] = prefixes.get(prefix, 0) + 1
 
-    print(f"  접두사별 분류:")
+    print("  접두사별 분류:")
     for prefix, count in sorted(prefixes.items(), key=lambda x: -x[1]):
         print(f"    {prefix}: {count}개")
 
     # 첫 30개 본 이름 출력
-    print(f"  본 이름 (처음 30개):")
+    print("  본 이름 (처음 30개):")
     for i, bone in enumerate(bones):
         if i >= 30:
             print(f"    ... 외 {len(bones) - 30}개")
@@ -44,14 +51,14 @@ for arm_obj in armatures:
         print(f"    {bone.name}  ← {parent_name}")
 
     # DEF 본 확인
-    def_bones = [b for b in bones if b.name.startswith('DEF-')]
+    def_bones = [b for b in bones if b.name.startswith("DEF-")]
     print(f"\n  DEF- 본: {len(def_bones)}개")
     if def_bones:
         for b in def_bones[:10]:
             print(f"    {b.name}")
 
     # c_ 본 확인 (ARP)
-    c_bones = [b for b in bones if b.name.startswith('c_')]
+    c_bones = [b for b in bones if b.name.startswith("c_")]
     print(f"  c_ 본 (ARP): {len(c_bones)}개")
     if c_bones:
         for b in c_bones[:10]:
@@ -61,10 +68,12 @@ for arm_obj in armatures:
 print(f"\n{'─' * 50}")
 print("메시-아마추어 연결:")
 for obj in bpy.data.objects:
-    if obj.type == 'MESH':
+    if obj.type == "MESH":
         for mod in obj.modifiers:
-            if mod.type == 'ARMATURE':
-                print(f"  메시 '{obj.name}' → 아마추어 '{mod.object.name if mod.object else '(없음)'}'")
+            if mod.type == "ARMATURE":
+                print(
+                    f"  메시 '{obj.name}' → 아마추어 '{mod.object.name if mod.object else '(없음)'}'"
+                )
 
 # 액션 확인
 print(f"\n{'─' * 50}")

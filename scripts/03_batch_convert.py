@@ -11,15 +11,14 @@ Blender 외부에서 실행 (일반 Python).
   python scripts/03_batch_convert.py --run --workers 2  # 병렬 처리
 """
 
-import os
-import sys
-import json
-import subprocess
-import time
 import argparse
-from datetime import datetime
+import json
+import os
+import subprocess
+import sys
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
+from datetime import datetime
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIG
@@ -39,22 +38,22 @@ PIPELINE_SCRIPT = os.path.join(PROJECT_ROOT, "scripts", "pipeline_runner.py")
 
 # 디렉토리 → 프로필 매핑
 PROFILE_MAP = {
-    "normal":  "custom_quadruped",
-    "sea":     "custom_quadruped",
-    "Sup_01":  "custom_quadruped",
-    "Sup_02":  "custom_quadruped",
-    "2024":    "custom_quadruped",
-    "2025":    "custom_quadruped",
-    "2026":    "custom_quadruped",
+    "normal": "custom_quadruped",
+    "sea": "custom_quadruped",
+    "Sup_01": "custom_quadruped",
+    "Sup_02": "custom_quadruped",
+    "2024": "custom_quadruped",
+    "2025": "custom_quadruped",
+    "2026": "custom_quadruped",
     # "bird":  "bird",  # 프로필 미작성 — 추후 활성화
 }
 
 # 변환 제외 패턴
 SKIP_PATTERNS = [
-    ".blend1",       # 백업 파일
-    "_RigConvert",   # 이미 변환된 사본
-    "Effect",        # 이펙트 폴더
-    "etc",           # 기타 폴더
+    ".blend1",  # 백업 파일
+    "_RigConvert",  # 이미 변환된 사본
+    "Effect",  # 이펙트 폴더
+    "etc",  # 기타 폴더
 ]
 
 # 기본 타임아웃 (초)
@@ -64,6 +63,7 @@ DEFAULT_TIMEOUT = 600
 # ═══════════════════════════════════════════════════════════════
 # 파일 탐색
 # ═══════════════════════════════════════════════════════════════
+
 
 def find_blend_files(filter_path=None):
     """
@@ -108,19 +108,21 @@ def find_blend_files(filter_path=None):
             result_path = os.path.join(root, "conversion_result.json")
             if os.path.exists(result_path):
                 try:
-                    with open(result_path, 'r', encoding='utf-8') as f:
+                    with open(result_path, encoding="utf-8") as f:
                         result = json.load(f)
                     if result.get("success"):
                         continue
                 except (json.JSONDecodeError, KeyError):
                     pass
 
-            targets.append({
-                "path": full_path,
-                "rel_path": f"{rel_root}/{fname}",
-                "profile": profile,
-                "dir": root,
-            })
+            targets.append(
+                {
+                    "path": full_path,
+                    "rel_path": f"{rel_root}/{fname}",
+                    "profile": profile,
+                    "dir": root,
+                }
+            )
 
     return targets
 
@@ -128,6 +130,7 @@ def find_blend_files(filter_path=None):
 # ═══════════════════════════════════════════════════════════════
 # 단일 파일 변환
 # ═══════════════════════════════════════════════════════════════
+
 
 def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
     """
@@ -142,7 +145,8 @@ def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
         BLENDER_EXE,
         "--background",
         path,
-        "--python", PIPELINE_SCRIPT,
+        "--python",
+        PIPELINE_SCRIPT,
         "--",
     ]
 
@@ -165,7 +169,7 @@ def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
         # 결과 확인
         result_path = os.path.join(target["dir"], "conversion_result.json")
         if os.path.exists(result_path):
-            with open(result_path, 'r', encoding='utf-8') as f:
+            with open(result_path, encoding="utf-8") as f:
                 result = json.load(f)
             if result.get("success"):
                 return (rel_path, True, "성공", elapsed)
@@ -190,6 +194,7 @@ def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
 # 리포트 생성
 # ═══════════════════════════════════════════════════════════════
 
+
 def save_report(results, output_path):
     """배치 결과를 JSON으로 저장"""
     report = {
@@ -209,7 +214,7 @@ def save_report(results, output_path):
         ],
     }
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     return report
 
@@ -218,14 +223,19 @@ def save_report(results, output_path):
 # 메인
 # ═══════════════════════════════════════════════════════════════
 
+
 def main():
     parser = argparse.ArgumentParser(description="ARP 리그 배치 변환")
     parser.add_argument("--run", action="store_true", help="실제 변환 실행 (없으면 dry-run)")
     parser.add_argument("--filter", type=str, default=None, help="디렉토리 필터 (예: normal/fox)")
     parser.add_argument("--workers", type=int, default=1, help="병렬 워커 수 (기본: 1)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="파일당 타임아웃 (초)")
-    parser.add_argument("--blender", type=str, default=None, help="Blender 실행 파일 경로 오버라이드")
-    parser.add_argument("--auto", action="store_true", help="구조 기반 자동 분석 모드 (프로필 불필요)")
+    parser.add_argument(
+        "--blender", type=str, default=None, help="Blender 실행 파일 경로 오버라이드"
+    )
+    parser.add_argument(
+        "--auto", action="store_true", help="구조 기반 자동 분석 모드 (프로필 불필요)"
+    )
     args = parser.parse_args()
 
     global BLENDER_EXE
@@ -235,7 +245,7 @@ def main():
     # Blender 실행 파일 확인
     if not os.path.exists(BLENDER_EXE):
         print(f"[ERROR] Blender를 찾을 수 없습니다: {BLENDER_EXE}")
-        print(f"  --blender 옵션으로 경로를 지정하세요.")
+        print("  --blender 옵션으로 경로를 지정하세요.")
         sys.exit(1)
 
     # 파이프라인 스크립트 확인
@@ -247,7 +257,7 @@ def main():
     targets = find_blend_files(filter_path=args.filter)
 
     print("=" * 60)
-    print(f"ARP 배치 변환")
+    print("ARP 배치 변환")
     print(f"  대상 파일: {len(targets)}개")
     print(f"  필터: {args.filter or '없음'}")
     print(f"  워커: {args.workers}")
@@ -262,8 +272,8 @@ def main():
     if not args.run:
         print("\n[DRY-RUN] 변환 대상 파일:")
         for i, t in enumerate(targets):
-            print(f"  {i+1:3d}. [{t['profile']}] {t['rel_path']}")
-        print(f"\n실제 변환하려면 --run 옵션을 추가하세요.")
+            print(f"  {i + 1:3d}. [{t['profile']}] {t['rel_path']}")
+        print("\n실제 변환하려면 --run 옵션을 추가하세요.")
         return
 
     # 실제 변환 실행
@@ -273,7 +283,7 @@ def main():
     if args.workers <= 1:
         # 순차 처리
         for i, target in enumerate(targets):
-            print(f"\n[{i+1}/{len(targets)}] {target['rel_path']}")
+            print(f"\n[{i + 1}/{len(targets)}] {target['rel_path']}")
             result = convert_file(target, timeout=args.timeout, auto_mode=args.auto)
             results.append(result)
             status = "OK" if result[1] else "FAIL"
@@ -291,7 +301,7 @@ def main():
                 result = future.result()
                 results.append(result)
                 status = "OK" if result[1] else "FAIL"
-                print(f"  [{i+1}/{len(targets)}] {status} ({result[3]:.1f}초) {result[0]}")
+                print(f"  [{i + 1}/{len(targets)}] {status} ({result[3]:.1f}초) {result[0]}")
 
     # 리포트 저장
     total_elapsed = time.time() - start_total
@@ -301,7 +311,7 @@ def main():
 
     # 요약 출력
     print("\n" + "=" * 60)
-    print(f"배치 변환 완료")
+    print("배치 변환 완료")
     print(f"  성공: {report['success']}/{report['total']}")
     print(f"  실패: {report['fail']}/{report['total']}")
     print(f"  총 소요시간: {total_elapsed:.1f}초")
@@ -311,7 +321,7 @@ def main():
     # 실패 파일 목록
     failed = [r for r in results if not r[1]]
     if failed:
-        print(f"\n실패 파일:")
+        print("\n실패 파일:")
         for r in failed:
             print(f"  {r[0]}: {r[2]}")
 

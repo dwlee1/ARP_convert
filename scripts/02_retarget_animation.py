@@ -10,11 +10,13 @@ ARP Remap 기능으로 소스 액션을 ARP 리그에 리타게팅.
   3. ▶ Run Script
 """
 
-import bpy
+# scripts/ 폴더를 import 경로에 추가
+import os
+import sys
 import traceback
 
-# scripts/ 폴더를 import 경로에 추가
-import os, sys
+import bpy
+
 
 def _find_scripts_dir():
     """scripts/arp_utils.py가 있는 폴더를 찾는다."""
@@ -36,16 +38,21 @@ def _find_scripts_dir():
             d = parent
     return ""
 
+
 _SCRIPT_DIR = _find_scripts_dir()
 if _SCRIPT_DIR and _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from arp_utils import (
-    log, ensure_object_mode, select_only,
-    run_arp_operator, find_arp_armature, find_source_armature,
-    ensure_retarget_context, install_bmap_preset,
+    ensure_object_mode,
+    ensure_retarget_context,
+    find_arp_armature,
+    find_source_armature,
+    install_bmap_preset,
+    log,
+    run_arp_operator,
+    select_only,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIG
@@ -59,15 +66,18 @@ BMAP_PRESET = "custom_quadruped"
 # 유틸리티
 # ═══════════════════════════════════════════════════════════════
 
+
 def get_all_actions():
     """모든 액션과 프레임 범위를 수집"""
     actions = []
     for action in bpy.data.actions:
-        actions.append({
-            'name': action.name,
-            'frame_start': int(action.frame_range[0]),
-            'frame_end': int(action.frame_range[1]),
-        })
+        actions.append(
+            {
+                "name": action.name,
+                "frame_start": int(action.frame_range[0]),
+                "frame_end": int(action.frame_range[1]),
+            }
+        )
     log(f"액션 {len(actions)}개: {[a['name'] for a in actions]}")
     return actions
 
@@ -75,6 +85,7 @@ def get_all_actions():
 # ═══════════════════════════════════════════════════════════════
 # 메인
 # ═══════════════════════════════════════════════════════════════
+
 
 def main():
     log("=" * 50)
@@ -135,11 +146,11 @@ def main():
     fail = 0
 
     for i, act in enumerate(actions):
-        name = act['name']
-        f_start = act['frame_start']
-        f_end = act['frame_end']
+        name = act["name"]
+        f_start = act["frame_start"]
+        f_end = act["frame_end"]
 
-        log(f"  [{i+1}/{len(actions)}] '{name}' ({f_start}~{f_end})")
+        log(f"  [{i + 1}/{len(actions)}] '{name}' ({f_start}~{f_end})")
 
         try:
             action = bpy.data.actions.get(name)
@@ -158,10 +169,10 @@ def main():
                 frame_start=f_start,
                 frame_end=f_end,
                 fake_user_action=True,
-                interpolation_type='LINEAR',
+                interpolation_type="LINEAR",
             )
             success += 1
-            log(f"    OK")
+            log("    OK")
 
         except Exception as e:
             fail += 1

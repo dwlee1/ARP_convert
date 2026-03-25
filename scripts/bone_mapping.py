@@ -88,8 +88,10 @@ HUMANOID_MAPPING = {
 
 # 매핑 없는 Rigify 본 (무시 대상)
 UNMAPPED_RIGIFY_BONES = [
-    "breast.L", "breast.R",
-    "pelvis.L", "pelvis.R",
+    "breast.L",
+    "breast.R",
+    "pelvis.L",
+    "pelvis.R",
 ]
 
 
@@ -115,6 +117,7 @@ BIRD_EXTRA_MAPPING = {
 
 
 # ─── 유틸리티 함수 ───
+
 
 def rigify_to_arp_name(rigify_bone_name):
     """

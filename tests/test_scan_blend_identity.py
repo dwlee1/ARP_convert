@@ -2,7 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TOOL_DIR = PROJECT_ROOT / "tools" / "blend_identity"
 if str(TOOL_DIR) not in sys.path:

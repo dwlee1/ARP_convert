@@ -10,13 +10,15 @@ Blender Scripting 탭에서 실행.
   3. ▶ Run Script
 """
 
-import bpy
 import os
-import traceback
-from mathutils import Vector
 
 # scripts/ 폴더를 import 경로에 추가
 import sys
+import traceback
+
+import bpy
+from mathutils import Vector
+
 
 def _find_scripts_dir():
     """scripts/arp_utils.py가 있는 폴더를 찾는다."""
@@ -40,16 +42,20 @@ def _find_scripts_dir():
             d = parent
     return ""
 
+
 _SCRIPT_DIR = _find_scripts_dir()
 if _SCRIPT_DIR and _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from arp_utils import (
-    log, ensure_object_mode, select_only,
-    run_arp_operator, find_arp_armature, find_mesh_objects,
+    ensure_object_mode,
+    find_arp_armature,
+    find_mesh_objects,
     load_mapping_profile,
+    log,
+    run_arp_operator,
+    select_only,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIG
@@ -63,16 +69,17 @@ VERBOSE = True
 # 소스 아마추어 식별
 # ═══════════════════════════════════════════════════════════════
 
+
 def find_source_armature(profile):
     """프로필 매핑 키와 일치하는 본이 가장 많은 비-ARP 아마추어를 선택."""
-    mapping_keys = set(profile['deform_to_ref'].keys())
+    mapping_keys = set(profile["deform_to_ref"].keys())
     best_obj = None
     best_match = 0
 
     for obj in bpy.data.objects:
-        if obj.type != 'ARMATURE':
+        if obj.type != "ARMATURE":
             continue
-        if len([b for b in obj.data.bones if b.name.startswith('c_')]) > 5:
+        if len([b for b in obj.data.bones if b.name.startswith("c_")]) > 5:
             continue
         matched = len([b for b in obj.data.bones if b.name in mapping_keys])
         if matched > best_match:
@@ -80,14 +87,18 @@ def find_source_armature(profile):
             best_obj = obj
 
     if best_obj:
-        log(f"소스 아마추어: '{best_obj.name}' (프로필 매칭 {best_match}개 / 전체 {len(best_obj.data.bones)}개)")
+        log(
+            f"소스 아마추어: '{best_obj.name}' (프로필 매칭 {best_match}개 / 전체 {len(best_obj.data.bones)}개)"
+        )
 
         # 매핑된 본 목록
         mapped = [b.name for b in best_obj.data.bones if b.name in mapping_keys]
         log(f"  매핑된 본 ({len(mapped)}개): {mapped}")
 
         # 프로필에 없는 deform 본
-        unmapped_deform = [b.name for b in best_obj.data.bones if b.name not in mapping_keys and b.use_deform]
+        unmapped_deform = [
+            b.name for b in best_obj.data.bones if b.name not in mapping_keys and b.use_deform
+        ]
         if unmapped_deform:
             log(f"  프로필에 없는 deform 본 ({len(unmapped_deform)}개): {unmapped_deform}", "WARN")
 
@@ -95,13 +106,17 @@ def find_source_armature(profile):
         source_bone_names = {b.name for b in best_obj.data.bones}
         missing_in_source = [k for k in mapping_keys if k not in source_bone_names]
         if missing_in_source:
-            log(f"  프로필에 있지만 소스에 없는 본 ({len(missing_in_source)}개): {missing_in_source}", "WARN")
+            log(
+                f"  프로필에 있지만 소스에 없는 본 ({len(missing_in_source)}개): {missing_in_source}",
+                "WARN",
+            )
     return best_obj
 
 
 # ═══════════════════════════════════════════════════════════════
 # ARP ref 본 위치 정렬
 # ═══════════════════════════════════════════════════════════════
+
 
 def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
     """
@@ -110,17 +125,17 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
     """
     ensure_object_mode()
 
-    deform_to_ref = profile['deform_to_ref']
-    ref_alignment = profile.get('ref_alignment', {})
-    priority_map = ref_alignment.get('priority', {})
-    avg_lr_map = ref_alignment.get('avg_lr', {})
+    deform_to_ref = profile["deform_to_ref"]
+    ref_alignment = profile.get("ref_alignment", {})
+    priority_map = ref_alignment.get("priority", {})
+    avg_lr_map = ref_alignment.get("avg_lr", {})
 
     # 소스 본 위치 추출 (월드 좌표)
     log("  소스 본 위치 추출")
     source_positions = {}
 
     bpy.context.view_layer.objects.active = source_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     src_matrix = source_obj.matrix_world
     for ebone in source_obj.data.edit_bones:
@@ -128,7 +143,7 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
         world_tail = src_matrix @ ebone.tail.copy()
         source_positions[ebone.name] = (world_head, world_tail, ebone.roll)
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     # ARP ref 본 목표 위치 결정
     log("  목표 위치 결정")
@@ -153,15 +168,22 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
             r_h, r_t, r_r = source_positions[src_r]
             avg_h = (l_h + r_h) / 2.0
             avg_t = (l_t + r_t) / 2.0
-            avg_h.x = 0.0; avg_t.x = 0.0
+            avg_h.x = 0.0
+            avg_t.x = 0.0
             resolved[ref_name] = (avg_h, avg_t, (l_r + r_r) / 2.0)
         elif has_l:
             h, t, r = source_positions[src_l]
-            h = h.copy(); t = t.copy(); h.x = 0.0; t.x = 0.0
+            h = h.copy()
+            t = t.copy()
+            h.x = 0.0
+            t.x = 0.0
             resolved[ref_name] = (h, t, r)
         elif has_r:
             h, t, r = source_positions[src_r]
-            h = h.copy(); t = t.copy(); h.x = 0.0; t.x = 0.0
+            h = h.copy()
+            t = t.copy()
+            h.x = 0.0
+            t.x = 0.0
             resolved[ref_name] = (h, t, r)
         processed.add(ref_name)
 
@@ -188,7 +210,7 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
     log(f"  위치 적용: {len(resolved)}개 ref 본")
 
     bpy.context.view_layer.objects.active = arp_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     arp_matrix_inv = arp_obj.matrix_world.inverted()
     edit_bones = arp_obj.data.edit_bones
@@ -232,7 +254,7 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
             ebone.roll = roll
         aligned += 1
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
     log(f"  정렬 완료: {aligned}개")
     return aligned
 
@@ -240,6 +262,7 @@ def align_ref_bones_to_source(source_obj, arp_obj, profile, copy_roll=True):
 # ═══════════════════════════════════════════════════════════════
 # 메인
 # ═══════════════════════════════════════════════════════════════
+
 
 def main():
     log("=" * 50)
@@ -263,7 +286,7 @@ def main():
     select_only(source_obj)
 
     try:
-        run_arp_operator(bpy.ops.arp.append_arp, rig_preset=profile['arp_preset'])
+        run_arp_operator(bpy.ops.arp.append_arp, rig_preset=profile["arp_preset"])
         log(f"  프리셋: {profile['arp_preset']}")
     except Exception as e:
         log(f"ARP 리그 추가 실패: {e}", "ERROR")
@@ -275,7 +298,7 @@ def main():
         return
 
     # ARP ref 본 목록 출력 (진단용)
-    ref_bones = sorted([b.name for b in arp_obj.data.bones if 'ref' in b.name.lower()])
+    ref_bones = sorted([b.name for b in arp_obj.data.bones if "ref" in b.name.lower()])
     log(f"  ARP ref 본 ({len(ref_bones)}개):")
     for rb in ref_bones:
         log(f"    {rb}")
