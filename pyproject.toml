@@ -8,6 +8,7 @@ description = "Auto-Rig Pro 기반 동물 리그 변환 자동화 Blender 애드
 target-version = "py311"
 line-length = 100
 src = ["scripts", "tests", "tools"]
+exclude = ["scripts/arp_retarget_reference.py"]  # 참조 문서 파일 (구문 오류)
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]

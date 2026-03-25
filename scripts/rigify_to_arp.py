@@ -572,7 +572,7 @@ def convert_to_arp():
 
             ik_fk_switched = 0
             for pbone in arp_obj.pose.bones:
-                for prop_name in pbone.keys():
+                for prop_name in pbone:
                     if prop_name.startswith("_") or prop_name == "rna_type":
                         continue
                     prop_lower = prop_name.lower()
@@ -582,7 +582,7 @@ def convert_to_arp():
                             pbone[prop_name] = 1.0
                             ik_fk_switched += 1
                             log(f"  {pbone.name}['{prop_name}']: {old_val} → 1.0 (FK)")
-                        except:
+                        except Exception:
                             log(f"  {pbone.name}['{prop_name}']: 변경 실패", "WARN")
 
             bpy.ops.object.mode_set(mode="OBJECT")

@@ -306,7 +306,7 @@ def main():
     # Step 3: ref 본 위치 정렬
     log("Step 3: ARP ref 본 위치 정렬")
     try:
-        aligned = align_ref_bones_to_source(source_obj, arp_obj, profile)
+        align_ref_bones_to_source(source_obj, arp_obj, profile)
     except Exception as e:
         log(f"ref 본 정렬 실패: {e}", "ERROR")
         log(traceback.format_exc(), "ERROR")

@@ -72,7 +72,7 @@ def find_blend_files(filter_path=None):
     """
     targets = []
 
-    for root, dirs, files in os.walk(ASSET_ROOT):
+    for root, _dirs, files in os.walk(ASSET_ROOT):
         # .blend1 등 불필요한 파일 제외
         blend_files = [f for f in files if f.endswith(".blend") and not f.endswith(".blend1")]
         if not blend_files:
@@ -178,8 +178,7 @@ def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
                 msg = errors[0] if errors else "알 수 없는 오류"
                 return (rel_path, False, msg, elapsed)
         else:
-            # 결과 파일이 없으면 stdout에서 에러 추출
-            stderr = proc.stderr[-500:] if proc.stderr else ""
+            # 결과 파일이 없으면 에러 리포트
             return (rel_path, False, f"결과 파일 미생성. returncode={proc.returncode}", elapsed)
 
     except subprocess.TimeoutExpired:
