@@ -110,6 +110,9 @@ def run_analysis(all_bones, weighted_bones=None):
         else {"face_bones": [], "ear_l": [], "ear_r": []}
     )
 
+    # pole vector 탐색 (all_bones 기준 — deform 여부 무관)
+    pole_vectors = sa.find_pole_vectors(all_bones, legs, leg_foot_pairs)
+
     return {
         "root": root_name,
         "spine": spine_only,
@@ -123,6 +126,7 @@ def run_analysis(all_bones, weighted_bones=None):
             "ear_r": face_features.get("ear_r", []),
         },
         "face_bones": face_features.get("face_bones", []),
+        "pole_vectors": pole_vectors,
         "deform_bones": deform_bones,
     }
 
@@ -186,6 +190,11 @@ EXPECTED = {
         "has_tail": True,
         "has_ear_l": True,
         "has_ear_r": True,
+        # Cat fixture에는 Foot_Fpole_L/R, Foot_Bpole_L/R가 deform 본으로 포함
+        "has_pole_back_l": True,
+        "has_pole_back_r": True,
+        "has_pole_front_l": True,
+        "has_pole_front_r": True,
     },
 }
 
@@ -569,3 +578,29 @@ class TestWeightFiltering:
         result = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
         assert "Deform" in result
         assert "NonDeform" not in result, "non-deform 본은 웨이트와 관계없이 제외"
+
+
+class TestPoleVectors:
+    """IK pole vector 감지 테스트."""
+
+    def test_pole_detected_for_back_legs(self, animal_name, analysis):
+        expected = EXPECTED[animal_name]
+        if expected.get("has_pole_back_l"):
+            assert "back_leg_l" in analysis["pole_vectors"], "back_leg_l pole 미감지"
+        if expected.get("has_pole_back_r"):
+            assert "back_leg_r" in analysis["pole_vectors"], "back_leg_r pole 미감지"
+
+    def test_pole_detected_for_front_legs(self, animal_name, analysis):
+        expected = EXPECTED[animal_name]
+        if expected.get("has_pole_front_l"):
+            assert "front_leg_l" in analysis["pole_vectors"], "front_leg_l pole 미감지"
+        if expected.get("has_pole_front_r"):
+            assert "front_leg_r" in analysis["pole_vectors"], "front_leg_r pole 미감지"
+
+    def test_pole_names_contain_pole_keyword(self, animal_name, analysis):
+        """감지된 pole 본 이름에 pole 키워드가 포함되어야 함."""
+        for key, pole_info in analysis.get("pole_vectors", {}).items():
+            name_lower = pole_info["name"].lower()
+            assert any(kw in name_lower for kw in ["pole", "knee", "elbow"]), (
+                f"{key} pole 본 이름에 키워드 없음: {pole_info['name']}"
+            )

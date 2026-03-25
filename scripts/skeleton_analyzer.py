@@ -971,6 +971,78 @@ def find_tail_chain(root_name, spine_chain, deform_bones):
     return best_chain
 
 
+POLE_KEYWORDS = ["pole", "knee", "elbow"]
+
+
+def find_pole_vectors(all_bones, legs, leg_foot_pairs):
+    """
+    전체 본(deform + non-deform)에서 IK pole vector 본을 찾아 다리에 매칭.
+
+    Args:
+        all_bones: 전체 본 딕셔너리 (extract_bone_data 결과)
+        legs: {"back_leg_l": [...], ...} 다리 체인
+        leg_foot_pairs: {"back_foot_l": [...], ...} 발 체인
+
+    Returns:
+        dict: {"back_leg_l": {"name": ..., "head": (x,y,z)}, ...}
+    """
+    # 1. 이름 기반 pole 후보 수집
+    pole_candidates = []
+    for name, bone in all_bones.items():
+        name_lower = name.lower()
+        if any(kw in name_lower for kw in POLE_KEYWORDS):
+            pole_candidates.append(bone)
+
+    if not pole_candidates:
+        return {}
+
+    # 2. 각 다리 체인의 중간점 계산
+    leg_keys = ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]
+    leg_midpoints = {}
+    for key in leg_keys:
+        chain = legs.get(key, [])
+        foot_key = key.replace("_leg_", "_foot_")
+        foot_chain = leg_foot_pairs.get(foot_key, [])
+        full_chain = list(chain) + list(foot_chain)
+        if not full_chain:
+            continue
+
+        # 체인의 첫 번째 본 head와 마지막 본 tail의 중간점
+        first_bone = all_bones.get(full_chain[0])
+        last_bone = all_bones.get(full_chain[-1])
+        if first_bone and last_bone:
+            mid = tuple((first_bone["head"][i] + last_bone["tail"][i]) / 2 for i in range(3))
+            leg_midpoints[key] = mid
+
+    if not leg_midpoints:
+        return {}
+
+    # 3. 각 pole 후보를 가장 가까운 다리에 매칭
+    pole_vectors = {}
+    used_poles = set()
+
+    for key, midpoint in leg_midpoints.items():
+        best_pole = None
+        best_dist = float("inf")
+
+        for pole in pole_candidates:
+            if pole["name"] in used_poles:
+                continue
+            dist = vec_length(vec_sub(pole["head"], midpoint))
+            if dist < best_dist:
+                best_dist = dist
+                best_pole = pole
+
+        if best_pole:
+            pole_vectors[key] = {
+                "name": best_pole["name"],
+                "head": best_pole["head"],
+            }
+            used_poles.add(best_pole["name"])
+
+    return pole_vectors
+
+
 EAR_KEYWORDS = ["ear"]
 # ear를 제외한 face 키워드
 FACE_ONLY_KEYWORDS = ["eye", "jaw", "mouth", "tongue"]
@@ -1171,6 +1243,9 @@ def analyze_skeleton(armature_obj):
     # 5. 꼬리 찾기
     tail_chain = find_tail_chain(root_name, spine_chain, deform_bones)
 
+    # 5b. IK pole vector 탐색 (전체 본에서, deform 여부 무관)
+    pole_vectors = find_pole_vectors(all_bones, legs, leg_foot_pairs)
+
     # 6. 얼굴 특징 찾기 (ear 분리)
     face_features = (
         find_head_features(head_name, deform_bones)
@@ -1237,6 +1312,7 @@ def analyze_skeleton(armature_obj):
         "unmapped": unmapped,
         "confidence": round(avg_confidence, 2),
         "bone_data": deform_bones,  # 위치 정보 포함
+        "pole_vectors": pole_vectors,  # IK pole vector 위치
         "preview_parent_overrides": build_preview_parent_overrides(unmapped, original_deform_bones),
     }
 

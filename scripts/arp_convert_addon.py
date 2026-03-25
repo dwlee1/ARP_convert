@@ -2114,6 +2114,40 @@ class ARPCONV_OT_BuildRig(Operator):
             else:
                 log(f"  {foot_ik_name} 미발견 또는 속성 없음", "WARN")
 
+        # Step 4c: IK pole vector 위치 매칭
+        build_analysis = preview_to_analysis(preview_obj)
+        pole_vectors = build_analysis.get("pole_vectors", {})
+        if pole_vectors:
+            log(f"IK pole vector 위치 매칭: {len(pole_vectors)}개")
+            _ARP_POLE_MAP = {
+                "back_leg_l": "c_leg_pole.l",
+                "back_leg_r": "c_leg_pole.r",
+                "front_leg_l": "c_arms_pole.l",
+                "front_leg_r": "c_arms_pole.r",
+            }
+            ensure_object_mode()
+            select_only(arp_obj)
+            bpy.ops.object.mode_set(mode="EDIT")
+            edit_bones = arp_obj.data.edit_bones
+            world_matrix_inv = arp_obj.matrix_world.inverted()
+
+            for leg_key, pole_info in pole_vectors.items():
+                arp_pole_name = _ARP_POLE_MAP.get(leg_key)
+                if not arp_pole_name:
+                    continue
+                pole_eb = edit_bones.get(arp_pole_name)
+                if pole_eb is None:
+                    log(f"  ARP pole 본 미발견: {arp_pole_name}", "WARN")
+                    continue
+                src_world = Vector(pole_info["head"])
+                local_pos = world_matrix_inv @ src_world
+                offset = local_pos - pole_eb.head
+                pole_eb.head += offset
+                pole_eb.tail += offset
+                log(f"  {arp_pole_name} <- {pole_info['name']} ({pole_info['head']})")
+
+            bpy.ops.object.mode_set(mode="OBJECT")
+
         # Step 5: unmapped cc_ 커스텀 본 추가
         from skeleton_analyzer import read_preview_roles
 
