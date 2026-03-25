@@ -928,6 +928,11 @@ class ARPCONV_Props(PropertyGroup):
         min=0.0,
         max=1.0,
     )
+    retarget_ik_mode: BoolProperty(
+        name="IK 모드 리타게팅",
+        description="FK 리타게팅 후 발/손 IK 컨트롤러에 위치를 베이크하고 IK 모드로 전환",
+        default=False,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2291,6 +2296,86 @@ class ARPCONV_OT_BuildRig(Operator):
 
 
 # ═══════════════════════════════════════════════════════════════
+# FK → IK 베이크
+# ═══════════════════════════════════════════════════════════════
+
+# ARP quadruped FK → IK 본 매핑
+_FK_IK_PAIRS = [
+    # (FK 컨트롤러, IK 컨트롤러) — back legs
+    ("c_foot_fk.l", "c_foot_ik.l"),
+    ("c_foot_fk.r", "c_foot_ik.r"),
+    # front legs (dupli)
+    ("c_hand_fk.l", "c_foot_ik_dupli_001.l"),
+    ("c_hand_fk.r", "c_foot_ik_dupli_001.r"),
+]
+
+
+def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
+    """FK 리타겟 결과를 IK 컨트롤러에 베이크.
+
+    각 프레임에서 FK 발/손 위치를 읽어 IK 컨트롤러에 위치 키프레임.
+    완료 후 ik_fk_switch를 IK(0.0)로 설정.
+    """
+    pose_bones = arp_obj.pose.bones
+    valid_pairs = []
+    for fk_name, ik_name in _FK_IK_PAIRS:
+        fk_pb = pose_bones.get(fk_name)
+        ik_pb = pose_bones.get(ik_name)
+        if fk_pb and ik_pb:
+            valid_pairs.append((fk_name, ik_name))
+            log(f"  FK→IK 쌍: {fk_name} → {ik_name}")
+
+    if not valid_pairs:
+        log("  FK→IK 베이크: 유효한 FK/IK 쌍 없음", "WARN")
+        return 0
+
+    scene = bpy.context.scene
+    keyframed = 0
+
+    for frame in range(f_start, f_end + 1):
+        scene.frame_set(frame)
+
+        for fk_name, ik_name in valid_pairs:
+            fk_pb = pose_bones[fk_name]
+            ik_pb = pose_bones[ik_name]
+
+            # FK 본의 world-space head 위치
+            fk_world_pos = (arp_obj.matrix_world @ fk_pb.matrix).translation
+
+            # IK 본의 현재 world-space head 위치 (rest + 현재 pose)
+            ik_world_pos = (arp_obj.matrix_world @ ik_pb.matrix).translation
+
+            # 필요한 world offset
+            offset_world = fk_world_pos - ik_world_pos
+
+            # offset을 IK 본의 부모 공간으로 변환
+            if ik_pb.parent:
+                parent_rot = (arp_obj.matrix_world @ ik_pb.parent.matrix).to_3x3()
+                offset_local = parent_rot.inverted() @ offset_world
+            else:
+                offset_local = arp_obj.matrix_world.to_3x3().inverted() @ offset_world
+
+            ik_pb.location = ik_pb.location + offset_local
+            ik_pb.keyframe_insert(data_path="location", frame=frame)
+            keyframed += 1
+
+    # IK/FK switch를 IK(0.0)로 설정 — 모든 프레임에 적용
+    ik_switched = []
+    for _, ik_name in valid_pairs:
+        ik_pb = pose_bones[ik_name]
+        if "ik_fk_switch" in ik_pb:
+            ik_pb["ik_fk_switch"] = 0.0
+            ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_start)
+            ik_pb.keyframe_insert(data_path='["ik_fk_switch"]', frame=f_end)
+            ik_switched.append(ik_name)
+
+    if ik_switched:
+        log(f"  IK/FK switch → IK(0.0): {', '.join(ik_switched)}")
+
+    return keyframed
+
+
+# ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: Step 4 — 리타게팅
 # ═══════════════════════════════════════════════════════════════
 
@@ -2419,12 +2504,19 @@ class ARPCONV_OT_Retarget(Operator):
                     fake_user_action=True,
                     interpolation_type="LINEAR",
                 )
+
+                # IK 모드: FK 결과를 IK 컨트롤러에 베이크
+                if props.retarget_ik_mode:
+                    ik_keys = _bake_fk_to_ik(arp_obj, f_start, f_end, log)
+                    log(f"    FK→IK 베이크: {ik_keys}개 키프레임")
+
                 success += 1
             except Exception as e:
                 fail += 1
                 log(f"    실패: {e}", "WARN")
 
-        self.report({"INFO"}, f"리타게팅 완료: {success}/{len(actions)} 성공")
+        mode_label = "IK" if props.retarget_ik_mode else "FK"
+        self.report({"INFO"}, f"리타게팅 완료 ({mode_label}): {success}/{len(actions)} 성공")
         return {"FINISHED"}
 
 
@@ -2671,6 +2763,7 @@ class ARPCONV_PT_MainPanel(Panel):
         col.scale_y = 1.3
         col.operator("arp_convert.build_rig", icon="MOD_ARMATURE")
         col.operator("arp_convert.retarget", icon="ACTION")
+        box.prop(props, "retarget_ik_mode")
 
         layout.separator()
 
