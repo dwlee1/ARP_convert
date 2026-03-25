@@ -1,0 +1,37 @@
+[project]
+name = "blender-rig-convert"
+version = "2.0.0"
+requires-python = ">=3.11"
+description = "Auto-Rig Pro 기반 동물 리그 변환 자동화 Blender 애드온"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["scripts", "tests", "tools"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E501",   # line too long (formatter 위임)
+    "E402",   # top-level import 순서 (bpy import 특수성)
+    "F401",   # unused imports (bpy 컨텍스트 임포트)
+    "E741",   # ambiguous variable name (l = left side 등 Blender 관례)
+    "RUF012", # mutable class defaults (Blender PropertyGroup 패턴)
+    "SIM108", # ternary 강제 (복잡한 조건에서 가독성 저하)
+    "SIM102", # nested if 병합 (맥락상 분리가 더 명확한 경우 있음)
+    "B905",   # zip() strict (호환성)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/arp_convert_addon.py" = ["E402"]
+"scripts/skeleton_analyzer.py" = ["E402"]
+"tests/conftest.py" = ["E402", "F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+addopts = "-v --tb=short"

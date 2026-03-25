@@ -1,15 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Edit",
-      "Write",
-      "WebSearch",
-      "WebFetch(*)",
-      "mcp__Claude_in_Chrome__*",
-      "mcp__Claude_Preview__*",
-      "mcp__mcp-registry__*",
-      "mcp__scheduled-tasks__*"
+      "Read(//c/Users/manag/.claude/**)",
+      "Bash(ls -la /c/Users/manag/.claude/skills/grill-me*)",
+      "Bash(grep -rn \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\\\\|BUG\\\\|dead code\\\\|deprecated\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
+      "Bash(grep -n \"import.*01_create\\\\|import.*02_retarget\\\\|import.*rigify_to_arp\\\\|from.*01_create\\\\|from.*02_retarget\\\\|from.*rigify_to_arp\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
+      "Bash(grep -rn \"edit_bones\\\\.new\\\\|edit_bones\\\\.remove\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
+      "Bash(grep -rn \"walrus\\\\|:=\\\\|match\\\\s\\\\|case\\\\s\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
+      "Bash(ln scripts/skeleton_analyzer.py \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/skeleton_analyzer.py\")",
+      "Bash(ln scripts/arp_convert_addon.py \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_convert_addon.py\")",
+      "Edit(~/.claude/skills/sync-addon/**)",
+      "Bash(find /c/Users/manag/Desktop/BlenderRigConvert -type f \\\\\\(-name *.log -o -name *.txt -o -name *fox* \\\\\\))",
+      "Bash(find /c/Users/manag/Desktop/BlenderRigConvert -type f -name *fox*)",
+      "Bash(grep -E '\\\\.\\(json|py|txt|md\\)$')",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/manag/Desktop/BlenderRigConvert/**)",
+      "Bash(else echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(grep -v \"^$\")",
+      "Bash(ln \"/c/Users/manag/Desktop/BlenderRigConvert/scripts/arp_convert_addon.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_convert_addon.py\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5\\scripts\\addons"
     ]
   }
 }

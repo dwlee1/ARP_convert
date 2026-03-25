@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: sync-agents-md
+        name: "AGENTS.md 하드링크 동기화"
+        entry: bash tools/sync_agents_md.sh
+        language: system
+        pass_filenames: false
+        always_run: true

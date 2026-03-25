@@ -12,3 +12,8 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+# 도구 캐시
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
