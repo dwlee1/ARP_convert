@@ -1,0 +1,38 @@
+Download
+============
+
+Auto-Rig Pro Download
+-----------------------
+
+Auto-Rig Pro is a paid addon, it can be downloaded from |Gumroad| or |Superhive|.
+
+.. |Superhive| raw:: html
+	
+	<a href="https://superhivemarket.com/products/auto-rig-pro?ref=46" target="_blank">Superhive</a>
+    
+.. |Gumroad| raw:: html
+	
+	<a href="https://gum.co/auto-rig-pro" target="_blank">Gumroad</a>
+    
+
+Documentation Download
+------------------------
+	
+To read off-line, |download_doc| - |download_doc_mirror|
+
+.. |download_doc| raw:: html
+	
+	<a href="doc.zip" target="_blank">click here to download the documentation</a>
+    
+    
+.. |download_doc_mirror| raw:: html
+	
+	<a href="https://drive.google.com/file/d/10hTKZY0eVIOns2j2XjbFJs5Yis02UQnB/view?usp=sharing" target="_blank">Mirror</a>
+    
+
+    
+For Blender 2.79 users, the old doc can be downloaded |download_279_doc|
+
+.. |download_279_doc| raw:: html
+	
+	<a href="doc279.zip" target="_blank">here</a>.

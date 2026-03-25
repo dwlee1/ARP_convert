@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rig Features &mdash; AutoRigPro Doc  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=eafc0fe6" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Game Engine Export" href="ge_export_doc.html" />
+    <link rel="prev" title="Auto-Rig" href="auto_rig.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #738dbe" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AutoRigPro Doc
+              <img src="_static/logo_cropped_esmall.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_rig.html">Auto-Rig</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Rig Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#naming-and-organization">Naming and Organization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#hierarchy-and-collections">Hierarchy and Collections</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#armature-collections">Armature Collections</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Armature Layers</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#rig-overview">Rig Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#user-interface-controllers">User Interface - Controllers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#picker-buttons">Picker Buttons</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#naming">Naming</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#rig-usage">Rig Usage</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#scaling-the-character">Scaling the character</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#arms-and-legs">Arms and Legs</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ik-fk-switch">IK-FK Switch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#snap-ik-fk">Snap IK-FK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#snap-fk-ik">Snap FK &gt; IK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id2">Snap IK &gt; FK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bake-fk-ik">Bake FK &gt; IK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bake-ik-fk">Bake IK &gt; FK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#arm-fk-lock">Arm FK Lock</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leg-fk-lock">Leg FK Lock</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#stretch-length">Stretch Length</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#auto-stretch">Auto Stretch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fix-roll">Fix Roll</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#snap-pole-parent-ik-only">Snap Pole Parent (IK only)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#snap-pinning">Snap Pinning</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#legs">Legs</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#legs-main-controllers">Legs Main Controllers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#foot-roll-break">Foot Roll Break</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#legs-3-bones">Legs 3 Bones</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#elbows-and-knees-pinning">Elbows and Knees Pinning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#neck">Neck</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#head">Head</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#lips">Lips</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#eyes-and-targets">Eyes and Targets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#auto-eyelids">Auto-Eyelids</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fingers">Fingers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-bend">Fingers Bend</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-fist">Fingers Fist</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-rot-from-scale">Fingers Rot from Scale</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-auto-spread">Fingers Auto-Spread</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-ik-fk">Fingers IK-FK</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#secondary-controllers">Secondary controllers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#spline-ik">Spline IK</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#extract-root-motion">Extract Root Motion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mirror-the-pose">Mirror the Pose</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#childof-switcher">ChildOf Switcher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rig-layers">Rig Layers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ui-camera-for-multiple-characters">UI Camera for Multiple Characters</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ge_export_doc.html">Game Engine Export</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remap_doc.html">Remap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_rig_doc.html">Quick Rig</a></li>
+<li class="toctree-l1"><a class="reference internal" href="updates_log.html">Updates Log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Help / FAQ</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bug_report.html">Bug Report - Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #738dbe" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AutoRigPro Doc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Rig Features</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/rig_behaviour_doc.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="rig-features">
+<span id="rigfeatures"></span><h1>Rig Features<a class="headerlink" href="#rig-features" title="Link to this heading"></a></h1>
+<section id="naming-and-organization">
+<h2>Naming and Organization<a class="headerlink" href="#naming-and-organization" title="Link to this heading"></a></h2>
+<section id="hierarchy-and-collections">
+<h3>Hierarchy and Collections<a class="headerlink" href="#hierarchy-and-collections" title="Link to this heading"></a></h3>
+<p>Rig objects are part of the mother collection named <strong>character1</strong> (default name, can be renamed, see <a class="reference internal" href="auto_rig.html#setcharactername"><span class="std std-ref">Set Character Name</span></a> ).</p>
+<p>The rig and UI objects are part of the child collection <strong>character1_rig</strong>.
+The custom shapes used for the controller bones shapes are part of the child collection <strong>character1_cs</strong>. This collection is hidden by default.</p>
+<p>Rig objects are also parented to the <strong>char_grp</strong> empty, as a master/root object of the hierarchy.</p>
+<img alt="_images/outliner_28.jpg" class="align-center" src="_images/outliner_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>When using the Additive mode for the secondary controllers, a second armature stands besides the main one, named “rig_add”:</p>
+<ul class="simple">
+<li><p>The armature named <strong>rig</strong> is the one to be used by the animator.</p></li>
+<li><p>The armature named <strong>rig_add</strong> which is hidden by default is the additive rig. It is not meant to be edited, you can fully ignored it, but it’s good to know some secondary bones rely on it so you must not delete it, when using Additive secondary controllers.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="armature-collections">
+<span id="armature-layers"></span><h3>Armature Collections<a class="headerlink" href="#armature-collections" title="Link to this heading"></a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Armature collections are part of Blender 4 and above only</p>
+</div>
+<p>The armature contains several bones collections to keep the rig organized.</p>
+<ul class="simple">
+<li><p>Main: Main bones controllers to manipulate the rig</p></li>
+<li><p>Secondary: Additional controllers to fine tweak the poses</p></li>
+<li><p>Deform: Deforming bones</p></li>
+<li><p>Reference: Reference bones used as guides to align the rig bones on. Typically, this collection is displayed when clicking <strong>Edit Reference Bones</strong>. See <a class="reference internal" href="auto_rig.html#rigdefinition"><span class="std std-ref">Rig Definition</span></a></p></li>
+<li><p>mch: The mch collections hold internal, mechanical bones that are not supposed to be selected or edited. These collections should generally remain hidden.</p></li>
+<li><p>color: The color collections hold bones belonging to the left (.l), right (.r) or middle (.x) side. Used with the <strong>Color Theme</strong> feature, see <a class="reference internal" href="auto_rig.html#heycolortheme"><span class="std std-ref">Color Theme</span></a></p></li>
+</ul>
+<img alt="_images/armature_collections.jpg" class="align-center" src="_images/armature_collections.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id1">
+<h3>Armature Layers<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Armature layers are part of Blender 3.6 and earlier only</p>
+</div>
+<ul class="simple">
+<li><p>Layer 0: Main controllers</p></li>
+<li><p>Layer 1: Secondary controllers</p></li>
+<li><p>Layer 16: Other picker bones</p></li>
+<li><p>Layer 17: Reference bones</p></li>
+<li><p>Layer 31: Deforming bones</p></li>
+<li><p>Others: For internal use only</p></li>
+</ul>
+<img alt="_images/armature_layers_28.jpg" class="align-center" src="_images/armature_layers_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="rig-overview">
+<h2>Rig Overview<a class="headerlink" href="#rig-overview" title="Link to this heading"></a></h2>
+<section id="user-interface-controllers">
+<h3>User Interface - Controllers<a class="headerlink" href="#user-interface-controllers" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Controller bones can be selected directly in the 3d view or by using the bone picker interface.</p></li>
+<li><p><strong>To hide controllers</strong> in the viewport, disable the “overlays”:</p></li>
+</ul>
+<img alt="_images/disable_overlays.jpg" class="align-center" src="_images/disable_overlays.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Picker Panel</strong> :You can easily select a group of controllers (arms, legs, secondary…) by making a rectangle selection (B key), show/hide layers… Note the picker layout can be customized, by default all buttons are spread on a grid template, but their position can be changed (see <a class="reference internal" href="auto_rig.html#pickersetup"><span class="std std-ref">Picker Panel</span></a>)</p></li>
+</ul>
+<img alt="_images/picker_image2.jpg" class="align-center" src="_images/picker_image2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="picker-buttons">
+<h3>Picker Buttons<a class="headerlink" href="#picker-buttons" title="Link to this heading"></a></h3>
+<p><strong>Layers</strong>: Just click these buttons in the picker panel to show/hide a layer for display simplication.</p>
+<ul class="simple">
+<li><p><strong>Main</strong>: the main controllers for posing the character. You can’t do much shape tweak with them but they’ll give you a good basis to start.</p></li>
+<li><p><strong>Secondary</strong>: for fine shape tuning. To scale, move, rotate a specific body part, tweak a shape…</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="naming">
+<h3>Naming<a class="headerlink" href="#naming" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Bones named with <strong>c_</strong> prefix (e.g. “c_root_master.x”) are “controller”: they are selectable, they’re meant to be animated. They may deform or not deform meshes.</p></li>
+<li><p>Bones named with <strong>_ref</strong> suffix (e.g. “root_ref.x”) are “reference”: they’re just guides used to align the final rig on. They’re not part of the rig system itself but they’re part of the armature, in a hidden layer, revealed when clicking “Edit Reference Bones”. They don’t deform meshes.</p></li>
+<li><p>Bones named without prefix are internal bones necessary for the rig mechanic. They may deform or not deform meshes.</p></li>
+<li><p><strong>.l</strong> and <strong>.r</strong> stands for the left or right side of the character (+X, -X). Right controllers are blue, left are red.</p></li>
+<li><p><strong>.x</strong> suffix means they belong to the center of the character, in green.</p></li>
+<li><p>Shapes objects for bone display have the prefix <strong>cs_</strong> (custom shapes).</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="rig-usage">
+<h2>Rig Usage<a class="headerlink" href="#rig-usage" title="Link to this heading"></a></h2>
+<section id="scaling-the-character">
+<h3>Scaling the character<a class="headerlink" href="#scaling-the-character" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>To apply a global scale, the “c_pos” and “c_traj” controllers can be scaled, or alternatively the whole armature object (in that case, all mesh objects must be parented to the armature).</p></li>
+</ul>
+<img alt="_images/global_scale.gif" class="align-center" src="_images/global_scale.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>The main controllers are fully scalable except a few ones. Don’t unlock the transforms values, it would lead to strange behaviors. Use the secondary controllers instead (second layer) to scale a specific part.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="arms-and-legs">
+<span id="legtools"></span><h3>Arms and Legs<a class="headerlink" href="#arms-and-legs" title="Link to this heading"></a></h3>
+<img alt="_images/properties2_28.jpg" class="align-center" src="_images/properties2_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>To display the arms and legs properties, select an arm or leg controller (c_hand_ik.l for example). Press N key to display the properties panel on the right side of the 3d view and go to the <strong>Tool</strong> tab &gt; <strong>Rig Main Properties</strong></p>
+<section id="ik-fk-switch">
+<h4>IK-FK Switch<a class="headerlink" href="#ik-fk-switch" title="Link to this heading"></a></h4>
+<p>To manually switch the kinematic type, from 0.0 (IK) to 1.0 (FK).</p>
+<p>In IK mode, the feet stick to their position when moving the main pelvis controller (c_root_master). The legs rotation is controled by the foot position in a dynamic way.</p>
+<img alt="_images/ik_legs.gif" class="align-center" src="_images/ik_legs.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>In FK mode, each bone can be rotated individually, the legs bones inherit the main pelvis controller position and rotation.</p>
+<img alt="_images/fk_legs.gif" class="align-center" src="_images/fk_legs.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="snap-ik-fk">
+<h4>Snap IK-FK<a class="headerlink" href="#snap-ik-fk" title="Link to this heading"></a></h4>
+<p>Switch and snap the kinematic mode. If currently set to IK, will set to FK, and vice versa.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Access the manual, advanced snap features by clicking the Gears icon button:</p>
+</div>
+</section>
+<section id="snap-fk-ik">
+<h4>Snap FK &gt; IK<a class="headerlink" href="#snap-fk-ik" title="Link to this heading"></a></h4>
+<p>Snap the FK chain onto the IK chain. The IK-FK switch will be set to FK (1.0) accordingly.</p>
+</section>
+<section id="id2">
+<h4>Snap IK &gt; FK<a class="headerlink" href="#id2" title="Link to this heading"></a></h4>
+<p>Snap the IK chain onto the FK chain. The IK-FK switch will be set to IK (0.0) accordingly.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/bake_ik_fk.jpg" class="align-center" src="_images/bake_ik_fk.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bake-fk-ik">
+<h4>Bake FK &gt; IK<a class="headerlink" href="#bake-fk-ik" title="Link to this heading"></a></h4>
+<p>Snap the FK chain onto the IK chain for a specified frame range, and bake it to keyframes. Useful when converting an FK animation to IK.</p>
+</section>
+<section id="bake-ik-fk">
+<h4>Bake IK &gt; FK<a class="headerlink" href="#bake-ik-fk" title="Link to this heading"></a></h4>
+<p>Snap the IK chain onto the FK chain for a specified frame range, and bake it to keyframes. Useful when converting an IK animation to FK.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="arm-fk-lock">
+<span id="armfklock"></span><h4>Arm FK Lock<a class="headerlink" href="#arm-fk-lock" title="Link to this heading"></a></h4>
+<p>This setting is not enabled by default. Must be turned on in arms <strong>Limb Options</strong>, see <a class="reference internal" href="auto_rig.html#armfklockoption"><span class="std std-ref">Arm FK Lock-Free</span></a></p>
+<ul class="simple">
+<li><p>The upperarm will inherit the rotation of the torso (default locked behavior) or the master c_traj rotation when it’s unlocked.</p></li>
+</ul>
+<img alt="_images/arm_fk_lock.gif" class="align-center" src="_images/arm_fk_lock.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="leg-fk-lock">
+<span id="legfklock"></span><h4>Leg FK Lock<a class="headerlink" href="#leg-fk-lock" title="Link to this heading"></a></h4>
+<p>This setting is not enabled by default. Must be turned on in legs <strong>Limb Options</strong>, see <a class="reference internal" href="auto_rig.html#legfklockoption"><span class="std std-ref">Thigh FK Lock-Free</span></a></p>
+<ul class="simple">
+<li><p>The thigh will inherit the rotation of the pelvis (default locked behavior) or the master c_traj rotation when it’s unlocked.</p></li>
+</ul>
+<img alt="_images/leg_fk_lock.gif" class="align-center" src="_images/leg_fk_lock.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="stretch-length">
+<h4>Stretch Length<a class="headerlink" href="#stretch-length" title="Link to this heading"></a></h4>
+<p>To specify the length of the IK or FK chain</p>
+<img alt="_images/stretch_length.gif" class="align-center" src="_images/stretch_length.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="auto-stretch">
+<h4>Auto Stretch<a class="headerlink" href="#auto-stretch" title="Link to this heading"></a></h4>
+<p>To enable/disable auto-stretch (IK chain only). Enable = 1, Disable = 0</p>
+<img alt="_images/auto_stretch.gif" class="align-center" src="_images/auto_stretch.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fix-roll">
+<h4>Fix Roll<a class="headerlink" href="#fix-roll" title="Link to this heading"></a></h4>
+<p><em>Deprecated feature, now useless since new and better twist constraints have been set in recent updates.</em>
+Fix the ankle roll/twist effect when the foot is highly rotated. Useful for quadruped rigs.</p>
+</section>
+<section id="snap-pole-parent-ik-only">
+<span id="snappoleparent"></span><h4>Snap Pole Parent (IK only)<a class="headerlink" href="#snap-pole-parent-ik-only" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">Switch the Pole Parent setting to 0 (global, c_traj parent), or 1 (foot parent) and preserve its position.</div>
+<div class="line">See the pole constraints to change the parent bone.</div>
+<div class="line">When the <a class="reference internal" href="auto_rig.html#smart-ik-pole"><span class="std std-ref">Smart IK Pole</span></a> is enabled, the pole can be snapped to the <strong>Smart IK Pole</strong> as a third possibility.</div>
+</div>
+<img alt="_images/snap_pole_parent.gif" class="align-center" src="_images/snap_pole_parent.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="snap-pinning">
+<h4>Snap Pinning<a class="headerlink" href="#snap-pinning" title="Link to this heading"></a></h4>
+<p>Switch the <strong>Pinning</strong> setting to 1 or 0 and snap the related bones (elbow or knee) automatically.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="legs">
+<h3>Legs<a class="headerlink" href="#legs" title="Link to this heading"></a></h3>
+<section id="legs-main-controllers">
+<h4>Legs Main Controllers<a class="headerlink" href="#legs-main-controllers" title="Link to this heading"></a></h4>
+<p>Select the controller <strong>c_foot_roll_cursor</strong> to access these foot motion:</p>
+<ul class="simple">
+<li><p><strong>Bank</strong> left-right: translate Z axis</p></li>
+<li><p><strong>Foot rotation from heel/end toes</strong>: translate X axis</p></li>
+<li><p><strong>Foot rotation from the toes</strong>: Select the controller c_foot_01 to rotate the heel from the toes pivot.</p></li>
+</ul>
+<img alt="_images/foot_controls_28.gif" class="align-center" src="_images/foot_controls_28.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>In IK mode, the knee/elbow can be oriented using the pole controller, or using the direct rotation controller (pressing RR (two times R Key) is recommended to rotate it easily)</p>
+<img alt="_images/ik_ctrl_28.jpg" class="align-center" src="_images/ik_ctrl_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="foot-roll-break">
+<span id="footrollbreak"></span><h4>Foot Roll Break<a class="headerlink" href="#foot-roll-break" title="Link to this heading"></a></h4>
+<p>[Not enabled by default, must be turned on in Limb Options: <a class="reference internal" href="auto_rig.html#footrollbreaklo"><span class="std std-ref">Foot Roll Break</span></a>]</p>
+<p>If enabled, the foot will rotate first from the <strong>ball</strong> pivot when raising the <em>c_foot_roll_cursor</em>, then from the <strong>tip</strong> toes pivot when reaching a given value.</p>
+<ul class="simple">
+<li><p><strong>Foot Roll Break Point</strong>: When the <em>c_foot_roll_cursor</em> position reaches this value, the foot will start rotating from the tip toes pivot. Below this value, from the ball.</p></li>
+<li><p><strong>Foot Roll Speed</strong>: Global value to adjust how fast the foot rolls when moving the <em>c_foot_roll_cursor</em></p></li>
+<li><p><strong>Foot Roll Overshoot</strong>: When starting to rotate from the tip toes pivot, this value controls how far the toes will rotate backward</p></li>
+<li><p><strong>Foot Roll Unfold Lag</strong>: Controls how fast the ball rotation fades out when terminating the foot rool motion. The higher this value is, the slower the ball rotation will be reset to zero</p></li>
+</ul>
+<img alt="_images/foot_roll_break.gif" class="align-center" src="_images/foot_roll_break.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="legs-3-bones">
+<span id="ikbones"></span><h4>Legs 3 Bones<a class="headerlink" href="#legs-3-bones" title="Link to this heading"></a></h4>
+<p>When the leg is setup with 3 bones (<a class="reference internal" href="auto_rig.html#boneslegoption"><span class="std std-ref">3 Bones Leg</span></a>), the IK constraint may affect 2 or 3 bones, using the <strong>3 Bones IK</strong> slider:</p>
+<img alt="_images/3_bones_ik.jpg" class="align-center" src="_images/3_bones_ik.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/3_bones_ik_demo.gif" class="align-center" src="_images/3_bones_ik_demo.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="elbows-and-knees-pinning">
+<h3>Elbows and Knees Pinning<a class="headerlink" href="#elbows-and-knees-pinning" title="Link to this heading"></a></h3>
+<p>Select the pinning bone and set the pinning property to 1.0 for a full pinning.</p>
+<img alt="_images/pining_28.jpg" src="_images/pining_28.jpg" />
+<img alt="_images/pinned.jpg" src="_images/pinned.jpg" />
+<p><em>Typical example of a character with pinned elbow on the table to virtually stick them to the surface.</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="neck">
+<h3>Neck<a class="headerlink" href="#neck" title="Link to this heading"></a></h3>
+<p>If neck twist bones are enabled, the neck twist amount can be adjusted with <strong>Neck Global Twist</strong> and <strong>Neck Twist</strong></p>
+<img alt="_images/neck_twist.gif" class="align-center" src="_images/neck_twist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="head">
+<h3>Head<a class="headerlink" href="#head" title="Link to this heading"></a></h3>
+<p>The head rotation can inherit or disinherit the neck rotation by selecting the head controller and setting the <strong>Head Lock</strong> value.
+The <strong>Snap Head Lock</strong> button will automatically switch the value and preserve the head rotation.</p>
+<img alt="_images/head_lock_snap.jpg" class="align-center" src="_images/head_lock_snap.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/head_lock_anim.gif" class="align-center" src="_images/head_lock_anim.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="lips">
+<span id="lipssettings"></span><h3>Lips<a class="headerlink" href="#lips" title="Link to this heading"></a></h3>
+<p>By selecting the jaw controller, use the <strong>Lips Retain</strong> value with additional stretch and squash to keep the lips sealed when opening the jaw.</p>
+<img alt="_images/lips_retain_value_28.jpg" src="_images/lips_retain_value_28.jpg" />
+<img alt="_images/lips_retain.gif" src="_images/lips_retain.gif" />
+<p>If <strong>Sticky Lips</strong> is enabled, the <strong>Lips Follow</strong> setting allows to keep the upper lips in line with the lower lips when moving the jaw on the sides:</p>
+<img alt="_images/sticky_lips_follow.gif" src="_images/sticky_lips_follow.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyes-and-targets">
+<h3>Eyes and Targets<a class="headerlink" href="#eyes-and-targets" title="Link to this heading"></a></h3>
+<p>There are two options to animate the eyes: the eye targets (IK), or the eye rotation controllers (FK).</p>
+<ul class="simple">
+<li><p>The target controller is the big one, containing the two circles for left and right eyes</p></li>
+<li><p>The eye rotation controllers are the smaller ones, closer to the eyeballs</p></li>
+</ul>
+<img alt="_images/eye_target_3dview.jpg" src="_images/eye_target_3dview.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Picker: select the circle under the eyebrows, inside of the big one. The smallest one, in the center, controls the eye reflection.</p>
+<img alt="_images/eye_target.jpg" src="_images/eye_target.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>When selecting an eye controller, this property will be displayed in the property panel to let you choose wich option you want to use:</p>
+<img alt="_images/eye_target_slider_28.jpg" class="align-center" src="_images/eye_target_slider_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">The target controller also comes with a default ChildOf constraint with the head as parent.</div>
+<div class="line">This constraint can be disabled to detach it from the head.</div>
+</div>
+<img alt="_images/eye_targets.gif" class="align-center" src="_images/eye_targets.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="auto-eyelids">
+<h3>Auto-Eyelids<a class="headerlink" href="#auto-eyelids" title="Link to this heading"></a></h3>
+<p>The amount of automatic eyelid rotation, based on the eyes rotations, can be found when clicking on the eyes or eyelids controllers</p>
+<img alt="_images/auto_eyelids.gif" class="align-center" src="_images/auto_eyelids.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers">
+<h3>Fingers<a class="headerlink" href="#fingers" title="Link to this heading"></a></h3>
+<section id="fingers-bend">
+<span id="fingersbend"></span><h4>Fingers Bend<a class="headerlink" href="#fingers-bend" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>To bend all fingers at once, select the hand controller, and tweak the <strong>Fingers Grasp</strong> property in the Rig Main Properties tab:</p></li>
+</ul>
+<img alt="_images/fingers_grasp_28.jpg" class="align-center" src="_images/fingers_grasp_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>It rotates 2 or 3 phalanges depending on the rigging setup (see <a class="reference internal" href="auto_rig.html#rotfromscale"><span class="std std-ref">Rotate Fingers from Scale</span></a> ).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This only rotates fingers linearly on the X axis though, it may not be accurate enough to make a decent fist pose. Use the <a class="reference internal" href="auto_rig.html#handfist"><span class="std std-ref">Hand Fist</span></a> feature to make a real fist pose.</p>
+</div>
+<ul class="simple">
+<li><p>You can rotate the three finger phalanges at once by selecting the base finger bone of any finger and use this parameter:</p></li>
+</ul>
+<img alt="_images/finger_base.jpg" src="_images/finger_base.jpg" />
+<img alt="_images/bend_all_28.jpg" src="_images/bend_all_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers-fist">
+<h4>Fingers Fist<a class="headerlink" href="#fingers-fist" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>If a fist controller (<a class="reference internal" href="auto_rig.html#handfist"><span class="std std-ref">Hand Fist</span></a>) has been added on the hand, it will nicely curl the fingers into a pre-defined fist pose when scaling it. It is more accurate than the <strong>Grasp Fingers</strong> property:</p></li>
+</ul>
+<img alt="_images/auto_fist.gif" class="align-center" src="_images/auto_fist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers-rot-from-scale">
+<span id="userotfromscale"></span><h4>Fingers Rot from Scale<a class="headerlink" href="#fingers-rot-from-scale" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>If the rig is setup with the <strong>Rot from Scale</strong> parameter, scaling the first phalange will rotate the other phalanges.</p></li>
+</ul>
+<img alt="_images/new_finger_rot.gif" class="align-center" src="_images/new_finger_rot.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers-auto-spread">
+<h4>Fingers Auto-Spread<a class="headerlink" href="#fingers-auto-spread" title="Link to this heading"></a></h4>
+<p>Rotating the base finger of the pinky will spread out the other fingers as well:</p>
+<img alt="_images/auto_base_fingers.gif" class="align-center" src="_images/auto_base_fingers.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers-ik-fk">
+<h4>Fingers IK-FK<a class="headerlink" href="#fingers-ik-fk" title="Link to this heading"></a></h4>
+<p>If IK-FK is enabled for fingers, fingers can be manipulated with these controllers and settings:</p>
+<img alt="_images/fingers_ik_2.gif" class="align-center" src="_images/fingers_ik_2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/fingers_tools_panel2.jpg" class="align-center" src="_images/fingers_tools_panel2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Snap IK-FK</strong>: Switch the IK-FK property and snap finger bones automatically to preserve their current pose</p></li>
+<li><p><strong>IK-FK</strong>: The IK-FK switch property value, from 0.0 (full IK) to 1.0 (full FK)</p></li>
+<li><p><strong>Snap All to IK/FK</strong>: Snaps IK-FK for all fingers at once</p></li>
+<li><p><strong>Toggle All IK Parents</strong>: Enable or disable the IK target Child Of constraint, to free them or lock them to the hand, while preserving their current pose.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="secondary-controllers">
+<h3>Secondary controllers<a class="headerlink" href="#secondary-controllers" title="Link to this heading"></a></h3>
+<p>Feel free to make an extensive use of the secondary controllers for fine pose sculpting. For example, here is an extreme leg deformation (default skinning weights), before and after tweaking:</p>
+<img alt="_images/secondary_tweaks.jpg" class="align-center" src="_images/secondary_tweaks.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Additionnaly, you can create corrective shape keys. Choose the workflow you prefer!</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="spline-ik">
+<span id="splineiksettings"></span><h3>Spline IK<a class="headerlink" href="#spline-ik" title="Link to this heading"></a></h3>
+<p>Spline IK limbs have various options to enable or disable stretch (Y Scale), volume preservation and variation.</p>
+<img alt="_images/spline_ik_props.jpg" class="align-center" src="_images/spline_ik_props.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>If <strong>IK-FK Chain</strong> is enabled in Limbs Options (see <a class="reference internal" href="auto_rig.html#splineikoptions"><span class="std std-ref">Spline IK Options</span></a>), an IK-FK switch and Snap settings are also there.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>IK to FK snapping is accurate, but FK to IK is not by nature: compensating the smooth curve interpolation between control points is quite a technical challenge, to be improved later if possible.</p>
+</div>
+<img alt="_images/spline_snapikfk.gif" class="align-center" src="_images/spline_snapikfk.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="extract-root-motion">
+<span id="extractrootmotion"></span><h3>Extract Root Motion<a class="headerlink" href="#extract-root-motion" title="Link to this heading"></a></h3>
+<img alt="_images/extract_root_motion_ex.gif" class="align-center" src="_images/extract_root_motion_ex.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">This button is enabled when selecting the “c_traj” controller.</div>
+<div class="line">Bakes the “c_traj” controller according to the pelvis position, while maintaining it on the floor, and preserving the rig animation.</div>
+<div class="line">This comes in handy when animating, in case the c_traj hasn’t been animated to translate the character, whereas it should be animated for practical reasons (repositioning the character elsewhere, walk cycle, etc…)</div>
+<div class="line">A keyframe is added on each frame, to the c_traj and related bones (c_root_master, hands and feet IK controllers, etc…)</div>
+</div>
+<p>Also useful to extract and export root motion animations to Unreal Engine.</p>
+<img alt="_images/extract_root_motion.jpg" class="align-center" src="_images/extract_root_motion.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>c_root_master / c_root</strong>: Target bone that the c_traj bone will track in order to evaluate root motion, either <strong>c_root_master</strong> or <strong>c_root</strong>.</p></li>
+<li><p><strong>Location X,Y,Z</strong>: Location axes that will be evaluated when tracking. Generally, Z should be skipped since the pelvis height is not supposed to be part of the root motion, but can be useful in some cases (flying, climbing, jumping motions)</p></li>
+<li><p><strong>Location Z Offset</strong>: If the Z axis is enabled, the initial Z distance (on the start frame) between the c_traj bone and pelvis bone is maintained</p></li>
+<li><p><strong>Rotation</strong>: Enables Rotation extraction</p></li>
+<li><p><strong>Pelvis Forward Axis</strong>: Axis of the pelvis bone that is used to track the rotation. Typically <strong>Z</strong> by default in Auto-Rig Pro armatures, but can be another axis if armatures where generated with Quick Rig for example, leading to different default axes. The Y axis of the c_traj bone will be aligned with it.</p></li>
+<li><p><strong>Frame Start - Frame End</strong>: Frame range defining the root motion extraction baking process.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="mirror-the-pose">
+<h3>Mirror the Pose<a class="headerlink" href="#mirror-the-pose" title="Link to this heading"></a></h3>
+<p>Select the controllers you want to mirror then click these buttons:</p>
+<img alt="_images/mirror_28.jpg" class="align-center" src="_images/mirror_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="childof-switcher">
+<h2>ChildOf Switcher<a class="headerlink" href="#childof-switcher" title="Link to this heading"></a></h2>
+<div class="line-block">
+<div class="line">The “Snap Child Of” tool is useful to quickly switch from one Child Of constraint to another, while preserving the coordinates of the bone.</div>
+<div class="line">Includes a keyframe button to keyframe all Child Of constraints influence, and support automatic keyframing.</div>
+<div class="line"><br /></div>
+<div class="line">Example:</div>
+<div class="line">In a car drive animation, the hand IK controller must be parented to the steering wheel, then later to the side door.</div>
+</div>
+<ul class="simple">
+<li><p>Add two ChildOf constraints to the <strong>c_hand_ik</strong> controller, with the steering wheel and door as targets. New ChildOf constraints can be added to any bones, see the <a href="https://docs.blender.org/manual/en/latest/animation/constraints/relationship/child_of.html" target="_blank">Blender manual</a>.</p></li>
+<li><p>When animating, switch between constraints by using the <strong>ChildOf Switcher</strong>.</p></li>
+</ul>
+<img alt="_images/snap_childof2.gif" class="align-center" src="_images/snap_childof2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/snap_childof.gif" class="align-center" src="_images/snap_childof.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="rig-layers">
+<span id="riglayers"></span><h2>Rig Layers<a class="headerlink" href="#rig-layers" title="Link to this heading"></a></h2>
+<p>Rig Layers is a list of custom layers for rig and characters related elements, to quickly hide or show components: armature layers, bones, collection and objects. Useful to toggle some features of a character (clothes, props…) or show/hide a given set of controllers.</p>
+<img alt="_images/rig_layers2.gif" class="align-center" src="_images/rig_layers2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Animated visibility is supported if the “Animated Layers” toggle is enabled:</p>
+<img alt="_images/animatedlayers.jpg" class="align-center" src="_images/animatedlayers.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ui-camera-for-multiple-characters">
+<h2>UI Camera for Multiple Characters<a class="headerlink" href="#ui-camera-for-multiple-characters" title="Link to this heading"></a></h2>
+<p>In case of multiple characters in the scene, to update the picker window view with the selcted characters, click <strong>Set Picker Cam</strong> in the <strong>Rig Main Properties</strong> tab.</p>
+<img alt="_images/set_ui_cam_prop_28.jpg" class="align-center" src="_images/set_ui_cam_prop_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="auto_rig.html" class="btn btn-neutral float-left" title="Auto-Rig" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="ge_export_doc.html" class="btn btn-neutral float-right" title="Game Engine Export" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2016-2023, Artell.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

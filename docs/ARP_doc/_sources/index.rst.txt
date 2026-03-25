@@ -1,0 +1,39 @@
+
+Welcome to the Auto-Rig Pro documentation!
+===========================================
+
+.. image:: img/logo.jpg
+   :align: center
+
+   
+This complete guide gives instructions to start with, from installing the addon, rigging, to skinning and appending the character in a new scene. It also includes the Fbx Export and Remap documentation.
+
+Also make sure to check |location_link| for video tutorials and useful informations.
+
+.. |location_link| raw:: html
+
+	<a href="https://www.youtube.com/c/ArtellBlender" target="_blank">the youtube channel</a>
+    
+    
+.. toctree::
+   :maxdepth: 2
+   
+   install   
+   auto_rig
+   rig_behaviour_doc
+   ge_export_doc
+   remap_doc  
+   quick_rig_doc   
+   updates_log
+   faq
+   license
+   bug_report
+   download
+
+
+
+
+
+
+  
+

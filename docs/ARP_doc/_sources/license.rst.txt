@@ -1,0 +1,21 @@
+
+
+License
+*********
+
+Auto-Rig Pro is released under the terms of multiple licenses. Auto-Rig Pro **cannot be freely distributed** as is. Some components are GPL, some are not.
+
+- The add-on source code components of Auto-Rig Pro that include the BPY module are released under the terms of the GNU General Public License, version 3.
+- The AI files, binaries, are released under a restrictive copyrighted license.
+- Assets files such as icon image components, and preset rig components in .blend format, are released under the terms of the Royalty Free license, and CC0 for some of them.
+
+
+Refer to the LICENSE files in the subfolders for more details.
+
+.. note::
+    In any case, a rig generated with Auto-Rig Pro by the end-user (such as in the process of rigging a character), is the sole property of the end-user who has full rights on it (the .blend file).
+
+
+
+
+	

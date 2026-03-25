@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remap &mdash; AutoRigPro Doc  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=eafc0fe6" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Quick Rig" href="quick_rig_doc.html" />
+    <link rel="prev" title="Game Engine Export" href="ge_export_doc.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #738dbe" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AutoRigPro Doc
+              <img src="_static/logo_cropped_esmall.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_rig.html">Auto-Rig</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rig_behaviour_doc.html">Rig Features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ge_export_doc.html">Game Engine Export</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Remap</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#what-s-that">What’s that?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#euler-support">Euler Support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#workflow">Workflow</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#import-the-source-animation">Import the Source Animation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#set-source-and-target-armatures">Set Source and Target Armatures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multiple-animations">Multiple Animations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build-bones-list">Build Bones List</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#presets">Presets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bones-settings">Bones Settings</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#root-bone">Root Bone</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ik-settings">IK settings</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#others">Others</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#armatures-rest-pose">Armatures Rest Pose</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#retargeting">Retargeting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#interactive-tweaks">Interactive Tweaks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="quick_rig_doc.html">Quick Rig</a></li>
+<li class="toctree-l1"><a class="reference internal" href="updates_log.html">Updates Log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Help / FAQ</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bug_report.html">Bug Report - Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #738dbe" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AutoRigPro Doc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Remap</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/remap_doc.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="remap">
+<span id="id1"></span><h1>Remap<a class="headerlink" href="#remap" title="Link to this heading"></a></h1>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+<iframe src="https://www.youtube.com/embed/0GKPCn-JQ4k" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+</div><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<section id="what-s-that">
+<h3>What’s that?<a class="headerlink" href="#what-s-that" title="Link to this heading"></a></h3>
+<p>The Remap tool is useful to re-target an armature animation to another one.
+You can import for example a BVH motion capture file and transfer it to a rigged character.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="euler-support">
+<h3>Euler Support<a class="headerlink" href="#euler-support" title="Link to this heading"></a></h3>
+<p>The “Interactive Tweaks” tool only works with <strong>Euler</strong> rotation mode at the moment.
+This tool can be used to tweak the bones rotation after retargetting.
+If you wish to use it while the target armature is set up with <strong>Quaternions</strong>, you can do the following:</p>
+<ul class="simple">
+<li><p>Select all bones (A key) in Pose Mode, and hold <strong>Alt key</strong> while clicking the <strong>XYZ Euler</strong> switch instead of Quaternion in the transform tab (holding Alt apply the action for all selected bones)</p></li>
+</ul>
+<img alt="_images/quaternion_transform_28.jpg" class="align-center" src="_images/quaternion_transform_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you don’t use the “Interactive Tweaks” tool, you can ignore this warning.
+It’s also possible to tweak the bones transforms after retargetting, using an additive animation strip.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="workflow">
+<h2>Workflow<a class="headerlink" href="#workflow" title="Link to this heading"></a></h2>
+<p>The <em>Target</em> armature (the one that will receive the animation) must be in the scene. It can be any type of armature (Auto-Rig Pro, Rigify, custom rig…). However, the built-in mapping <a class="reference internal" href="#remappresets"><span class="std std-ref">Presets</span></a> are made specifically for Auto-Rig Pro armatures as <em>Target</em>.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Make sure to zero-out the armature object <strong>Location</strong> and <strong>Rotation</strong> coordinates, errors may raise otherwise.
+Press Alt-G and Alt-R to reset, or manually set the values to zero.</p>
+<img alt="_images/zero_out_armature.jpg" class="align-center" src="_images/zero_out_armature.jpg" />
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="import-the-source-animation">
+<h3>Import the Source Animation<a class="headerlink" href="#import-the-source-animation" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Import the animated skeleton file (typical formats are FBX, BVH…): File &gt; Import &gt; select the file. This animated skeleton will be called  the <em>Source</em> armature.</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When importing <strong>FBX</strong> format, check <strong>Automatic Bones Orientations</strong> in the import settings to ease the retargetting process. Otherwise, bones may be imported with weird axes, making it harder to visualize the animation.</p>
+</div>
+<p>Then it’s time to configure the Remap settings!</p>
+<img alt="_images/bvh_import4_28.jpg" class="align-center" src="_images/bvh_import4_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="set-source-and-target-armatures">
+<h3>Set Source and Target Armatures<a class="headerlink" href="#set-source-and-target-armatures" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>First select the <em>Source</em> armature and assign it in the dedicated field at the top of the menu</p></li>
+<li><p>Then the <em>Target</em> armature and assign it below</p></li>
+<li><p>Push <strong>Auto-Scale</strong> to adjust the source armature scale to the target automatically. Scale it manually (S key) otherwise.</p></li>
+<li><p>Use the <strong>In Place</strong> option to keep a looping animation in place (e.g. walking, running…)</p></li>
+</ul>
+<img alt="_images/remap_in_place.gif" class="align-center" src="_images/remap_in_place.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="multiple-animations">
+<h3>Multiple Animations<a class="headerlink" href="#multiple-animations" title="Link to this heading"></a></h3>
+<div class="line-block">
+<div class="line">The current animation of the <em>Source</em> armature will be used as input.</div>
+<div class="line">However, it is possible to retarget multiple animations by clicking the <strong>Multiple Source Anim…</strong> button.</div>
+<div class="line">Select all actions/animations that must be transferred to the target armature in the pop-up menu:</div>
+</div>
+<img alt="_images/remap_multiple_anims.jpg" class="align-center" src="_images/remap_multiple_anims.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="build-bones-list">
+<h3>Build Bones List<a class="headerlink" href="#build-bones-list" title="Link to this heading"></a></h3>
+<p>Now, configure the bones mapping list.</p>
+<ul class="simple">
+<li><p>Click <strong>Build Bones List</strong></p></li>
+</ul>
+<img alt="_images/remap_list.jpg" class="align-center" src="_images/remap_list.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">A list of <em>Source</em> and corresponding <em>Target</em> bones has been generated.</div>
+<div class="line">A function has tried to guess what target bone should match each source bones, based on their names. However, it can be wrong!</div>
+</div>
+<p>The bones list must be carefully checked and set, either manually or from a preset.</p>
+<ul>
+<li><dl class="simple">
+<dt>Preset:</dt><dd><p>If the <em>Target</em> armature is an Auto-Rig Pro one, a preset may be used. <a class="reference internal" href="#remappresets"><span class="std std-ref">Presets</span></a> embedded with this add-on are made for traditional mocap skeletons, such as Mixamo, Rokoko, XSens, etc… For example, if the <em>Source</em> armature is from Mixamo, select the Mixamo preset.</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>Manual:</dt><dd><div class="line-block">
+<div class="line">If no preset exists yet for the <em>Source</em> and <em>Target</em> armatures, the bones list must be set manually. It can be exported/imported as a new preset later.</div>
+<div class="line">Check and modify if necessary the mapping, by changing the target bone for each source bone.</div>
+<div class="line">It can be a tedious process for sure, but not hard at all. See this <a href="https://drive.google.com/file/d/1ricqGXQ-U-e_MxifU50c9Tzz7v2oa1Ia/view?usp=sharing" target="_blank">video tutorial</a></div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<ul class="simple">
+<li><p>Click this button to quickly select in the bones list the bone that is selected in the viewport:</p></li>
+</ul>
+<img alt="_images/remap_synchro_select.jpg" class="align-center" src="_images/remap_synchro_select.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="presets">
+<span id="remappresets"></span><h3>Presets<a class="headerlink" href="#presets" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>The bones mapping (source and target bone names in the list) can be imported and exported with the  <strong>import/export</strong> buttons.</p></li>
+<li><p>Built-in presets can be imported using the downarrow button. The default embedded presets are made for Auto-Rig Pro <em>Target</em> armatures, and traditional <em>Source</em> mocap skeletons such as Mixamo, Rokoko…</p></li>
+<li><p>The <strong>Replace Namespace</strong> is a search and replace function when presets have different prefix names than the current bone names (e.g: mixamorig:Hips &gt; matthew:Hips)</p></li>
+</ul>
+<img alt="_images/remap_presets.gif" class="align-center" src="_images/remap_presets.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bones-settings">
+<h3>Bones Settings<a class="headerlink" href="#bones-settings" title="Link to this heading"></a></h3>
+<img alt="_images/remap_bone_setting.jpg" class="align-center" src="_images/remap_bone_setting.jpg" />
+<section id="root-bone">
+<h4>Root Bone<a class="headerlink" href="#root-bone" title="Link to this heading"></a></h4>
+<p><strong>Set as Root</strong>: Define this bone as the root bone, typically the first or second bone of the hierarchy (hips or pelvis).
+Setting it as <em>Root</em> will retarget translation + rotation, while only rotation is used otherwise.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ik-settings">
+<h4>IK settings<a class="headerlink" href="#ik-settings" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line"><strong>IK:</strong> Useful for accurate feet and hands animations.  It enables translation retargeting, and IK pole settings.</div>
+<div class="line">When retargeting to Rigify or similar control rigs, make sure to switch to IK mode the controllers of these rigs (e.g., foot, hands…). This is automatically performed for Auto-Rig Pro rigs.</div>
+</div>
+<figure class="align-default" id="id2">
+<img alt="_images/feet_ik.gif" src="_images/feet_ik.gif" />
+<figcaption>
+<p><span class="caption-text"><em>IK feet, no sliding</em></span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id3">
+<img alt="_images/feet_fk.gif" src="_images/feet_fk.gif" />
+<figcaption>
+<p><span class="caption-text"><em>FK feet, noticeable sliding</em></span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p><strong>Pole:</strong> Pole bone of the IK chain. When retargeting, the IK pole position is calculated and this bone will be keyframed. If not set, the IK pole position is skipped.</p>
+<img alt="_images/remap_ik_pole.gif" class="align-center" src="_images/remap_ik_pole.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl>
+<dt><strong>IK Pole Mode:</strong> Defines how the IK pole should be evaluated.</dt><dd><p><strong>Absolute</strong>: Evaluate the exact IK pole position based on the real IK pole vector as defined by the bones geometric plane. Ideal if the input skeleton has high quality, refined animation data.</p>
+<p><strong>Relative: Target</strong> : The IK pole is treated as a child of the target bone (e.g the foot). Less accurate than absolute, but great if the source animation doesn’t comply with IK constraints requirement, such as broken geometric plane (stretched out leg, arm).</p>
+<p><strong>Relative: Chain</strong>: The IK pole is treated as a child of the IK bones chain. Less accurate than absolute, but great if the source animation doesn’t comply with IK constraints requirement, such as broken geometric plane (stretched out leg, arm).</p>
+</dd>
+</dl>
+<p><strong>IK World Space</strong>: Use world IK coordinates instead of relative/local, works better under certain circumstances, for example if the character is spinning.</p>
+<p><strong>Add IK Constraints:</strong> If enabled, add automatically IK constraints to the target bones when retargeting . Should only be enabled for simple skeleton that are not rigged with constraints yet. Works if the target bones IK hierarchy is valid, e.g. foot parented to calf, calf parented to thigh bone.</p>
+<p><strong>IK Axis Correc</strong>: Axis used to correct IK bones alignment if necessary, in World Space coordinates. Typically, characters facing the Y axis should have this values set to Y. If facing X, set to X.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="others">
+<h4>Others<a class="headerlink" href="#others" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line"><strong>Location</strong>: Click this checkbox to enable location retargeting in local space (relative to the parent bone).</div>
+<div class="line">This is especially useful for facial animation, when bones are animated in translation/location instead of rotation (e.g. eyelids, lips bones).</div>
+<div class="line">To adjust the strength of the location retargetting, use the <strong>Interactive Tweaks</strong> &gt; <strong>Location Multiplier</strong> (see <a class="reference internal" href="#interactivetweaks"><span class="std std-ref">Interactive Tweaks</span></a>)</div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="armatures-rest-pose">
+<h3>Armatures Rest Pose<a class="headerlink" href="#armatures-rest-pose" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Make sure both source and target armatures are facing the same direction in rest pose: select them and enter Edit mode (Tab key) to check the rest pose. Retargetting is a picky technical process, things should be in a plain boring state to work properly. If they are not facing the same direction, rotate the whole armature object manually.</p></li>
+</ul>
+<img alt="_images/remap_rest_pose_turn.gif" class="align-center" src="_images/remap_rest_pose_turn.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/remap_arp_dir_wrong.jpg" class="align-center" src="_images/remap_arp_dir_wrong.jpg" />
+<img alt="_images/remap_arp_dir_right.jpg" class="align-center" src="_images/remap_arp_dir_right.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Check the source armature rest pose: if it’s the same as the target armature rest pose (same arms, legs orientations), go to the next step. If not, see below:</p></li>
+</ul>
+<img alt="_images/different_rest_pose.jpg" class="align-center" src="_images/different_rest_pose.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>From the picture above we can see the source armature, on the left, has a different rest pose than the target armature on the right (A-pose versus T-pose).
+So we’ll need to redefine the rest pose of the source armature. No worries, it’s easy! We’re almost done, I promise.</p>
+<ul class="simple">
+<li><p>Click the <strong>Redefine Rest Pose</strong> button</p></li>
+</ul>
+<img alt="_images/redefine_rest_pose_28.jpg" class="align-center" src="_images/redefine_rest_pose_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>A pop-up menu will show. Tick the <strong>Preserve</strong> checkbox in order to maintain the current rest pose of the armature, but a new rest pose will be saved internally, hidden in the armature data. This is recommended to keep the armature untouched.</p></li>
+</ul>
+<img alt="_images/redefine_rest_pose_pop.jpg" class="align-center" src="_images/redefine_rest_pose_pop.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul>
+<li><dl>
+<dt>Below are 3 parameters: <strong>Rest Pose</strong>, <strong>Current Pose</strong>, <strong>Saved</strong>.</dt><dd><div class="line-block">
+<div class="line">The first one <em>Rest Pose</em> will use the actual rest pose of the armature as the new base editable pose.</div>
+<div class="line">The second one <em>Current Pose</em> will take a snapshot of the current pose as shown in the viewport and will use it as the base editable pose.</div>
+<div class="line">The third <em>Saved</em> will backup the latest rest pose, if it was saved with this tool earlier.</div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<p>The pose will remain editable until clicking <strong>Apply</strong>. This only defines the base pose to start with.</p>
+<p>Select the bones that are not oriented like the target armatures bones (in this case the arms and legs) and click <strong>Copy Selected Bones Rotation</strong>, wich will copy the corresponding bone direction automatically from the target armature (may not work properly if the poses are too much different, in this case do this manually). Then click <strong>Apply</strong> to complete.</p>
+<img alt="_images/copy_selected_target1_28.jpg" class="align-center" src="_images/copy_selected_target1_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/redefine_rest_pose_copy.gif" class="align-center" src="_images/redefine_rest_pose_copy.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="retargeting">
+<h3>Retargeting<a class="headerlink" href="#retargeting" title="Link to this heading"></a></h3>
+<p>Okay, here we are! Ready to fire the engine.</p>
+<ul class="simple">
+<li><p>Click <strong>Re-Target</strong> to transfer the animation.</p></li>
+</ul>
+<img alt="_images/remap_retarget_click.gif" class="align-center" src="_images/remap_retarget_click.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>If the bones list was all set with correct settings, and if the rest poses are OK =&gt; animation should have been transferred <em>nicely</em>!</p>
+<p>If the source and target armatures have very different proportions, it may be necessary to apply some tweaks.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="interactive-tweaks">
+<span id="interactivetweaks"></span><h3>Interactive Tweaks<a class="headerlink" href="#interactive-tweaks" title="Link to this heading"></a></h3>
+<p>Interactive tweaks are useful to adjust the bones rotation and position quickly after retargetting, to refine the result.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<div class="line-block">
+<div class="line">It’s also possible to tweak the result using additive animation layers, called NLA strips in Blender. More informations in the Blender documentation.</div>
+<div class="line">And this add-on makes it even easier, highly recommended if you process a lot of mocap : <a href="https://blendermarket.com/products/animation-layers?ref=46" target="_blank">Animation Layers</a></div>
+</div>
+</div>
+<p>Interactive Tweaks are per-bone settings. It means each bone can be tweaked independently.</p>
+<p>Examples:</p>
+<ul class="simple">
+<li><p>After retargetting, the root/pelvis bone is too high, we need it lower: select the pelvis bone in the bones list, set the <strong>Additive Location</strong> value, and click <strong>-Y</strong> to move it along the Y axis downward (assuming this bone in your skeleton has its Y axis pointing up).</p></li>
+</ul>
+<img alt="_images/remap_interactive_tweaks.gif" class="align-center" src="_images/remap_interactive_tweaks.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>When remapping facial animations, lips bones are moving too much: select a lip bone, set the <strong>Location Multiplier</strong> value to 0.5 to reduce motions by 50%, and click <strong>Set</strong>. Repeat the process for each lips bone.</p></li>
+</ul>
+<img alt="_images/remap_tweak_lips.gif" class="align-center" src="_images/remap_tweak_lips.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Click the <strong>X</strong> button next to <strong>Interactive Tweaks</strong> to revert all tweaks applied.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="ge_export_doc.html" class="btn btn-neutral float-left" title="Game Engine Export" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="quick_rig_doc.html" class="btn btn-neutral float-right" title="Quick Rig" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2016-2023, Artell.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

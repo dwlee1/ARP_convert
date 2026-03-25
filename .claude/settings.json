@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m ruff format scripts/ tests/)",
+      "Read(//c/Users/manag/Desktop/BlenderRigConvert/**)",
+      "Bash(python -m pre_commit install)",
+      "Bash(python tests/generate_cat_fixture.py)",
+      "Bash(python -m pytest tests/test_skeleton_analyzer.py -v)",
+      "Read(//c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/**)",
+      "WebSearch",
+      "WebFetch(domain:lucky3d.fr)",
+      "WebFetch(domain:www.lucky3d.fr)",
+      "WebFetch(domain:blenderartists.org)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Read(//c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/**)",
+      "Bash(git status:*)",
+      "Bash(python -m ruff check scripts/arp_convert_addon.py)",
+      "Bash(python -m ruff check scripts/arp_convert_addon.py scripts/skeleton_analyzer.py)",
+      "Bash(ADDONS=\"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons\")",
+      "Bash(rm -f \"$ADDONS/arp_convert_addon.py\")",
+      "Bash(ln scripts/arp_convert_addon.py \"$ADDONS/arp_convert_addon.py\")",
+      "Bash(ruff check:*)",
+      "Bash(git config:*)"
+    ]
+  }
+}

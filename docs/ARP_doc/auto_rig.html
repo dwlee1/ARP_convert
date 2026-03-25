@@ -1,0 +1,2994 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto-Rig &mdash; AutoRigPro Doc  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=eafc0fe6" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Rig Features" href="rig_behaviour_doc.html" />
+    <link rel="prev" title="Installation" href="install.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #738dbe" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AutoRigPro Doc
+              <img src="_static/logo_cropped_esmall.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Auto-Rig</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#setup">Setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#setting-up-the-model">Setting up the model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#add-the-armature">Add the armature</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#smart">Smart</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mac-warning">Mac Warning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-use">How to use</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#guess-markers">Guess Markers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#without-guess-markers-manual-marker-placement">Without Guess Markers (manual marker placement)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers">Fingers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#facial">Facial</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#rig-definition">Rig Definition</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#limbs-setup">Limbs Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#biped-multiped">Biped - Multiped</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#limb-options">Limb Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#head-options">Head Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#skulls">Skulls</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id1">Facial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eyebrows-right-eyebrows-left">Eyebrows Right, Eyebrows Left</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eyebrow-masters">Eyebrow Masters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#soft-eyebrows">Soft Eyebrows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eyelids-tweak-controllers">Eyelids Tweak Controllers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eyelids-amount">Eyelids Amount</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eyelids-masters-freq">Eyelids Masters Freq</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eye-targets-distance">Eye Targets Distance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#align-eyelids">Align Eyelids</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mouth">Mouth</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lips-offset-controller">Lips Offset Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#muzzle-controller">Muzzle Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lips-roll-constraints">Lips Roll Constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lips-roll-speed">Lips Roll Speed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lips-amount">Lips Amount</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lips-masters-freq">Lips Masters Freq</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#linear-masters">Linear (Masters)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#soft-lips">Soft Lips</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#linear-y">Linear Y</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#linear-z">Linear Z</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#linear-jaw">Linear (Jaw)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#limit-corners-jaw">Limit (Corners/Jaw)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#soft-lips-visual-only">Soft Lips: Visual Only</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sticky-lips">Sticky Lips</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#soft-cheeks">Soft Cheeks</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#neck-options">Neck Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#count">Count</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#twist-bones">Twist Bones</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bendy-bones">Bendy Bones</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#spine-options">Spine Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id2">Count</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#spine-master-controller">Spine Master Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#space">Space</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bottom">Bottom</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#align-root-master">Align Root Master</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#align-bend-controllers">Align Bend Controllers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#reversed-spine">Reversed Spine</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#update-existing-vertex-groups">Update Existing Vertex Groups</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#arm-options">Arm Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#arm-fk-lock-free">Arm FK Lock-Free</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3">Twist Bones</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ik-pole-distance">IK Pole Distance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#soft-ik">Soft IK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#auto-ik-roll">Auto IK Roll</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#hand-ik-offset-controller">Hand IK Offset Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#hand-ik-pivot-controller">Hand IK Pivot Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rotate-fingers-from-scale">Rotate Fingers from Scale</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-shapes">Fingers Shapes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4">Fingers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fingers-ik-fk">Fingers IK-FK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#joints-fans">Joints Fans</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wings">Wings</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#leg-options">Leg Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#thigh-fk-lock-free">Thigh FK Lock-Free</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id5">Twist Bones</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">Soft IK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#autoikroll">Auto IK Roll</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#foot-roll-break">Foot Roll Break</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bones-leg">3 Bones Leg</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#smart-ik-pole">Smart IK Pole</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#foot-ik-offset-controller">Foot IK Offset Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#foot-ik-pivot-controller">Foot IK Pivot Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#toes-ik-fk">Toes IK-FK</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#toes-individuals">Toes (individuals)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#toes-metatarsal">Toes Metatarsal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#toes-parent-foot">Toes Parent Foot</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#toes-pivot-controller">Toes Pivot Controller</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id9">IK Pole Distance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id10">Joints Fans</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#tail-options">Tail Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id11">Count</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#master-controller-at-root">Master Controller at Root</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ear-options">Ear Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id12">Count</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#spline-ik-options">Spline IK Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ik-spline-count">IK Spline Count</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bendy-bones-count">Bendy Bones Count</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#curve-smoothness">Curve Smoothness</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#name">Name</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#side">Side</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ik-fk-chain">IK-FK Chain</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#update-vertex-groups">Update Vertex Groups</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#deform">Deform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#update-transforms">Update Transforms</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#advanced-mode">Advanced  Mode</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#controllers-frequency">Controllers Frequency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#interpolation">Interpolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c-spline-master-parent">c_spline_master parent</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c-spline-master-tip-parent">c_spline_master tip parent</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c-spline-tip-parent">c_spline_tip parent</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ik-spline-example-to-rig-a-spine">IK Spline example to rig a Spine</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ik-spline-example-to-rig-an-ik-neck">IK Spline example to rig an IK Neck</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#bendy-bones-options">Bendy-Bones Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id13">Bendy Bones Count</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bendy-bones-segments">Bendy Bones Segments</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#controller-scale">Controller Scale</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id14">Side</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#kilt-options">Kilt Options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#count-per-side">Count (per side)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#preserve-shape">Preserve Shape</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#master-controllers-columns">Master Controllers (columns)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#master-frequency">Master Frequency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#subdivisions">Subdivisions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#subdivide-reference-bones">Subdivide Reference Bones</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#master-controllers-row">Master Controllers (row)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id15">Name</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#collide-with-legs">Collide with Legs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#interactive-collision-distance">Interactive Collision Distance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#collision-distance">Collision Distance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#collide-on-z">Collide on Z</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#shapes">Shapes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#secondary-controllers">Secondary Controllers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#positionning-the-reference-bones">Positionning the Reference Bones</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ik-chains">IK Chains</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ik-chains-auto-roll">IK Chains Auto Roll</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#spine">Spine</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id16">Facial</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#duplicate-disable-limbs">Duplicate - Disable Limbs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parenting-reference-bones">Parenting Reference Bones</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-custom-bones">Adding Custom Bones</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#saving-custom-bones">Saving Custom Bones</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#generate-the-rig">Generate The Rig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rig-ui">Rig UI</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#bone-shapes">Bone Shapes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#picker-panel">Picker Panel</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id19">Setup</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#remove">Remove</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#customize">Customize</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#color-theme">Color Theme</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#import-export-rig-data">Import/Export Rig Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#skinning">Skinning</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#binding">Binding</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bind-engines">Bind Engines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bind-settings">Bind Settings</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#skinning-weight-painting-and-shape-keys">Skinning: Weight Painting and Shape Keys</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#how-to-paint-the-weights">How to paint the weights?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#clothes">Clothes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#eyes">Eyes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#shape-keys">Shape Keys</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#corrective-shape-keys">Corrective Shape Keys</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#hand-fist">Hand Fist</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#blink-pose">Blink Pose</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#changing-the-rest-pose">Changing the Rest Pose</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#set-pose">Set Pose</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#apply-pose-as-rest-pose">Apply Pose as Rest Pose</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#set-character-name">Set Character Name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#optimizing-the-rig-performances">Optimizing the Rig Performances</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#cleaning-weights">Cleaning Weights</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#clearing-custom-normals-and-auto-smoothing">Clearing Custom Normals and Auto-Smoothing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#normal-maps-shaders">Normal Maps Shaders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#playback-options">Playback Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#meshes-hiding">Meshes Hiding</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#appending-linking-in-a-scene">Appending - Linking in a scene</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#appending">Appending</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#linking">Linking</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#compatibility-with-other-addons">Compatibility with other Addons</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#cascadeur-to-game-engines">Cascadeur to Game Engines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#x-muscles-system">X-Muscles System</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#x-pose-picker">X-Pose Picker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id21">Rig UI</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#conclusion">Conclusion</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="rig_behaviour_doc.html">Rig Features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ge_export_doc.html">Game Engine Export</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remap_doc.html">Remap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_rig_doc.html">Quick Rig</a></li>
+<li class="toctree-l1"><a class="reference internal" href="updates_log.html">Updates Log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Help / FAQ</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bug_report.html">Bug Report - Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #738dbe" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AutoRigPro Doc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Auto-Rig</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/auto_rig.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="auto-rig">
+<h1>Auto-Rig<a class="headerlink" href="#auto-rig" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+<iframe src="https://www.youtube.com/embed/93wUF_GTzpo" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+</div><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The DO NOTs!</p>
+<ul class="simple">
+<li><p><strong>Do not delete</strong> any objects or bones that Auto-Rig Pro has generated</p></li>
+<li><p><strong>Do not rename</strong> Auto-Rig Pro bones</p></li>
+<li><p><strong>Do not edit the bones collections, hierarchy</strong></p></li>
+</ul>
+<p>… It would break Auto-Rig Pro <em>and generate earthquakes</em>.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="setup">
+<h2>Setup<a class="headerlink" href="#setup" title="Link to this heading"></a></h2>
+<section id="setting-up-the-model">
+<h3>Setting up the model<a class="headerlink" href="#setting-up-the-model" title="Link to this heading"></a></h3>
+<ul>
+<li><p>The character model must be in the center of the world (0,0,0) (as if he is… the master of the world!)</p></li>
+<li><div class="line-block">
+<div class="line">It has to face the -Y global axis, it means the face and feet must point toward the front view (numpad 1). This orientation is a common standard when rigging 3D character.</div>
+<div class="line">If it’s not the case, just turn the object by 90° steps until it faces the front view (R key, Z key, type 90 numpad keys).</div>
+</div>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can also use the <strong>Turn</strong> buttons of the <strong>Smart</strong> tools to rotate the model, so that it faces the camera (read below the Smart tool instructions).</p>
+</div>
+<img alt="_images/character_setup.jpg" class="align-center" src="_images/character_setup.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>(Optional) Initialize the mesh transforms for a clean start: <strong>Ctrl-A &gt; Position, Ctrl-A &gt; Rotation &amp; Scale</strong></p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="add-the-armature">
+<h3>Add the armature<a class="headerlink" href="#add-the-armature" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Press <strong>N key</strong> to enable the properties panel in the 3d view right area.</p></li>
+<li><p>Look for the <strong>ARP</strong> tab</p></li>
+</ul>
+<img alt="_images/rig_add_armature5.png" class="align-center" src="_images/rig_add_armature5.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Press the <strong>Add Armature</strong> button in the Rig tab.</p></li>
+</ul>
+<img alt="_images/add_armature28.png" class="align-center" src="_images/add_armature28.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul>
+<li><div class="line-block">
+<div class="line">Choose a rig preset.</div>
+<div class="line">This part of the documentation covers the <strong>Human</strong> rig only, but the same principles apply to the other types (Dog, Horse…).</div>
+<div class="line">The <strong>Empty</strong> preset is used to build a rig from scratch, it does not contain any limbs by default. Arms, legs, spine… can be added by clicking the <strong>Add Limbs</strong> button.</div>
+</div>
+</li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="smart">
+<h2>Smart<a class="headerlink" href="#smart" title="Link to this heading"></a></h2>
+<img alt="_images/smart4.gif" class="align-center" src="_images/smart4.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">The Smart feature is useful to quickly place the reference bones within a few clicks.</div>
+<div class="line">For humanoids only. If the character is not a humanoid, go straight to the next chapter to manually place the reference bones.</div>
+</div>
+<p>Guidelines:</p>
+<ul>
+<li><p>The character can be in <strong>T-Pose</strong> or <strong>A-Pose</strong></p></li>
+<li><dl>
+<dt>For best results with fingers detection:</dt><dd><div class="line-block">
+<div class="line">Keep spaces between fingers, spread fingers</div>
+<div class="line">Palm must face the floor</div>
+<div class="line">Not too low-poly</div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="mac-warning">
+<h3>Mac Warning<a class="headerlink" href="#mac-warning" title="Link to this heading"></a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<div class="line-block">
+<div class="line">A small percentage of Mac users are experiencing crashes when setting up the markers.</div>
+<div class="line">I have personally never encountered this issue on a MacBook Pro 2020 (Intel) and a Mac Mini M2, but after investigations this is due to a graphical memory leak on certain Mac systems.</div>
+</div>
+<div class="line-block">
+<div class="line">If this happens to you, tick <strong>Disable Smart FX</strong> in the addon preferences, or tick the checkbox when prompted in the Smart menu. The markers will be replaced by “static” icons, this will ensure compatibility without crashing.</div>
+</div>
+<img alt="_images/mac_detected_message_smart_fx.jpg" class="align-center" src="_images/mac_detected_message_smart_fx.jpg" />
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="how-to-use">
+<h3>How to use<a class="headerlink" href="#how-to-use" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Facial: if you wish to setup the facial markers (optional), first make sure the eyeballs are a separate object</p></li>
+<li><p>Show the ARP addon interface: press <strong>N key to enable the properties panel in the 3d view right area</strong>, look for the <strong>ARP</strong> tab, then <strong>Auto-Rig Pro: Smart</strong> menu.</p></li>
+<li><p>Select all of the body objects. Avoid selecting props, clothes objects if they’re not necessary to define the character body.</p></li>
+<li><p>Click <strong>Get Selected Objects</strong> in the Auto-rig Pro : Smart panel</p></li>
+</ul>
+<img alt="_images/auto_rig_pro_smart_28.jpg" class="align-center" src="_images/auto_rig_pro_smart_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The camera will frame the character in front view.</p>
+<ul class="simple">
+<li><p>If the character doesn’t face the camera, you can use the <strong>Turn</strong> buttons to rotate by 90° steps</p></li>
+</ul>
+<img alt="_images/smart_tab_add2_28.jpg" class="align-center" src="_images/smart_tab_add2_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="guess-markers">
+<span id="guessmarkers"></span><h4>Guess Markers<a class="headerlink" href="#guess-markers" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">An AI model has been implemented in option, to setup automatically the markers.</div>
+<div class="line"><em>Required: AI files must be installed, see</em> <a class="reference internal" href="install.html#aiinstall"><span class="std std-ref">AI files (Smart tool)</span></a></div>
+<div class="line">Only for symmetrical characters for now.</div>
+</div>
+<img alt="_images/ai2.gif" class="align-center" src="_images/ai2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">The result may not always be accurate, especially with stylized, original character shapes.</div>
+<div class="line">Don’t hesitate to reposition the markers if they’re incorrect.</div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="without-guess-markers-manual-marker-placement">
+<h4>Without Guess Markers (manual marker placement)<a class="headerlink" href="#without-guess-markers-manual-marker-placement" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>If the character is not symmetrical, uncheck <strong>Mirror</strong>. If enabled, the left markers/bones are mirrored to the right (right from the character’s perspective, screen-left)</p></li>
+<li><p>Click the <strong>Add Neck</strong> button. A new circle shaped marker is added, move the mouse cursor to position it at the root of the neck.</p></li>
+<li><p>No need to rotate the view while doing this, keeping the front view  will be fine. The solver will automatically find the depth</p></li>
+<li><p>Click the next button <strong>Add Chin</strong>, position it nearby the chin, and do the same for the other markers</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="fingers">
+<h4>Fingers<a class="headerlink" href="#fingers" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>Set the number of fingers of the character:</p></li>
+</ul>
+<img alt="_images/fingers_count_29.jpg" class="align-center" src="_images/fingers_count_29.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Two engines are available to detect fingers joints:</p>
+<ul>
+<li><dl>
+<dt>AI</dt><dd><div class="line-block">
+<div class="line">(<em>AI files must be installed, see</em> <a class="reference internal" href="install.html#aiinstall"><span class="std std-ref">AI files (Smart tool)</span></a>)</div>
+<div class="line">It’s a good all-rounder solver. It can solve complex topology cases such as intricated geometry (robots, ball joints…). It may still fail though with complex, weird fingers.</div>
+<div class="line">Click <strong>Guess Fingers</strong> to predict the fingers joints and tweak them if necessary.</div>
+<div class="line">Or, just click the <strong>Go!</strong> button to start the whole process, including fingers.</div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<img alt="_images/ai_fingers.gif" class="align-center" src="_images/ai_fingers.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul>
+<li><dl>
+<dt>Voxel Centroid</dt><dd><div class="line-block">
+<div class="line">Works best with slick, simple fingers shapes. But is more fragile and prone to error when something goes wrong during the voxelization process.</div>
+<div class="line">It is run automatically when clicking the <strong>Go!</strong> button</div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<div class="line-block">
+<div class="line"><strong>Fingers detection failure</strong>:</div>
+<div class="line">The fingers recognition should run fine with most characters, however it may fail sometimes.</div>
+<div class="line">When using AI engine, try increasing the <strong>AI Samples</strong>, and decreasing the <strong>Error Threshold</strong> to allow more tolerant predictions.</div>
+<div class="line">When using Voxel Centroid, try increasing <strong>Finger Thickness</strong> if the fingers are thicker than average human fingers, and tweak <strong>Voxel Precision</strong>.</div>
+</div>
+<div class="line-block">
+<div class="line">If it still does not work, something unexpected in the hands design prevents the detection to work.</div>
+<div class="line">Consider placing the fingers manually: <a class="reference internal" href="#editref"><span class="std std-ref">Positionning the Reference Bones</span></a>.</div>
+</div>
+</div>
+<img alt="_images/smart_fingers_settings.jpg" class="align-center" src="_images/smart_fingers_settings.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="facial">
+<h4>Facial<a class="headerlink" href="#facial" title="Link to this heading"></a></h4>
+<p>Optionally, <a href="https://youtu.be/28gJhqCQyxE?t=38" target="_blank">facial markers</a> can be set up, if you wish to rig the face.</p>
+<ul class="simple">
+<li><p>Push the <strong>Add Facial</strong> button</p></li>
+</ul>
+<img alt="_images/smart_add_facial.jpg" class="align-center" src="_images/smart_add_facial.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Position the markers vertices to match your character face proportions:</p></li>
+</ul>
+<img alt="_images/smart_colored_facial_markers.jpg" class="align-center" src="_images/smart_colored_facial_markers.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Enter the eyeball object name in the dedicated input field</p></li>
+</ul>
+<img alt="_images/smart_teeth_tongue.jpg" class="align-center" src="_images/smart_teeth_tongue.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Other optional teeth and tongue objects can be set to position the bones more accurately, and help automatic skinning later.</p></li>
+<li><p>Click <strong>OK</strong></p></li>
+<li><p>Click the <strong>Go!</strong> button</p></li>
+</ul>
+<p>After a few seconds, the references bones should be properly positionned on the model. Note that this may require additional manual tweaking to get a more accurate placement.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+</section>
+<section id="rig-definition">
+<span id="rigdefinition"></span><h2>Rig Definition<a class="headerlink" href="#rig-definition" title="Link to this heading"></a></h2>
+<section id="limbs-setup">
+<h3>Limbs Setup<a class="headerlink" href="#limbs-setup" title="Link to this heading"></a></h3>
+<p>It is now time to configure and define the skeleton.</p>
+<ul class="simple">
+<li><p>Select the armature object</p></li>
+<li><p>If you don’t use Auto-rig Pro : Smart, first scale the armature in object mode so that it roughly fits the character height</p></li>
+<li><p>Show the ARP interface: press <strong>N key</strong> to display the properties panel at the right of the viewport, look for the <strong>ARP</strong> tab</p></li>
+<li><p><strong>Auto Rig Pro</strong> &gt; <strong>Rig</strong> tab &gt; click <strong>Edit Reference Bones</strong></p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Reference bones can be edited anytime after the rig completion by simply clicking <strong>Edit Reference Bones</strong> again</p>
+</div>
+<img alt="_images/rig_def_v8.jpg" class="align-center" src="_images/rig_def_v8.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Limbs can be added one by one using the <strong>Add Limb</strong> button.</p></li>
+</ul>
+<img alt="_images/add_limb.gif" class="align-center" src="_images/add_limb.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="biped-multiped">
+<h3>Biped - Multiped<a class="headerlink" href="#biped-multiped" title="Link to this heading"></a></h3>
+<p>For quadrupedal creatures (dog, cat, horse…) it’s necessary to switch to <strong>Multi-Ped</strong> type instead of the default <strong>Biped</strong>. As Biped, the spine controller shapes are oriented vertically. As Multi-Ped, their orientation is free, since a quadruped/multi-ped stands with his “hands” on the ground.</p>
+<p><a href="https://youtu.be/Xm2ng33Io6I" target="_blank">Dog Rig</a> tutorial by CGDive.</p>
+<img alt="_images/biped_multiped.jpg" class="align-center" src="_images/biped_multiped.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="limb-options">
+<h3>Limb Options<a class="headerlink" href="#limb-options" title="Link to this heading"></a></h3>
+<p>Limbs have various options to fit… various needs! To access options of a limb, select a bone from it and click <strong>Limb Options</strong>. For example, select an arm bone and click <strong>Limb Options</strong> to enable or disable the fingers, by ticking/unticking the checkboxes.
+To disable, add or duplicate a specific limb, see chapter <a class="reference internal" href="#duplilimb"><span class="std std-ref">Duplicate - Disable Limbs</span></a></p>
+<img alt="_images/limb_options_arm.jpg" class="align-center" src="_images/limb_options_arm.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="head-options">
+<h3>Head Options<a class="headerlink" href="#head-options" title="Link to this heading"></a></h3>
+<img alt="_images/head_limb.jpg" class="align-center" src="_images/head_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/head_options5.jpg" class="align-center" src="_images/head_options5.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="skulls">
+<h4>Skulls<a class="headerlink" href="#skulls" title="Link to this heading"></a></h4>
+<p>Add skulls controllers to manipulate independently:</p>
+<ul class="simple">
+<li><p>the lower facial bones <strong>mouth, jaw</strong> with c_skull_01</p></li>
+<li><p>the mid facial bones <strong>nose, eyes, eyebrows</strong> with c_skull_02</p></li>
+<li><p>the <strong>top of the head</strong> with c_skull_03</p></li>
+</ul>
+<img alt="_images/skulls_move.gif" class="align-center" src="_images/skulls_move.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="id1">
+<h4>Facial<a class="headerlink" href="#id1" title="Link to this heading"></a></h4>
+<p>Global switch to turn on/off all facial controllers.</p>
+<p>There are typically two routes to rig facial: bones or shape keys.
+And for edgy riggers, mixing bones and shape keys is an option too!</p>
+<ul>
+<li><dl>
+<dt><strong>Bones</strong>:</dt><dd><div class="line-block">
+<div class="line">Ideal for high-end rigs and animations, because it allows fine control over the facial expressions, highly customizable.</div>
+<div class="line">But this is not ideal for game engines because of the numerous bones that will impact realtime performances. When choosing bones, make sure to enable most of the facial controllers/setings below in the facial <strong>Limb Options</strong> menu.</div>
+</div>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt><strong>Shape Keys</strong>:</dt><dd><div class="line-block">
+<div class="line">Ideal for game engines purposes. This is generally lighter than a full bones facial rig, will comply easily with game engines.</div>
+<div class="line">Shape keys are sculpted facial expressions that will deform vertices when enabled (e.g. smile, jaw open, blink shape keys…).</div>
+<div class="line">When choosing shape keys, it is not necessary to enable the facial options below. Shape keys must be created manually, and driven by custom properties (see <a class="reference internal" href="ge_export_doc.html#shapekeysexport"><span class="std std-ref">Shape Keys</span></a> export).</div>
+<div class="line">Alternatively, they can be driven by controllers, for example the “open_jaw” shape can be driven by the jaw controller position. In that case, the facial settings/controllers can be enabled, but the facial bones should not deform the mesh -make sure to remove any facial vertex groups, the whole head should be skinned to the <em>head.x</em> bone.</div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyebrows-right-eyebrows-left">
+<h4>Eyebrows Right, Eyebrows Left<a class="headerlink" href="#eyebrows-right-eyebrows-left" title="Link to this heading"></a></h4>
+<p>Enable or disable the eyebrow bones</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyebrow-masters">
+<h4>Eyebrow Masters<a class="headerlink" href="#eyebrow-masters" title="Link to this heading"></a></h4>
+<p>Add master controllers (yellow boxes in the Gif below) at the root and tip of the eyebrow, to ease eyebrow posing</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/eyebrows_soft.gif" class="align-center" src="_images/eyebrows_soft.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="soft-eyebrows">
+<h4>Soft Eyebrows<a class="headerlink" href="#soft-eyebrows" title="Link to this heading"></a></h4>
+<p>Eyebrow bones will move “softly” when moving the main controller (c_eyebrow_full).</p>
+<p>The influence is strongest at the root of the eyebrow, and decreases toward the tip.
+The <strong>Linear</strong> setting below defines the curvature of the eyebrow line, when moving the main controller.
+-1 = Very curved, 1 = Straight</p>
+<p>The <strong>Soft-Rigid</strong> setting defines the amount of the soft effect.
+0 = totally soft, 1 = hard (same as disabling <strong>Soft Eyebrow</strong>)</p>
+<img alt="_images/eyeb_soft.gif" class="align-center" src="_images/eyeb_soft.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The influence can be tweaked by modifying the custom property <strong>eyebrow_soft</strong> located on the reference bones.
+This value will be applied when <strong>Match to Rig</strong>.</p>
+<p>1 = normal, 0 = no influence.</p>
+<img alt="_images/eyeb_soft_prop.jpg" class="align-center" src="_images/eyeb_soft_prop.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyelids-tweak-controllers">
+<h4>Eyelids Tweak Controllers<a class="headerlink" href="#eyelids-tweak-controllers" title="Link to this heading"></a></h4>
+<p>Add a controller in the upper and lower eyelids areas, to control the shape/curviness</p>
+<img alt="_images/eyelids_tweak.gif" class="align-center" src="_images/eyelids_tweak.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyelids-amount">
+<span id="eyelidsamount"></span><h4>Eyelids Amount<a class="headerlink" href="#eyelids-amount" title="Link to this heading"></a></h4>
+<p>Number of eyelid bones per upper/lower eyelids.</p>
+<div class="line-block">
+<div class="line">Example below with Eyelids Amount set to the very high amount of 16:</div>
+<div class="line">16 upper eyelids, 16 lower eyelids, 2 corners</div>
+</div>
+<img alt="_images/eyelids_amount.gif" class="align-center" src="_images/eyelids_amount.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>For full bones facial rigs, a good practice is to create one eyelid bone per vertex.
+Eyelids should have identical numbers of vertices for the upper and lower eyelids.
+This brings maximum control over the deformations of the eyelids shapes, when defining the <a class="reference internal" href="#blinkpose"><span class="std std-ref">Blink Pose</span></a></p>
+<img alt="_images/eyelids_amount_blink.gif" class="align-center" src="_images/eyelids_amount_blink.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyelids-masters-freq">
+<h4>Eyelids Masters Freq<a class="headerlink" href="#eyelids-masters-freq" title="Link to this heading"></a></h4>
+<p>In case of numerous eyelid bones, eyelid masters are useful to drag multiple bones at once.
+The frequency defining the masters generation is defined by this value.</p>
+<div class="line-block">
+<div class="line">1 = No masters (adding one master per bone would not make sense!)</div>
+<div class="line">2 = One master every 2 bones</div>
+<div class="line">3 = One master every 3 bones…</div>
+</div>
+<p>Below is an example with <strong>Eyelids Masters Freq</strong> = 2.
+One master (yellow box) is added every 2 bones, influencing 2 other neighbour eyelids:</p>
+<img alt="_images/eyelids_masters2.gif" class="align-center" src="_images/eyelids_masters2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eye-targets-distance">
+<h4>Eye Targets Distance<a class="headerlink" href="#eye-targets-distance" title="Link to this heading"></a></h4>
+<p>Adjust the eye target controller (“c_eye_target.x”) distance from the head.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="align-eyelids">
+<h4>Align Eyelids<a class="headerlink" href="#align-eyelids" title="Link to this heading"></a></h4>
+<p>If on (default), c_eyelid_top/bot controllers are always aligned automatically when “Match to Rig”.
+If off, only the head of these bones is aligned, the tail remains free.
+Useful to give custom rotation/scale to eyelid controllers.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/limb_options_mouth.jpg" class="align-center" src="_images/limb_options_mouth.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="mouth">
+<h4>Mouth<a class="headerlink" href="#mouth" title="Link to this heading"></a></h4>
+<p>Global toggle to enable or disable all mouth features.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="lips-offset-controller">
+<h4>Lips Offset Controller<a class="headerlink" href="#lips-offset-controller" title="Link to this heading"></a></h4>
+<p>Add a lips offset controller, to move all lips bones at once.</p>
+<img alt="_images/rig_c_lips_offset.gif" class="align-center" src="_images/rig_c_lips_offset.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="muzzle-controller">
+<h4>Muzzle Controller<a class="headerlink" href="#muzzle-controller" title="Link to this heading"></a></h4>
+<p>Add a muzzle controller, to move the whole mouth + nose (optional) together.
+Typically useful for animals.
+The nose bones remain parented to the head or skull_02 bones, they are dragged with the muzzle controller through constraints.</p>
+<img alt="_images/muzzle_controller.gif" class="align-center" src="_images/muzzle_controller.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="lips-roll-constraints">
+<span id="lipsrollconstraints"></span><h4>Lips Roll Constraints<a class="headerlink" href="#lips-roll-constraints" title="Link to this heading"></a></h4>
+<p>Add lips roll constraints so that lips bones will rotate automatically when moving the c_lips_roll_top/c_lips_roll_bot controllers.
+The constraints influence will decrease smoothly as the bones are located closer to the mouth corners.</p>
+<img alt="_images/lips_roll_constraints.gif" class="align-center" src="_images/lips_roll_constraints.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <strong>roll_speed</strong> property located on lips reference bones can be adjusted to fine tweak the roll influence for each lip bone</p>
+</div>
+<img alt="_images/roll_speed_prop.jpg" class="align-center" src="_images/roll_speed_prop.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="lips-roll-speed">
+<h4>Lips Roll Speed<a class="headerlink" href="#lips-roll-speed" title="Link to this heading"></a></h4>
+<p>Global factor to adjust the amount/speed factor of all lips bones when moving the c_lips_roll_top/c_lips_roll_bot controllers.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="lips-amount">
+<h4>Lips Amount<a class="headerlink" href="#lips-amount" title="Link to this heading"></a></h4>
+<p>Number of lips bones per quadrant, excluding middle and corner bones.</p>
+<figure class="align-center" id="id22">
+<img alt="_images/lips_bones_amount.jpg" src="_images/lips_bones_amount.jpg" />
+<figcaption>
+<p><span class="caption-text">Lips Amount set to 7</span><a class="headerlink" href="#id22" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>When this value is changed, the lips reference bones positions will always be reset, in a grid alignment shape.
+To force the grid alignment, enable <strong>Update Transforms</strong> next to it.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="lips-masters-freq">
+<h4>Lips Masters Freq<a class="headerlink" href="#lips-masters-freq" title="Link to this heading"></a></h4>
+<p>Interval (frequency) between two lips masters. If set to 1, no masters are generated. If set to 2, a lip master will be generated every 2 bones, if set to 3 =&gt; every 3 bones, and so on.</p>
+<figure class="align-center" id="id23">
+<img alt="_images/lips_masters_freq.jpg" src="_images/lips_masters_freq.jpg" />
+<figcaption>
+<p><span class="caption-text">Lips Masters Freq set to 3</span><a class="headerlink" href="#id23" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The lips masters controllers will softly drag the lips bones around them when they are translated or rotated:</p>
+<img alt="_images/lips_masters_drag.gif" class="align-center" src="_images/lips_masters_drag.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="linear-masters">
+<h4>Linear (Masters)<a class="headerlink" href="#linear-masters" title="Link to this heading"></a></h4>
+<p>If set to 0, the masters will drag the lips bones with a smooth interpolation. If set to 1, linear interpolation.</p>
+<figure class="align-center" id="id24">
+<img alt="_images/lips_masters_curved.gif" src="_images/lips_masters_curved.gif" />
+<figcaption>
+<p><span class="caption-text">Linear (Masters) set to 0</span><a class="headerlink" href="#id24" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id25">
+<img alt="_images/lips_masters_linear.gif" src="_images/lips_masters_linear.gif" />
+<figcaption>
+<p><span class="caption-text">Linear (Masters) set to 1</span><a class="headerlink" href="#id25" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="soft-lips">
+<h4>Soft Lips<a class="headerlink" href="#soft-lips" title="Link to this heading"></a></h4>
+<p>Enable lips elasticity effect for more natural deformations when opening the jaw (c_jawbone) or moving the corner (c_lips_smile)</p>
+<img alt="_images/soft_lips.gif" class="align-center" src="_images/soft_lips.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="linear-y">
+<h4>Linear Y<a class="headerlink" href="#linear-y" title="Link to this heading"></a></h4>
+<p>Adjust the curvature of the lips shape, when moving vertically the corner (c_lips_smile)
+-1 = Very Curved, 0 = Curved, 1 = Linear/Straight</p>
+<img alt="_images/lips_linear_y2.gif" class="align-center" src="_images/lips_linear_y2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="linear-z">
+<h4>Linear Z<a class="headerlink" href="#linear-z" title="Link to this heading"></a></h4>
+<p>Adjust the curvature of the lips shape, when moving horizontally the corner (c_lips_smile)
+-1 = Very Curved, 0 = Curved, 1 = Linear/Straight</p>
+<img alt="_images/lips_linear_z.gif" class="align-center" src="_images/lips_linear_z.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<div class="line-block">
+<div class="line">Additionally, the effect can be tweaked by modifying the custom properties located on the lips reference bones, from -1 to 1.</div>
+<div class="line">Applied when <strong>Match to Rig</strong>!</div>
+</div>
+</div>
+<img alt="_images/lips_soft_props.jpg" class="align-center" src="_images/lips_soft_props.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="linear-jaw">
+<h4>Linear (Jaw)<a class="headerlink" href="#linear-jaw" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">Adjust the curvature of the lips shape, when opening the jaw.</div>
+<div class="line">-1 = Very Curved, 0 = Curved, 1 = Linear/Straight</div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="limit-corners-jaw">
+<h4>Limit (Corners/Jaw)<a class="headerlink" href="#limit-corners-jaw" title="Link to this heading"></a></h4>
+<p>Limit the soft lips effect to a specified range near the mouth corners. 0 = no limits.</p>
+<figure class="align-center" id="id26">
+<img alt="_images/lips_corner_limit.gif" src="_images/lips_corner_limit.gif" />
+<figcaption>
+<p><span class="caption-text">Limit (Corners) set to 3, then 0 (infinite, reaching the middle lips bones)</span><a class="headerlink" href="#id26" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id27">
+<img alt="_images/lips_jaw_limit.gif" src="_images/lips_jaw_limit.gif" />
+<figcaption>
+<p><span class="caption-text">Limit (Jaw) set to 3, then 0 (infinite, reaching the middle lips bones)</span><a class="headerlink" href="#id27" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <strong>autolips</strong> property located on lips controllers can  be adjusted after “Match to Rig”, when posing the character, to increase or decrease the jaw influence when moving the “c_jawbone” controller.</p>
+</div>
+<figure class="align-center">
+<img alt="_images/lips_soft_autolips.gif" src="_images/lips_soft_autolips.gif" />
+</figure>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="soft-lips-visual-only">
+<h4>Soft Lips: Visual Only<a class="headerlink" href="#soft-lips-visual-only" title="Link to this heading"></a></h4>
+<p>The soft lips effect will be only visual, it won’t deform except the lips corner. Useful when using shape keys as lips deformations.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="sticky-lips">
+<h4>Sticky Lips<a class="headerlink" href="#sticky-lips" title="Link to this heading"></a></h4>
+<p>The lips will remain sealed when the jaw is moving up, acting as if the upper lips are colliding with the lower lips.
+After <strong>Match to Rig</strong>, there are additional settings in the Rig Main Properties tab to control the effect, see <a class="reference internal" href="rig_behaviour_doc.html#lipssettings"><span class="std std-ref">Lips</span></a></p>
+<img alt="_images/sticky_lips.gif" class="align-center" src="_images/sticky_lips.gif" />
+<hr class="docutils" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="soft-cheeks">
+<h4>Soft Cheeks<a class="headerlink" href="#soft-cheeks" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">Fore more natural deformations, the cheek bones can simulate elasticity if <strong>Soft Cheeks</strong> is enabled.</div>
+</div>
+<img alt="_images/soft_cheeks.gif" class="align-center" src="_images/soft_cheeks.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">Two cheek reference bones are added:</div>
+</div>
+<ul class="simple">
+<li><p><strong>cheek_push_ref</strong>, located inside the mouth, pointing at the main cheek bone. Can be tweaked to define the direction that the cheek should be pushed toward (+Y axis)</p></li>
+</ul>
+<img alt="_images/cheek_push.jpg" class="align-center" src="_images/cheek_push.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>cheek_pole_ref</strong>, should be positioned on the skin, in the the middle of the eyes and the ear (cheek bones area) for best results</p></li>
+</ul>
+<img alt="_images/cheek_pole.jpg" class="align-center" src="_images/cheek_pole.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<hr class="docutils" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="neck-options">
+<h3>Neck Options<a class="headerlink" href="#neck-options" title="Link to this heading"></a></h3>
+<img alt="_images/neck_limb.jpg" class="align-center" src="_images/neck_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/neck_options.jpg" class="align-center" src="_images/neck_options.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="count">
+<h4>Count<a class="headerlink" href="#count" title="Link to this heading"></a></h4>
+<p>Number of neck bones</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To export to Unreal Engine as a humanoid rig:</p>
+<ul class="simple">
+<li><p>1 neck bone is required to match the UE4 Mannequin</p></li>
+<li><p>2 neck bones are required to match the UE5 Mannequin</p></li>
+</ul>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="twist-bones">
+<h4>Twist Bones<a class="headerlink" href="#twist-bones" title="Link to this heading"></a></h4>
+<p>Add neck twist bones, for better deformations when the head twists (rotates along the Y axis).</p>
+</section>
+<section id="bendy-bones">
+<h4>Bendy Bones<a class="headerlink" href="#bendy-bones" title="Link to this heading"></a></h4>
+<p>Use multiple bendy bones segments to smoothen the neck twist deformation</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Warning, Bendy-Bones are unfortunately not export compliant! Should be used for internal Blender projects only.</p>
+</div>
+<hr class="docutils" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="spine-options">
+<h3>Spine Options<a class="headerlink" href="#spine-options" title="Link to this heading"></a></h3>
+<img alt="_images/spine_limb.jpg" class="align-center" src="_images/spine_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="id2">
+<h4>Count<a class="headerlink" href="#id2" title="Link to this heading"></a></h4>
+<p>Number of spine bones, from 1 to 64.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To export to Unreal Engine as a humanoid rig:</p>
+<ul class="simple">
+<li><p>4 spine bones are required to match the UE4 Mannequin skeleton (1 pelvis + 3 spines)</p></li>
+<li><p>6 spine bones for UE5 Manny/Quinn skeletons (1 pelvis + 5 spines)</p></li>
+</ul>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="spine-master-controller">
+<h4>Spine Master Controller<a class="headerlink" href="#spine-master-controller" title="Link to this heading"></a></h4>
+<p>Add a spine master controller to rotate and move all spine bones at once, with optional Stretch and Squash effect.</p>
+<img alt="_images/spine_master.gif" class="align-center" src="_images/spine_master.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="space">
+<h4>Space<a class="headerlink" href="#space" title="Link to this heading"></a></h4>
+<p><strong>Local</strong> space rotates spine bones from their true pivot when rotating the master controller.</p>
+<img alt="_images/spine_master_space_local.gif" class="align-center" src="_images/spine_master_space_local.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Spine Master</strong>  space rotates spine bones from the spine master controller, then a translation is applied when rotating.</p>
+<img alt="_images/spine_master_space_custom.gif" class="align-center" src="_images/spine_master_space_custom.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bottom">
+<h4>Bottom<a class="headerlink" href="#bottom" title="Link to this heading"></a></h4>
+<p>Add two bottom (buttock) bones at the left and right sides.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="align-root-master">
+<h4>Align Root Master<a class="headerlink" href="#align-root-master" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">Align the <em>c_root_master</em> bone automatically when Match to Rig if enabled.</div>
+<div class="line">If disabled, let it free, allowing manual alignment in Edit mode after Match to Rig.</div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="align-bend-controllers">
+<h4>Align Bend Controllers<a class="headerlink" href="#align-bend-controllers" title="Link to this heading"></a></h4>
+<p>Likewise, for <em>c_spine_bend_xx</em> bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="reversed-spine">
+<h4>Reversed Spine<a class="headerlink" href="#reversed-spine" title="Link to this heading"></a></h4>
+<p>If enabled, a switchable reversed spine chain is added.</p>
+<p>The default spine chain hierarchy works in a <em>forward</em> mode:
+this means that when rotating the first spine, the second spine will rotate too since it is a child of the first spine, and so forth.
+While the reversed spine chain works the opposite way, the tip of the spine is the root of the chain, and the second to last bone is the child, and so forth.</p>
+<p>While it’s not common, the reversed spine can be nonetheless the only way to animate some gymastic motions properly.
+For example, when the body is hanging from a bar, with the two hands attached to it, the rotation should originate from the chest:</p>
+<img alt="_images/reversed_spine.gif" class="align-center" src="_images/reversed_spine.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">The reversed spine mode is switchable, this means it can be disabled or enabled on the fly when animating, with automatic snap tools as well (like IK-FK) to switch between forward and reversed mode.</div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="update-existing-vertex-groups">
+<h4>Update Existing Vertex Groups<a class="headerlink" href="#update-existing-vertex-groups" title="Link to this heading"></a></h4>
+<p>This allows to automatically rename the vertex groups of all skinned meshes, so that the changes in the spine <em>Limb Options</em> won’t break the previous skinning. If disabled, a manual re-bind may be necessary after changing the options, since the deforming bones names may have changed.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The Spine limb can be replaced with an <strong>IK Spline</strong> for flexy, stretchy effects. See <a class="reference internal" href="#splineikoptions"><span class="std std-ref">Spline IK Options</span></a></p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<hr class="docutils" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="arm-options">
+<span id="armsoptions"></span><h3>Arm Options<a class="headerlink" href="#arm-options" title="Link to this heading"></a></h3>
+<img alt="_images/arm_limb.jpg" class="align-center" src="_images/arm_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/arm_options.jpg" class="align-center" src="_images/arm_options.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="arm-fk-lock-free">
+<span id="armfklockoption"></span><h4>Arm FK Lock-Free<a class="headerlink" href="#arm-fk-lock-free" title="Link to this heading"></a></h4>
+<p>Add an <strong>Arm Lock</strong> setting to the FK upperarm controller, to switch parent space. See <a class="reference internal" href="rig_behaviour_doc.html#armfklock"><span class="std std-ref">Arm FK Lock</span></a></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id3">
+<h4>Twist Bones<a class="headerlink" href="#id3" title="Link to this heading"></a></h4>
+<p>Number of twist bones.</p>
+<ul class="simple">
+<li><p>If the rig is not exported to game engines, 1 is enough since the Blender armature modifier handles dual quaternions skinning (Preserve Volume).</p></li>
+<li><p>When exporting to game engines, multiple twist bones are recommended for best deformations (3-4 or more) since Preserve Volume is not supported by game engines. Multiple twist bones totally solve the candy paper wrap issue when twisting hands/feet. Above one twist bone, below 4 twist bones in Unreal Engine:</p></li>
+</ul>
+<img alt="_images/multiple_twist.gif" class="align-center" src="_images/multiple_twist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/arm_twist.jpg" class="align-center" src="_images/arm_twist.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>However, 1 twist bone is required to match the Unity’s humanoid rig. Unreal’s humanoid rig support multiple twist bones.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ik-pole-distance">
+<h4>IK Pole Distance<a class="headerlink" href="#ik-pole-distance" title="Link to this heading"></a></h4>
+<p>Adjust the IK pole controller default distance from the elbow:</p>
+<img alt="_images/ik_pole_dist.gif" class="align-center" src="_images/ik_pole_dist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="soft-ik">
+<h4>Soft IK<a class="headerlink" href="#soft-ik" title="Link to this heading"></a></h4>
+<p>This setting helps to avoid the typical elbow “pop” when the arm is switching from stretched-out to flexed pose.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Do not enable this setting if the rig must be exported later, prone to error. There are unfortunately drawbacks when this setting is enabled: the bones will be slightly stretched by default, <strong>Auto-Stretch</strong> will always be enabled, and IK-FK snap won’t match accurately</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="auto-ik-roll">
+<h4>Auto IK Roll<a class="headerlink" href="#auto-ik-roll" title="Link to this heading"></a></h4>
+<p>Automatically align IK bones axes for coherent rotation axes and perfectly lined up IK pole.
+If disable, the IK bones roll can be freely set. It’s recommended to keep it enabled, but in case the model has special arms rotations, it can be useful to disable it.</p>
+<img alt="_images/auto_ik_roll_arms.jpg" class="align-center" src="_images/auto_ik_roll_arms.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="hand-ik-offset-controller">
+<h4>Hand IK Offset Controller<a class="headerlink" href="#hand-ik-offset-controller" title="Link to this heading"></a></h4>
+<p>Add another hand IK controller, as a child of the main one:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">c_hand_ik</span>
+    <span class="n">L</span> <span class="n">c_hand_ik_offset</span>
+</pre></div>
+</div>
+<p>Useful to layer animations/keyframes on two different controllers, e.g: the main controller is used for global positioning, while the offset is used for subtle motions (shaking, fine-tuning…)</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="hand-ik-pivot-controller">
+<h4>Hand IK Pivot Controller<a class="headerlink" href="#hand-ik-pivot-controller" title="Link to this heading"></a></h4>
+<p>Add a hand pivot controller, to rotate the hand from a custom pivot point, that can be adjusted live when animating.</p>
+<img alt="_images/custom_hand_pivot.gif" class="align-center" src="_images/custom_hand_pivot.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="rotate-fingers-from-scale">
+<span id="rotfromscale"></span><h4>Rotate Fingers from Scale<a class="headerlink" href="#rotate-fingers-from-scale" title="Link to this heading"></a></h4>
+<p>Fingers phalanges can rotate when scaling the first one. Set the <strong>Rot From Scale</strong> property above the fingers checkboxes. Set it to <strong>Disable</strong> to disable this feature.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Only FK fingers are compliant with this setting, IKs are not</p>
+</div>
+<img alt="_images/new_finger_rot.gif" class="align-center" src="_images/new_finger_rot.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers-shapes">
+<h4>Fingers Shapes<a class="headerlink" href="#fingers-shapes" title="Link to this heading"></a></h4>
+<p>Default shape for the fingers controllers: boxes, circles</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id4">
+<h4>Fingers<a class="headerlink" href="#id4" title="Link to this heading"></a></h4>
+<p>Add fingers (thumb, index, middle, ring, pinky)</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="fingers-ik-fk">
+<h4>Fingers IK-FK<a class="headerlink" href="#fingers-ik-fk" title="Link to this heading"></a></h4>
+<p>If <strong>Fingers IK-FK</strong> is enabled, IK controllers will be added to each fingers, with IK-FK switch and snap settings, and all tools dedicated to manipulate IK fingers.</p>
+<img alt="_images/fingers_ik_2.gif" class="align-center" src="_images/fingers_ik_2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>IK Parent</strong>: Parent bone of the IK target controllers</p></li>
+<li><p><strong>Pole Parent</strong>: Parent bone of the IK pole controllers</p></li>
+<li><p><strong>IK Root Shape</strong>: Custom shape used to draw the IK Root target controller, located at the root of the third phalange</p></li>
+<li><p><strong>Pole Shape</strong>: Custom shape used to draw the IK Pole controller, located above the second phalange bone</p></li>
+<li><p><strong>IK Pole Distance</strong>: Distance from the second phalange to the IK pole</p></li>
+</ul>
+<p>For fingers IK to work properly, it’s best to make sure that finger bones (reference bones) are slightly curved upward. Otherwise, the IK direction will be inverted and fingers can fold in the wrong direction:</p>
+<img alt="_images/fingers_direction.jpg" class="align-center" src="_images/fingers_direction.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><em>Correct fingers curvature</em></p>
+<img alt="_images/fingers_ik_correct2.gif" class="align-center" src="_images/fingers_ik_correct2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/fingers_wrong_direction.jpg" class="align-center" src="_images/fingers_wrong_direction.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><em>Wrong fingers curvature that leads fingers to fold in the wrong direction</em></p>
+<img alt="_images/fingers_wrong_direction2.gif" class="align-center" src="_images/fingers_wrong_direction2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="joints-fans">
+<h4>Joints Fans<a class="headerlink" href="#joints-fans" title="Link to this heading"></a></h4>
+<img alt="_images/arms_joints_fans.jpg" class="align-center" src="_images/arms_joints_fans.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Joints fans are secondary bones, dedicated to hold volume in the elbow and wrist areas.
+Useful if the Armature modifier “Preserve Volume” setting (dual quaternions) is disabled, or when exporting to game engines that only support linear skinning.</p>
+<p>An arbitrary amount of bones can be set between 1 and 32.
+Useful for accurate control over the deformations in these areas.</p>
+<img alt="_images/fans_elbow.gif" class="align-center" src="_images/fans_elbow.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Bulge:</strong>  A bulge effect can be applied to the joints fans, to expand or shrink the deformations as the bone rotates.</p>
+<ul class="simple">
+<li><p>If <strong>Set</strong> is enabled, the bulge constraints values are set automatically when clicking OK. If disabled, the values remain untouched, they can be edited manually freely after <strong>Match to Rig</strong>.</p></li>
+<li><p>The bulge effect can be either <strong>Location</strong> based (translating the bone on its Y axis), or <strong>Scale</strong> based (stretching the bone on its Y axis).</p></li>
+</ul>
+<img alt="_images/joints_fans_arm_bulge_ui.jpg" class="align-center" src="_images/joints_fans_arm_bulge_ui.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/joints_fans_bulge01.gif" class="align-center" src="_images/joints_fans_bulge01.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="wings">
+<h4>Wings<a class="headerlink" href="#wings" title="Link to this heading"></a></h4>
+<p>Add feathers bones to the arm, forearm and hand bone with various settings.</p>
+<p>Here is a wings video tutorial, brought to you by the amazing CGDive:
+<a class="reference external" href="https://youtu.be/phYsIRXrsF0">https://youtu.be/phYsIRXrsF0</a></p>
+<img alt="_images/wings_tab.jpg" class="align-center" src="_images/wings_tab.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/wings_demo2.gif" class="align-center" src="_images/wings_demo2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Arm Feathers</strong>: amount of feathers for the arm bone</p></li>
+<li><p><strong>Forearm Feathers</strong>: amount of feathers for the forearm bone</p></li>
+<li><p><strong>Hand Feathers</strong>: amount of feathers for the hand bone</p></li>
+<li><p><strong>Feather Subdivisions</strong>: amount of bones per feathers, to curve its shape (example below with 4 subdivisions)</p></li>
+</ul>
+<img alt="_images/feather_curved.jpg" class="align-center" src="_images/feather_curved.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Feather Layers</strong>: Amount of layers/rows of feathers, on top of each other (example below with 3 layers)</p></li>
+</ul>
+<img alt="_images/feathers_layer.jpg" class="align-center" src="_images/feathers_layer.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Update Existing Feathers Transforms</strong>: update existing reference feather bones transforms when clicking the OK button (grid align). If disabled, existing feathers won’t move. Useful to add new feathers while preserving existing ones.</p></li>
+<li><p><strong>Parent Feathers Layers</strong>: parent feathers layers. If disabled, feather layers move independently.</p></li>
+<li><p><strong>Add Wings Fold Controller</strong>: add a controller to fold the arms and feathers by scaling it. Requires an action containing <strong>rig_wings_fold</strong> in its name, rest pose at frame 0, folded pose at frame</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>Create a new action named <strong>rig_wings_fold</strong></p></li>
+<li><p>Keyframe arm and feather bones controllers in reset pose (rest pose) at frame 0, folded pose at frame 10</p></li>
+<li><p>Click <strong>Edit Reference Bones</strong></p></li>
+<li><p>Select an arm bone and click <strong>Limb Options</strong></p></li>
+<li><p>Enable <strong>Add Wings Fold Controller</strong></p></li>
+<li><p>Click <strong>OK</strong></p></li>
+<li><p>Click <strong>Match to Rig</strong></p></li>
+<li><p>Unlink the <strong>rig_wings_fold</strong> from the rig</p></li>
+</ul>
+</div>
+<img alt="_images/wings_fold.gif" class="align-center" src="_images/wings_fold.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Naming</strong>: the feather bones are named this way:</p>
+<p>bone_type + ‘feather’ + feather number + layer number + subdivision number + side</p>
+<p>For example: c_hand_feather_02_03_02.l</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<hr class="docutils" />
+</section>
+</section>
+<section id="leg-options">
+<span id="legsoptions"></span><h3>Leg Options<a class="headerlink" href="#leg-options" title="Link to this heading"></a></h3>
+<img alt="_images/leg_limb.jpg" class="align-center" src="_images/leg_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/leg_options.jpg" class="align-center" src="_images/leg_options.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="thigh-fk-lock-free">
+<span id="legfklockoption"></span><h4>Thigh FK Lock-Free<a class="headerlink" href="#thigh-fk-lock-free" title="Link to this heading"></a></h4>
+<p>Add a <strong>Leg Lock</strong> setting to the FK thigh controller, to switch parent space.</p>
+<p>See <a class="reference internal" href="rig_behaviour_doc.html#legfklock"><span class="std std-ref">Leg FK Lock</span></a></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id5">
+<h4>Twist Bones<a class="headerlink" href="#id5" title="Link to this heading"></a></h4>
+<p>Number of twist bones.</p>
+<ul class="simple">
+<li><p>If the rig is not exported to game engines, 1 is enough since the Blender armature modifier handles dual quaternions skinning (Preserve Volume).</p></li>
+<li><p>When exporting to game engines, multiple twist bones are recommended for best deformations (3-4 or more) since Preserve Volume is not supported by game engines. Multiple twist bones totally solve the candy paper wrap issue when twisting hands/feet. Above one twist bone, below 4 twist bones in Unreal Engine:</p></li>
+<li><p>However, 1 twist bone is required to match the Unity’s humanoid rig. Unreal’s humanoid rig support multiple twist bones.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id6">
+<h4>Soft IK<a class="headerlink" href="#id6" title="Link to this heading"></a></h4>
+<p>This setting helps to avoid the typical knee “pop” when the leg is switching from stretched-out to flexed pose.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Do not enable this setting if the rig must be exported later, prone to error. There are unfortunately drawbacks when this setting is enabled: the bones will be slightly stretched by default, <strong>Auto-Stretch</strong> will always be enabled, and IK-FK snap won’t match accurately</p>
+</div>
+<img alt="_images/softik.gif" class="align-center" src="_images/softik.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="autoikroll">
+<span id="id7"></span><h4>Auto IK Roll<a class="headerlink" href="#autoikroll" title="Link to this heading"></a></h4>
+<p>Automatically align IK bones axes for coherent rotation axes and perfectly lined up IK pole.
+If disable, the IK bones roll can be freely set. It’s recommended to keep it enabled, but in case the model has special legs rotations, it can be useful to disable it.</p>
+<img alt="_images/auto_ik_roll.jpg" class="align-center" src="_images/auto_ik_roll.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="foot-roll-break">
+<span id="footrollbreaklo"></span><h4>Foot Roll Break<a class="headerlink" href="#foot-roll-break" title="Link to this heading"></a></h4>
+<p>If enabled, the foot will rotate first from the <strong>ball</strong> pivot when raising the c_foot_roll_cursor, then from the <strong>tip</strong> toes pivot when reaching a given value.
+Settings can then be adjusted live when animating, in the Rig Main Properties tab: <a class="reference internal" href="rig_behaviour_doc.html#footrollbreak"><span class="std std-ref">Foot Roll Break</span></a></p>
+<img alt="_images/foot_roll_break.gif" class="align-center" src="_images/foot_roll_break.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bones-leg">
+<span id="boneslegoption"></span><h4>3 Bones Leg<a class="headerlink" href="#bones-leg" title="Link to this heading"></a></h4>
+<p>Add an extra bone at the root of the chain, useful for quadrupedal, digitigrade creatures such as T-Rex, quadrupeds…</p>
+<ul class="simple">
+<li><p><strong>Type 1</strong>: Comes with an IK rotation controller at the root of the chain (c_thigh_b), and togglable 2-3 bones IK chain, see (<a class="reference internal" href="rig_behaviour_doc.html#ikbones"><span class="std std-ref">Legs 3 Bones</span></a>)</p></li>
+</ul>
+<img alt="_images/3bonesleg_t1.gif" class="align-center" src="_images/3bonesleg_t1.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Type 2</strong>: The IK rotation controller is located at the calf joint, and extra stretch controller for the upper thigh. IK Stiffness settings can be defined live when posing the character, to adjust the IK chain response.</p></li>
+</ul>
+<img alt="_images/3bonesleg_type2.gif" class="align-center" src="_images/3bonesleg_type2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="smart-ik-pole">
+<span id="id8"></span><h4>Smart IK Pole<a class="headerlink" href="#smart-ik-pole" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">By default, the leg IK pole is simply parented (Child Of constraint) to the foot, which can cause leg flips, undesired results when rotating the foot up and down.</div>
+<div class="line">By using more sophisticated mechanics, the Smart IK pole option is useful to steady the IK pole position when tilting the foot.</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The IK pole can also be unlocked when animating, so that it doesn’t follow the foot at all. See <a class="reference internal" href="rig_behaviour_doc.html#snappoleparent"><span class="std std-ref">Snap Pole Parent (IK only)</span></a></p>
+</div>
+<img alt="_images/smart_ik_pole.gif" class="align-center" src="_images/smart_ik_pole.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="foot-ik-offset-controller">
+<h4>Foot IK Offset Controller<a class="headerlink" href="#foot-ik-offset-controller" title="Link to this heading"></a></h4>
+<p>Add an extra IK controller for the feet, acting as another layer of control below the main one.
+Useful to layer animations/keyframes on two different controllers, e.g: the main controller is used for global positioning, while the offset is used for subtle motions (shaking, fine-tuning…)</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="foot-ik-pivot-controller">
+<h4>Foot IK Pivot Controller<a class="headerlink" href="#foot-ik-pivot-controller" title="Link to this heading"></a></h4>
+<p>Add a foot pivot controller, to rotate the foot from a custom pivot point, that can be adjusted live when animating.</p>
+<img alt="_images/ik_foot_pivot.gif" class="align-center" src="_images/ik_foot_pivot.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="toes-ik-fk">
+<h4>Toes IK-FK<a class="headerlink" href="#toes-ik-fk" title="Link to this heading"></a></h4>
+<p>Enables IK-FK chains for toes.</p>
+<p>Additional settings to set the IK pole distance from the toes, and IK-FK switch default value.
+Useful for quadrupedal creatures walking on toes, birds…</p>
+<p>For toes IK to work properly, make sure that toes reference bones are slightly curved upward or downward.
+Perfectly straight chains will prevent IK constraints from working at all.
+For example, for birds you generally want to curve the toes phalanges downward so that the toes bend properly when raising the foot:</p>
+<img alt="_images/toes_ik_curvature.jpg" class="align-center" src="_images/toes_ik_curvature.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/toes_ik_rotate_foot.gif" class="align-center" src="_images/toes_ik_rotate_foot.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The toes direction can also be inverted on the fly when animating using the <strong>Invert IK Dir</strong> setting:</p>
+<img alt="_images/ik_toes_invert.gif" class="align-center" src="_images/ik_toes_invert.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="toes-individuals">
+<h4>Toes (individuals)<a class="headerlink" href="#toes-individuals" title="Link to this heading"></a></h4>
+<p>Add individual toes bones (thumb, index, middle, ring, pinky)</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="toes-metatarsal">
+<h4>Toes Metatarsal<a class="headerlink" href="#toes-metatarsal" title="Link to this heading"></a></h4>
+<p>Add metatarsal toes bones, that is the root bone before the first toe phalange.</p>
+<p>Also adds automatically a <strong>pinky_auto</strong> bone that rotates all metatarsal along (the same as fingers)</p>
+<img alt="_images/toes_pinky_auto.gif" class="align-center" src="_images/toes_pinky_auto.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="toes-parent-foot">
+<h4>Toes Parent Foot<a class="headerlink" href="#toes-parent-foot" title="Link to this heading"></a></h4>
+<p>Parent the metatarsal to the foot instead of the default main toe bone.
+Useful for quadrupedal creatures walking on toes, birds…
+Leads to natural toes motion when IK is on, and when raising the IK foot with <strong>c_foot_01</strong></p>
+<img alt="_images/toes_ik_trex.gif" class="align-center" src="_images/toes_ik_trex.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="toes-pivot-controller">
+<h4>Toes Pivot Controller<a class="headerlink" href="#toes-pivot-controller" title="Link to this heading"></a></h4>
+<p>Add a controller to rotate the whole foot from the toes</p>
+<img alt="_images/toes_pivot.gif" class="align-center" src="_images/toes_pivot.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id9">
+<h4>IK Pole Distance<a class="headerlink" href="#id9" title="Link to this heading"></a></h4>
+<p>Adjust the IK pole controller distance from the knee.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id10">
+<h4>Joints Fans<a class="headerlink" href="#id10" title="Link to this heading"></a></h4>
+<img alt="_images/legs_joints_fans.jpg" class="align-center" src="_images/legs_joints_fans.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Joints fans are secondary bones, dedicated to hold volume in the thigh/buttocks and knee areas.
+Useful if the Armature modifier “Preserve Volume” setting (dual quaternions) is disabled, or when exporting to game engines that only support linear skinning.</p>
+<p>An arbitrary amount of bones can be set between 1 and 32.
+Useful for accurate control over the deformations in these areas.</p>
+<img alt="_images/fans_knee.gif" class="align-center" src="_images/fans_knee.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Bulge:</strong>  A bulge effect can be applied to the joints fans, to expand or shrink the deformations as the bone rotates.</p>
+<ul class="simple">
+<li><p>If <strong>Set</strong> is enabled, the bulge constraints values are set automatically when clicking OK. If disabled, the values remain untouched, they can be edited manually freely after <strong>Match to Rig</strong>.</p></li>
+<li><p>The bulge effect can be either <strong>Location</strong> based (translating the bone on its Y axis), or <strong>Scale</strong> based (stretching the bone on its Y axis).</p></li>
+</ul>
+<img alt="_images/joints_fans_leg_bulge_ui.jpg" class="align-center" src="_images/joints_fans_leg_bulge_ui.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/joints_fans_bulge01.gif" class="align-center" src="_images/joints_fans_bulge01.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/ankle_fans_low.gif" class="align-center" src="_images/ankle_fans_low.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="tail-options">
+<h3>Tail Options<a class="headerlink" href="#tail-options" title="Link to this heading"></a></h3>
+<img alt="_images/tail_limb.jpg" class="align-center" src="_images/tail_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="id11">
+<h4>Count<a class="headerlink" href="#id11" title="Link to this heading"></a></h4>
+<p>Set the amount of tail bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="master-controller-at-root">
+<h4>Master Controller at Root<a class="headerlink" href="#master-controller-at-root" title="Link to this heading"></a></h4>
+<p>Set the tail master controller, which rotates all tail bones at once, at the root position of the tail.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="ear-options">
+<h3>Ear Options<a class="headerlink" href="#ear-options" title="Link to this heading"></a></h3>
+<section id="id12">
+<h4>Count<a class="headerlink" href="#id12" title="Link to this heading"></a></h4>
+<p>Set the number of ear bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<hr class="docutils" />
+</section>
+</section>
+<section id="spline-ik-options">
+<span id="splineikoptions"></span><h3>Spline IK Options<a class="headerlink" href="#spline-ik-options" title="Link to this heading"></a></h3>
+<img alt="_images/spline_ik_limb.jpg" class="align-center" src="_images/spline_ik_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/spline_ik_options2.jpg" class="align-center" src="_images/spline_ik_options2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/spline_ik_rope.gif" class="align-center" src="_images/spline_ik_rope.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">IK Splines are useful chains to rig ropes, tentacles…</div>
+<div class="line">They can also replace the default Spine and Neck limbs, if you need something more stretchy and IK based. Practical examples are explained lower on this page.</div>
+<div class="line">A Spline FK chain can be added on top of the IK, see options below.</div>
+</div>
+<section id="ik-spline-count">
+<h4>IK Spline Count<a class="headerlink" href="#ik-spline-count" title="Link to this heading"></a></h4>
+<p>Number of bones for the IK spline bones chain</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bendy-bones-count">
+<h4>Bendy Bones Count<a class="headerlink" href="#bendy-bones-count" title="Link to this heading"></a></h4>
+<p>Number of bendy-bones per bone, for a smoother result.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="curve-smoothness">
+<h4>Curve Smoothness<a class="headerlink" href="#curve-smoothness" title="Link to this heading"></a></h4>
+<p>Increase or decrease the extra smoothing of the curve shape. Decreasing it is useful if spline bones have different locations between rest/pose position due to the curve extra smoothing.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="name">
+<h4>Name<a class="headerlink" href="#name" title="Link to this heading"></a></h4>
+<p>Name of the Spline IK chain bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="side">
+<h4>Side<a class="headerlink" href="#side" title="Link to this heading"></a></h4>
+<p>Define the side (middle .x, left .l, right .r) of the chain, by renaming bones with the chosen suffix.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ik-fk-chain">
+<h4>IK-FK Chain<a class="headerlink" href="#ik-fk-chain" title="Link to this heading"></a></h4>
+<p>Generate an FK chain as well if enabled, with IK-FK switch and snap settings. See <a class="reference internal" href="rig_behaviour_doc.html#splineiksettings"><span class="std std-ref">Spline IK</span></a></p>
+<img alt="_images/spline_ikfk.gif" class="align-center" src="_images/spline_ikfk.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="update-vertex-groups">
+<h4>Update Vertex Groups<a class="headerlink" href="#update-vertex-groups" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">Automatically rename the vertex groups if any, so that it’s not necessary to re-bind the mesh.</div>
+<div class="line">For example, when enabling <strong>IK-FK Chain</strong>, the deforming bones names will be different from the original names, when <strong>IK-FK Chain</strong> is disabled, then this setting allows automatic renaming of vertex groups.</div>
+<div class="line">Usually, this setting should be enabled.</div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="deform">
+<h4>Deform<a class="headerlink" href="#deform" title="Link to this heading"></a></h4>
+<p>Enable or disable weight deformation of the Spline IK bones. Disabling it may be useful when creating more bones (by hand) over the existing ones, to set new bones as the deforming ones instead of the base spline IK bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="update-transforms">
+<h4>Update Transforms<a class="headerlink" href="#update-transforms" title="Link to this heading"></a></h4>
+<p>Change the existing spline reference bones position when clicking OK (grid align). Disable it to preserve their position. If the spline count is changed, enabled automatically.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="advanced-mode">
+<h4>Advanced  Mode<a class="headerlink" href="#advanced-mode" title="Link to this heading"></a></h4>
+<p>The <strong>Advanced</strong> mode enables more options to fine tweaks the curve shape with master, inter, and individual controllers.</p>
+<img alt="_images/spline_ik_advanced.jpg" class="align-center" src="_images/spline_ik_advanced.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/spline_ik_advanced_demo.gif" class="align-center" src="_images/spline_ik_advanced_demo.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="controllers-frequency">
+<h4>Controllers Frequency<a class="headerlink" href="#controllers-frequency" title="Link to this heading"></a></h4>
+<p>The frequence defining the <strong>master</strong> controllers spacing along the bones chain. For example, setting to 2 will add a master controller every 2 bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="interpolation">
+<h4>Interpolation<a class="headerlink" href="#interpolation" title="Link to this heading"></a></h4>
+<p>Interpolation type for the <strong>inter</strong> controllers, between two master controllers. Linear produces straight lines, while Smooth leads to curved lines.</p>
+<img alt="_images/spline_ik_linear.gif" class="align-center" src="_images/spline_ik_linear.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/spline_ik_smooth.gif" class="align-center" src="_images/spline_ik_smooth.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="c-spline-master-parent">
+<h4>c_spline_master parent<a class="headerlink" href="#c-spline-master-parent" title="Link to this heading"></a></h4>
+<p>Parent bone of the c_spline_master bone. Setting it to <strong>None</strong> allow free parent, by manually setting it.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="c-spline-master-tip-parent">
+<h4>c_spline_master tip parent<a class="headerlink" href="#c-spline-master-tip-parent" title="Link to this heading"></a></h4>
+<p>Parent bone of the last c_spline_master bone at the tip of the chain.
+By default parented to the tip controller, however it can produces interesting effects for ropes when parenting to the root.
+If set to None, the parent can be freely changed after “Match to Rig”.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="c-spline-tip-parent">
+<h4>c_spline_tip parent<a class="headerlink" href="#c-spline-tip-parent" title="Link to this heading"></a></h4>
+<p>Parent of the tip controller of the chain <em>c_spline_tip</em>
+By default parented to the root <em>c_spline_root</em>
+Setting it to <strong>None</strong> allow free parent, it can be set manually after <em>Match to Rig</em></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>IK Splines are exportable, but bone scale/stretch  and bendy-bones are not supported.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ik-spline-example-to-rig-a-spine">
+<h4>IK Spline example to rig a Spine<a class="headerlink" href="#ik-spline-example-to-rig-a-spine" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line">IK Splines can replace the default Spine limb, for kind of a… chewing-gum effect.</div>
+<div class="line">Flexy, stretchy, curvy spine. You got it!</div>
+</div>
+<div class="line-block">
+<div class="line">For best compatibility with Export features and rig mechanics, it is recommended to keep 1 Spine bone though, as the pelvis, that will include the <strong>c_root_master</strong> and <strong>c_root</strong> controller.</div>
+<div class="line">Then, parent the first reference bone of the Spline IK to <em>root_ref.x</em>, or to <em>c_root_master.x</em>, so that the pelvis can be rotated independently from the Spline IK chain if necessary.</div>
+<div class="line">If done this way, the Spline IK remains exportable as a <em>Humanoid</em> skeleton, the spline bones will be renamed as a typical human spine for compatibility with humanoid skeletons in game engines (UE Mannequin, Unity Humanoid…)</div>
+</div>
+<img alt="_images/spline_ik_spine_root.gif" class="align-center" src="_images/spline_ik_spine_root.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/spline_ik_demo.gif" class="align-center" src="_images/spline_ik_demo.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>When enabling IK Spline stretch, the arms and neck will inherit the scale of the latest spline bone, which can be a problem. To fix it, follow these steps:</p>
+</div>
+<ul class="simple">
+<li><p>Add a <strong>Copy Scale</strong> constraint to all bones parented the latest IK Spline bone, <em>c_traj</em> as target bone, <strong>Offset</strong> and <strong>Additive</strong> enabled</p></li>
+<li><p>Then, set <strong>Inherit Scale</strong> to <strong>None</strong> for each of these bones too</p></li>
+</ul>
+<img alt="_images/add_copy_scale.jpg" class="align-center" src="_images/add_copy_scale.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/inherit_scale_none.jpg" class="align-center" src="_images/inherit_scale_none.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>To twist the chest when rotating <strong>c_spline_tip.x</strong>:</p>
+<ul class="simple">
+<li><p>The Spline IK must be set as <strong>Advanced</strong> in Limb Options</p></li>
+<li><p><strong>Twist</strong> setting must be enabled, with <strong>c_spline_tip.x</strong> as target</p></li>
+<li><p>Shoulder and neck reference bones must be parented to the spline tip twist bone, e.g. <strong>spline_twist_04.x</strong></p></li>
+</ul>
+<img alt="_images/spline_ik_twist.gif" class="align-center" src="_images/spline_ik_twist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ik-spline-example-to-rig-an-ik-neck">
+<h4>IK Spline example to rig an IK Neck<a class="headerlink" href="#ik-spline-example-to-rig-an-ik-neck" title="Link to this heading"></a></h4>
+<p>It can be convenient to rig creatures that have long necks with an IK spline, instead of the default FK Neck limb.
+The typical setup would be the following:</p>
+<ul class="simple">
+<li><p>Add a Head limb</p></li>
+<li><p>Add a Spline IK limb</p></li>
+<li><p>Parent the neck reference bone to the last spline IK deforming bone, for example “spline_04_ref.x” for a Spline IK made of 4 bones.</p></li>
+</ul>
+<img alt="_images/neck_splineIK_2.jpg" class="align-center" src="_images/neck_splineIK_2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>In “Limb Options”, enable <strong>Advanced</strong>, <strong>Twist</strong>, Custom, “c_head.x” as target bone. And <strong>IK-FK</strong> to generate a switchable IK-FK chain.</p></li>
+<li><p>After “Match to Rig”, the neck bone should now be parented to the Spline IK, and Spline bones will twist when rotating the head</p></li>
+</ul>
+<img alt="_images/spline_twist.gif" class="align-center" src="_images/spline_twist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="bendy-bones-options">
+<h3>Bendy-Bones Options<a class="headerlink" href="#bendy-bones-options" title="Link to this heading"></a></h3>
+<img alt="_images/spline_ik_limb.jpg" class="align-center" src="_images/spline_ik_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Bendy-Bones chains are useful to rig stretchy components, hair, snakes…
+Each bone is subdivided into multiple segments, allowing smooth, consistent deformations.</p>
+<img alt="_images/bbones_chain.gif" class="align-center" src="_images/bbones_chain.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Bendy-bones chains are not exportable to Fbx! May be supported later.</p>
+</div>
+<section id="id13">
+<h4>Bendy Bones Count<a class="headerlink" href="#id13" title="Link to this heading"></a></h4>
+<p>Amount of bones in the chain</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bendy-bones-segments">
+<h4>Bendy Bones Segments<a class="headerlink" href="#bendy-bones-segments" title="Link to this heading"></a></h4>
+<p>Number of bendy-bones segment per bone</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="controller-scale">
+<h4>Controller Scale<a class="headerlink" href="#controller-scale" title="Link to this heading"></a></h4>
+<p>Scale of the controller shapes</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id14">
+<h4>Side<a class="headerlink" href="#id14" title="Link to this heading"></a></h4>
+<p>Define the side (middle .x, left .l, right .r) of the chain, by renaming bones with the chosen suffix.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="kilt-options">
+<h3>Kilt Options<a class="headerlink" href="#kilt-options" title="Link to this heading"></a></h3>
+<p>The Kilt limb is designed to rig dresses, skirt, and other kilt-like clothes.</p>
+<p>Check out the <a href="https://youtu.be/AymlGJW1Ej8?si=wq3goSpYO6hj6G8R" target="_blank">CGDive Tutorial</a>.</p>
+<p>It supports automatic constrained collisions with legs, and master controllers to drag multiple controllers at once, for easy tweaking.</p>
+<p>While the constrained collision system will never be as nice as true simulated clothes dynamics, on projects that don’t require high-end clothes it can be really valuable.
+Since collision are evaluated on a fixed distance along the bone, there may be clipping here and there with legs, that can be fixed by tweaking the controllers.</p>
+<img alt="_images/kilt_demo_guy.gif" class="align-center" src="_images/kilt_demo_guy.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The Kilt constrained collisions will work best with loose clothing. Tight clothing will be difficult to handle, since collisions are not accurate, leading to clipping when legs are rotating.
+In that case, consider using an alternative custom rig, or true clothes simulation.</p>
+</div>
+<img alt="_images/kilt_add_limb.jpg" class="align-center" src="_images/kilt_add_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/kilt_options.jpg" class="align-center" src="_images/kilt_options.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="count-per-side">
+<h4>Count (per side)<a class="headerlink" href="#count-per-side" title="Link to this heading"></a></h4>
+<p>The number of main kilt bones per left and right sides.
+The total amount is this value multiplied by 2.</p>
+<img alt="_images/kilt_count.gif" class="align-center" src="_images/kilt_count.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>A good practice is to create one bone per vertex/loop. If the model is high-poly (e.g. 100 vertices per row), using one bone every 2 or 4 vertices can be enough.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="preserve-shape">
+<h4>Preserve Shape<a class="headerlink" href="#preserve-shape" title="Link to this heading"></a></h4>
+<p>If enabled, preserves the shape formed by the existing reference bones when the Count or Subdivisions values are changed.
+Otherwise, bones will be aligned in a standard perfect circle shape.</p>
+<img alt="_images/kilt_count_base.jpg" src="_images/kilt_count_base.jpg" />
+<p><em>Before changing the Count</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/kilt_count_reduced_preserve.jpg" src="_images/kilt_count_reduced_preserve.jpg" />
+<p><em>After Count reduction by 2, Preserve Shape enabled. Same thing with less bones.</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/kilt_count_reduced_no_preserve.jpg" src="_images/kilt_count_reduced_no_preserve.jpg" />
+<p><em>After Count reduction by 2, Preserve Shape disabled. The bones are positioned differently, they are set in a perfect circular shape instead of preserving the original shape</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="master-controllers-columns">
+<h4>Master Controllers (columns)<a class="headerlink" href="#master-controllers-columns" title="Link to this heading"></a></h4>
+<p>If enabled, add master controllers every Nth bone (frequency setting below).
+Master controllers are useful to drag multiple bones at once when tweaking the pose.</p>
+<img alt="_images/kilt_master_col.gif" src="_images/kilt_master_col.gif" />
+<p><em>Master controller (in red) selected and rotated, dragging other bones in the neighbourhood</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="master-frequency">
+<h4>Master Frequency<a class="headerlink" href="#master-frequency" title="Link to this heading"></a></h4>
+<p>Defines the frequency to add master bones.
+For example, 4 will add a master bone every 4 base bones.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="subdivisions">
+<h4>Subdivisions<a class="headerlink" href="#subdivisions" title="Link to this heading"></a></h4>
+<p>Number of subdivision per bone.</p>
+<img alt="_images/kilt_subdiv.jpg" src="_images/kilt_subdiv.jpg" />
+<p><em>Subdivisions set to 3, leading to 3 rows of controllers</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="subdivide-reference-bones">
+<h4>Subdivide Reference Bones<a class="headerlink" href="#subdivide-reference-bones" title="Link to this heading"></a></h4>
+<p>Whether or not reference bones should be subdivided.
+If not, the subdivided final rig bones are simply aligned along the head-tail axis of the reference bone (Y axis).
+If enabled, allow specific alignment, for example useful for curvy surfaces.</p>
+<img alt="_images/kilt_subdiv_ref.jpg" src="_images/kilt_subdiv_ref.jpg" />
+<p><em>Reference bones subdivided, 3 divisions</em></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="master-controllers-row">
+<h4>Master Controllers (row)<a class="headerlink" href="#master-controllers-row" title="Link to this heading"></a></h4>
+<p>If enabled, add master controller for each subdivision/row, as a large circle shape controller.</p>
+<img alt="_images/kilt_master_row.gif" class="align-center" src="_images/kilt_master_row.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id15">
+<h4>Name<a class="headerlink" href="#id15" title="Link to this heading"></a></h4>
+<p>Nothing too complex here, just the base name that will be included in each bone name.</p>
+<p>E.g: If name ‘kilt’, reference bones are named: kilt_05_03_ref.l</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="collide-with-legs">
+<h4>Collide with Legs<a class="headerlink" href="#collide-with-legs" title="Link to this heading"></a></h4>
+<p>Allow constrained collision with leg bones.
+You generally want the deforming bones to be set in the entries below.</p>
+<p>Typically, in an Auto-Rig Pro armature:</p>
+<ul class="simple">
+<li><p>Leg(left): thigh.l</p></li>
+<li><p>Leg(right): thigh.r</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="interactive-collision-distance">
+<h4>Interactive Collision Distance<a class="headerlink" href="#interactive-collision-distance" title="Link to this heading"></a></h4>
+<p>If on, the collision settings are kept interactive when posing the rig, with property -&gt; constraint driven connections.</p>
+<p>Since it’s adding more computation in the loop, it is a togglable option. However, it’s not that performance consuming though on modern computers so it can enabled most of the time.</p>
+<p>The interactive settings can be found in the <strong>Rig Main Properties</strong> panel after Match to Rig, when selecting a control bone from the kilt:</p>
+<img alt="_images/kilt_rig_settings.gif" class="align-center" src="_images/kilt_rig_settings.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="collision-distance">
+<h4>Collision Distance<a class="headerlink" href="#collision-distance" title="Link to this heading"></a></h4>
+<p>Set a fixed collision distance, when the setting above is disabled.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="collide-on-z">
+<h4>Collide on Z<a class="headerlink" href="#collide-on-z" title="Link to this heading"></a></h4>
+<p>Add a constraint on Z axes, generally gives more accurate collisions.</p>
+<p>Since it’s adding more computation in the loop, it is a togglable option. However, it’s not that performance consuming though on modern computers.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="shapes">
+<h4>Shapes<a class="headerlink" href="#shapes" title="Link to this heading"></a></h4>
+<img alt="_images/kilt_shapes.jpg" class="align-center" src="_images/kilt_shapes.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Set the position of the controller shapes at the head, middle or tail of the bone, and set scale values.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<hr class="docutils" />
+</section>
+</section>
+<section id="secondary-controllers">
+<span id="secondarycontrollers"></span><h3>Secondary Controllers<a class="headerlink" href="#secondary-controllers" title="Link to this heading"></a></h3>
+<img alt="_images/secondary_bones_28_2.jpg" class="align-center" src="_images/secondary_bones_28_2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>There are 3 deformation modes in option for the secondary bones (bones used to curve the arms, legs).
+To export to game engines, use <strong>Twist</strong> (best), or <strong>Additive</strong> mode.
+If no export is required, <strong>Additive</strong> will give good results, while <strong>Bendy Bones</strong> is best for stylized/cartoon characters.</p>
+<p><strong>Twist</strong></p>
+<ul class="simple">
+<li><p>Twist and secondary controllers are exportable to Fbx, recommended for best export compatibility.</p></li>
+<li><p>One secondary controller per twist bone, consequently up to 6 per limb.</p></li>
+<li><p>Bendy-bones control for easy adjustment of the global curve, while using real (twist) bones to deform and keeping it exportable.</p></li>
+<li><p>Best control over the shapes, each twist bone can be moved and rotated separately.</p></li>
+</ul>
+<img alt="_images/twist_based_arms.gif" class="align-center" src="_images/twist_based_arms.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Additive</strong></p>
+<ul class="simple">
+<li><p>Twist and secondary controllers are exportable to Fbx. However, the exported weights may be slightly different since the additive weights are “baked” onto the main weights.</p></li>
+<li><p>3-4 controllers per limb for precise shapes sculpting.</p></li>
+<li><p>Additive skinning involves more bones, so more vertex groups.</p></li>
+</ul>
+<p><strong>Bendy Bones</strong></p>
+<ul class="simple">
+<li><p>Twist and secondary controllers are <strong>not</strong> exportable to Fbx. Must be used for internal Blender projects only.</p></li>
+<li><p>Only 2 controllers per limb but very smooth control. Ideal for cartoon characters.</p></li>
+<li><p>Easy skinning: only one vertex group per limb, the secondary and twist bones are computed internally by the bendy bones system.</p></li>
+</ul>
+<p><strong>None</strong></p>
+<ul class="simple">
+<li><p>No secondary controllers</p></li>
+</ul>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>All changes are applied when clicking <strong>Match to Rig</strong>. Changing secondary controllers mode after binding requires to re-bind the meshes, otherwise some bone weights will be incorrect.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<hr class="docutils" />
+</section>
+<section id="positionning-the-reference-bones">
+<span id="editref"></span><h3>Positionning the Reference Bones<a class="headerlink" href="#positionning-the-reference-bones" title="Link to this heading"></a></h3>
+<p>The reference bones are the guides used to align the final rig bones position and rotations. Whether your character is not supported by the Smart function (not a biped) or if you simply need to edit the reference bones position, here is how to:</p>
+<ul class="simple">
+<li><p>Adjust the bones positions so that they fit the character proportions.</p></li>
+</ul>
+<p>Check the full video tutorials brought to you by the amazing CGDive:</p>
+<ul class="simple">
+<li><p><a href="https://youtu.be/nvjq7C9BbAQ" target="_blank">Human Rig</a></p></li>
+<li><p><a href="https://youtu.be/qc7yT-hyhOI" target="_blank">Fox Rig</a></p></li>
+<li><p><a href="https://youtu.be/ir9_lbRiYDo" target="_blank">Horse Rig</a></p></li>
+<li><p><a href="https://youtu.be/Xm2ng33Io6I" target="_blank">Dog Rig</a></p></li>
+</ul>
+<p>Written guidelines for humans below:</p>
+<ul class="simple">
+<li><p>The <strong>foot_heel</strong> and <strong>foot_bank bones</strong> (the three little bones under the foot) should match the heel back position and the foot width. The <strong>foot_heel_ref</strong> bone direction is used to align the feet rotation on the final rig, make sure to set it properly.</p></li>
+</ul>
+<img alt="_images/heel.png" class="align-center" src="_images/heel.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="ik-chains">
+<span id="ikchains"></span><h4>IK Chains<a class="headerlink" href="#ik-chains" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>In option, the IK pole direction can be drawn as a line to visualize its position in the final rig:</p></li>
+</ul>
+<img alt="_images/show_ik_dir.gif" class="align-center" src="_images/show_ik_dir.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Remember to keep a slight angle between the arms/legs bones. It’s very important for the IK chains to work properly. They <strong>MUST NEVER be straight</strong>, otherwise the IK direction may be inverted.</p></li>
+</ul>
+<img alt="_images/angle.jpg" class="align-center" src="_images/angle.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ik-chains-auto-roll">
+<h4>IK Chains Auto Roll<a class="headerlink" href="#ik-chains-auto-roll" title="Link to this heading"></a></h4>
+<p>IK chains roll can’t be manually adjusted by default, it’s calculated when clicking Match to Rig for consistent axes orientation.
+However the manual mode can be triggered if you prefer to freely set the arms or legs bones roll manually, see <a class="reference internal" href="#autoikroll"><span class="std std-ref">Auto IK Roll</span></a> in the Limb Options</p>
+<p>If <strong>Auto IK Roll</strong> is enabled, changing the bones alignment as shown below will change the roll. Here the arm is shown from the front view, it can be straight from this point of view, but must keep a slight angle backward (check from the top view):</p>
+<img alt="_images/ik_roll.jpg" class="align-center" src="_images/ik_roll.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="spine">
+<h4>Spine<a class="headerlink" href="#spine" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>The <strong>root_ref</strong> bone tip should be centered at the bellybutton height, <strong>spine_01</strong> at the bottom of the chest, <strong>spine_02</strong> should reach the neck base.</p></li>
+</ul>
+<img alt="_images/belly.jpg" class="align-center" src="_images/belly.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="id16">
+<h4>Facial<a class="headerlink" href="#id16" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>The facial bones should be positionned as the following:</p></li>
+</ul>
+<img alt="_images/facial_v2.jpg" src="_images/facial_v2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/facial_v3.jpg" src="_images/facial_v3.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>The head (origin) of the <strong>eyelids and eyes</strong> bones should be located at the center of the eyeball while the tail component should reach the eyeglobe/eyelids mesh surface.</p></li>
+</ul>
+<p>The <strong>eye_offset_ref</strong> bone is used to align the global eyes direction:</p>
+<img alt="_images/eyes_ref_offset.jpg" src="_images/eyes_ref_offset.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The main upper and lower eyelids controllers are defined by the <strong>eyelid_top/bot_ref</strong> bones:</p>
+<img alt="_images/eyes_ref_eyelids_main.jpg" src="_images/eyes_ref_eyelids_main.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The smaller individual eyelid controllers are defined by the <strong>eyelid_top/bot_01(02, 03…)ref</strong> bones and <strong>eyelid_corner_01/02</strong>:</p>
+<img alt="_images/eyes_ref_eyelids_tweak.jpg" src="_images/eyes_ref_eyelids_tweak.jpg" />
+<p>The amount of these eyelids bones is defined in the <a class="reference internal" href="#eyelidsamount"><span class="std std-ref">Eyelids Amount</span></a> menu</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>The <strong>lips</strong> bones have to be very close to the geometry, positionned all around the lips.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="duplicate-disable-limbs">
+<span id="duplilimb"></span><h3>Duplicate - Disable Limbs<a class="headerlink" href="#duplicate-disable-limbs" title="Link to this heading"></a></h3>
+<a class="reference internal image-reference" href="_images/bally.png"><img alt="_images/bally.png" src="_images/bally.png" style="width: 40%;" /></a>
+<a class="reference internal image-reference" href="_images/spider.png"><img alt="_images/spider.png" src="_images/spider.png" style="width: 40%;" /></a>
+<ul class="simple">
+<li><p>To duplicate a limb, select one bone from it and click <strong>Duplicate</strong>.</p></li>
+<li><p>To remove a limb click <strong>Disable</strong>.</p></li>
+</ul>
+<img alt="_images/duplicate_02.jpg" class="align-center" src="_images/duplicate_02.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Only the arms, legs, neck, head, facial, and ears can be duplicated. It may not be possible to duplicate individual bones: for example, the arms duplication will duplicate the arm, forearm, hands and fingers as a whole, the head duplication will duplicate the neck, head and linked facial if any as a whole. The fingers and spine bones cannot be duplicated yet.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>If disabling a limb is not precise enough to remove a specific bone, DO NOT DELETE the bone manually. It can break the rig functions when clicking Match to Rig for example. Instead, consider hiding the bone. See <a class="reference internal" href="faq.html#faq"><span class="std std-ref">Help / FAQ</span></a> -Is it possible to delete bones?</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="parenting-reference-bones">
+<span id="parentingbones"></span><h3>Parenting Reference Bones<a class="headerlink" href="#parenting-reference-bones" title="Link to this heading"></a></h3>
+<p>Reference bones can be parented to each others, i.e. <strong>shoulder_ref</strong> can be parented to <strong>spine_02_ref</strong> so that the shoulders will be connected to the spine when clicking <strong>Match to Rig</strong>.
+However, parenting only works with predefined behaviors, i.e it’s not possible to parent <strong>leg_ref</strong> to <strong>arm_ref</strong>, it won’t work.</p>
+<ul class="simple">
+<li><p>Only the root bone of a limb can be parented freely</p></li>
+<li><p>When reference bones are parented to other reference bones, a dedicated scripted function will assign the final bone parent when clicking Match to Rig, using a default mapping.</p></li>
+<li><p>It’s possible to force a bone parent by parenting a reference bone to a non-reference bone directly: i.e parenting <strong>shoulder_ref</strong> to the last bone of a 4 bones IK spline: <strong>spline_04_ref</strong>, will by default parent the shoulder to the tip controller of this IK spline, <strong>c_spline_05</strong>. To parent it to the previous controller <strong>c_spline_04</strong>, parent <strong>shoulder_ref</strong> to <strong>c_spline_04</strong> directly.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="adding-custom-bones">
+<span id="id17"></span><h3>Adding Custom Bones<a class="headerlink" href="#adding-custom-bones" title="Link to this heading"></a></h3>
+<p>Adding your own new bones (custom bones) for props, clothes, hair or anything required is fairly simple and straightforward.
+The only requirement is to add and link them to the <strong>deforming</strong> bones or <strong>controller</strong> bones, not <strong>reference</strong> bones. Meaning, bones located in the layer 31, or bones visible after clicking <strong>Match to Rig</strong>. See <a class="reference internal" href="rig_behaviour_doc.html#armature-layers"><span class="std std-ref">Armature Collections</span></a></p>
+<img alt="_images/mike_with_hat.gif" class="align-center" src="_images/mike_with_hat.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Example to add a hat bone:</p>
+<ul class="simple">
+<li><p>Click <strong>Match to Rig</strong></p></li>
+<li><p>Switch to <strong>Edit Mode</strong> (Tab key) and add a bone (Shift-A)</p></li>
+<li><p>Parent it to the “c_head.x” bone which is the head controller, or “head.x” bone which is the deforming bone.</p></li>
+</ul>
+<p>It won’t interfere with the scripted instructions, unless these new bones have same names as existing ones (for example do not name a new bone “c_root.x” or “c_head.x” or “head.x”, these bones are already part of the base rig).</p>
+<p>To export to Fbx, they must be set as custom bones in order to tell the exporter to include them in the exported skeleton, see <a class="reference internal" href="ge_export_doc.html#custombonesexport"><span class="std std-ref">Custom Bones</span></a></p>
+<p><strong>Limitations</strong>:</p>
+<p>New bones must not be inserted between bones of the same limb, for example the following bones hierarchy would break the rig since a custom bone is inserted between spine bones:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>root.x
+    L spine01.x
+        L mycustom_spine_bone &lt; incorrect!
+            L spine02.x
+                L neck...
+</pre></div>
+</div>
+<p>But this works:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">neck</span><span class="o">.</span><span class="n">x</span>
+    <span class="n">L</span> <span class="n">head</span><span class="o">.</span><span class="n">x</span>
+        <span class="n">L</span> <span class="n">hat</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="saving-custom-bones">
+<span id="id18"></span><h3>Saving Custom Bones<a class="headerlink" href="#saving-custom-bones" title="Link to this heading"></a></h3>
+<p>Custom bones can be saved as custom limbs.
+This is useful in order to store and retrieve easily a pre-made limb anytime later.</p>
+<img alt="_images/custom_bones_antenna.jpg" class="align-center" src="_images/custom_bones_antenna.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>For example, if you rig antennas or hair for a character with your own bones mechanics, and need a similar setup for other characters, save these bones as custom limbs and load them into another rig afterwards. All bones data are saved to file, including custom shapes, constraints, drivers, properties…</p>
+<p>The files path is defined in the addon preferences.</p>
+<p>To save, click the downarrow button next to the <strong>Add Limb</strong> list:</p>
+<img alt="_images/save_custom_limb.jpg" class="align-center" src="_images/save_custom_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>To load custom limbs, click the <strong>Add Limb</strong> list and select a limb under the <strong>__Custom__</strong> separator:</p>
+<img alt="_images/load_custom_limb.jpg" class="align-center" src="_images/load_custom_limb.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="generate-the-rig">
+<h2>Generate The Rig<a class="headerlink" href="#generate-the-rig" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Click <strong>Match to Rig</strong> to generate the final rig with controllers, and all the mechanic setup.</p></li>
+</ul>
+<p>Going back to edition mode is possible anytime by clicking <strong>Edit Reference Bones</strong>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Check <strong>Init Scale</strong> to make sure the rig scale value is initialized to 1.0 (recommended)</p>
+<p>New Auto-Rig Pro updates may sometimes change the rig, bones constraints behaviour, bones orientations, which may break previously made animations. To correct this, click <strong>Legacy</strong> and see if any options may help to preserve existing animations.</p>
+<img alt="_images/retro_compat.jpg" class="align-center" src="_images/retro_compat.jpg" />
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="rig-ui">
+<h2>Rig UI<a class="headerlink" href="#rig-ui" title="Link to this heading"></a></h2>
+<p>Once the rig has been generated, it’s time to ensure it looks nice enough!
+Controllers should be easily selectable with cool shapes, nice colors, a picker panel…</p>
+<section id="bone-shapes">
+<h3>Bone Shapes<a class="headerlink" href="#bone-shapes" title="Link to this heading"></a></h3>
+<p>You may want to adjust the controllers shapes. Just click the <strong>Edit Shape…</strong> button and <strong>Apply Shape</strong> once you’re done. To mirror the shape to the other side, click the little button next to <strong>Edit Shape</strong></p>
+<img alt="_images/shape_edit_28_nomove.gif" class="align-center" src="_images/shape_edit_28_nomove.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="picker-panel">
+<span id="pickersetup"></span><h3>Picker Panel<a class="headerlink" href="#picker-panel" title="Link to this heading"></a></h3>
+<section id="id19">
+<h4>Setup<a class="headerlink" href="#id19" title="Link to this heading"></a></h4>
+<p>The picker addon must be installed first. See <a class="reference internal" href="install.html#id1"><span class="std std-ref">Installing the Add-Ons</span></a>.</p>
+<p>If you haven’t done it already, you might want to split the 3D viewport into two areas, one view to display the character and one view to display the picker panel. How to do this:</p>
+<ul class="simple">
+<li><p>Click at the top right corner of the 3d viewport, then hold and drag it onto the left:</p></li>
+</ul>
+<img alt="_images/ui_split_28.jpg" class="align-center" src="_images/ui_split_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>In the <strong>Misc</strong> tab, <strong>Add Picker</strong> will generate a new picker (there is none by default). It’s also possible to <strong>Export</strong> or <strong>Import</strong> a picker layout file.</p></li>
+<li><p>Then click the <strong>Set Picker Cam</strong>, in the view where you want to display the bone picker.</p></li>
+</ul>
+<img alt="_images/misc_tab_v3_28.jpg" class="align-center" src="_images/misc_tab_v3_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Dotted lines may appear and clutter the interface, to remove them just uncheck the <strong>Relationship Lines</strong> option in the Overlays panel.</p>
+<img alt="_images/horrible_lines_28.jpg" class="align-center" src="_images/horrible_lines_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>You can add a background facial picture by framing your character’s head, and clicking <strong>Capture Facial</strong>. If you want to replace this openGL screenshot by a real render, just replace the saved image file with your own file.</p>
+<p>To change the picker layout, click <strong>Edit Layout</strong>…. You’re now free to select, move, rotate and scale the picker bone shapes, buttons, text and background picture. Once you’re done, click <strong>Apply Layout</strong> to complete.</p>
+<img alt="_images/picker_image2.jpg" class="align-center" src="_images/picker_image2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="remove">
+<h4>Remove<a class="headerlink" href="#remove" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p>If the picker panel is not necessary, delete it with the <strong>X</strong> icon button next to <strong>Add Picker</strong>.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="customize">
+<h4>Customize<a class="headerlink" href="#customize" title="Link to this heading"></a></h4>
+<p>To add custom picker bones:</p>
+<ul class="simple">
+<li><p>In “Misc” panel, click <strong>Edit Layout</strong></p></li>
+<li><p>In Edit mode (Tab key), select a picker bone</p></li>
+<li><p>Duplicate it and rename it with the correct name identifier. (e.g “c_spine_03_proxy.x” to -&gt; “c_custombone_proxy.x”)</p></li>
+</ul>
+<img alt="_images/picker_custom_dupli.gif" class="align-center" src="_images/picker_custom_dupli.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>In pose mode, in the “Proxy Picker” tab of the bone menu, change the “Pick Bone” to your custom bone name</p></li>
+</ul>
+<img alt="_images/picker_custom.jpg" class="align-center" src="_images/picker_custom.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Note: the other settings (normal shape, select shape…) are deprecated in Blender 4 and do not work. If you want to change the picker shape, change the bone custom shape directly.</p></li>
+<li><p>Click <strong>Apply Layout</strong> in the “Misc” menu</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>This picker system was created 8 years ago, based on the addon “Proxy Picker” by Max Hammond, when there was no decent picker addon for Blender.
+Although it’s absolutely usable and fine, it’s more of a hack than a real picker solution.
+I recommend <a href="https://superhivemarket.com/products/x-pose-picker?ref=46" target="_blank">this picker addon</a> that was released since then, if you need more advanced picker stuff.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="color-theme">
+<span id="heycolortheme"></span><h3>Color Theme<a class="headerlink" href="#color-theme" title="Link to this heading"></a></h3>
+<p>Colors of left, middle and right bones can be adjusted quickly with the Color Theme.
+Click <strong>Assign</strong> to set the colors of all bones from the given sides.</p>
+<img alt="_images/misc_tab_v3_28.jpg" class="align-center" src="_images/misc_tab_v3_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="import-export-rig-data">
+<h2>Import/Export Rig Data<a class="headerlink" href="#import-export-rig-data" title="Link to this heading"></a></h2>
+<p>Reference bones transforms, limb options, and custom shapes can be exported as a file and imported later.</p>
+<p>These features are useful to restore a broken rig: for example, if you accidentally removed some internal bones, drivers or constraints, leading to break the rig.
+Then, restore the rig by exporting the rig data, delete the current rig, create a new one, and import the rig data.</p>
+<p>Only Auto-Rig Pro limbs can be exported/imported. The custom bones can be exported/imported via <a class="reference internal" href="#saving-custom-bones"><span class="std std-ref">Saving Custom Bones</span></a></p>
+<img alt="_images/export_cs.jpg" class="align-center" src="_images/export_cs.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="skinning">
+<span id="id20"></span><h2>Skinning<a class="headerlink" href="#skinning" title="Link to this heading"></a></h2>
+<section id="binding">
+<h3>Binding<a class="headerlink" href="#binding" title="Link to this heading"></a></h3>
+<img alt="_images/binding_engines.jpg" class="align-center" src="_images/binding_engines.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Select first the character meshes objects, then the armature while holding the <strong>Shift</strong> key.</p></li>
+<li><p>Click the <strong>Bind</strong> button to bind.</p></li>
+</ul>
+<img alt="_images/bind.jpg" class="align-center" src="_images/bind.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bind-engines">
+<h3>Bind Engines<a class="headerlink" href="#bind-engines" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Heat Maps</strong>: Default engine, works best with watertight meshes (closed mesh)</p></li>
+<li><p><strong>Voxelized</strong>: If meshes are not watertight (e.g. multiple layers of clothes, props, complex topology…), consider using this engine. However, this doesn’t always lead to good results: this is not a true voxel skinning implementation, but an approximated method. It’s not as foolproof as the <a href="https://superhivemarket.com/products/voxel-heat-diffuse-skinning?ref=46" target="_blank">Voxel Heat Diffuse Skinning</a> addon, neither as fast.</p></li>
+<li><p><strong>Voxel Heat Diffuse Skinning</strong>: Extra skinning addon to bind meshes with complex topology. Use pure voxel skinning algorithm.</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Voxel skinning gives best results with multiple layers of clothes/props, however it’s less accurate with small parts (fingers, facial…) than other methods. A good practice is to enable <strong>Selected Vertices Only</strong> to mix voxels skinning with surface skinning (Heat Maps). For example, use <strong>Heat Maps</strong> skinning for fingers/facial and <strong>Voxelize</strong> for the rest of the body.</p>
+</div>
+<img alt="_images/voxelize_example2.jpg" class="align-center" src="_images/voxelize_example2.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="bind-settings">
+<h3>Bind Settings<a class="headerlink" href="#bind-settings" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Split Parts (Heat Maps)</strong>: This setting tries to improve heat maps skinning when meshes are separate in multiple pieces (clothes, props…)</p></li>
+<li><p><strong>Optimize High Res (Heat Maps)</strong>: Speeds up binding of high poly meshes that contains more faces than the given threshold below, by internally working on lower resolutions.</p></li>
+<li><p><strong>Type (Voxelized)</strong>: Voxelization type, switch this setting to another type if it doesn’t lead to good results</p></li>
+<li><p><strong>Voxel Resolution (Voxelized-Voxel Heat)</strong>: The higher this value is, the more accurate and longer to perform the voxelization will be. However, the <strong>Voxelized</strong> engine may sometimes work better with lower resolutions.</p></li>
+<li><p><strong>Refine Head Weights</strong>: Makes head weights more consistent, based on the chin position, preventing the neck weights to blend too far with the head weight. Only when using the Smart feature, when facial is disabled, and for bipeds only. Alternatively if not using the Smart feature, make sure the reference jawbone is properly positionned, and disable facial afterward. As a drawback it may lead to (too) sharp deformations in the neck area, example below without/with:</p></li>
+</ul>
+<img alt="_images/improve_skin_head_example.jpg" class="align-center" src="_images/improve_skin_head_example.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Smooth Twist Weights</strong>: Improve twist bones skinning by applying a gradient decay to weights along the bones chain. Example below without/with:</p></li>
+</ul>
+<img alt="_images/improve_skin_twist.gif" class="align-center" src="_images/improve_skin_twist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Improve Hips Weights</strong>: Improve hips/pelvis skinning. By default, the thigh weights tend to blend too far in the hips area. This setting prevents that.</p></li>
+</ul>
+<img alt="_images/improve_skin_hips.jpg" class="align-center" src="_images/improve_skin_hips.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Improve Heel Weights</strong>: By default the heel area may be slightly deformed by the thigh weights. This setting make sure to solidify it, leading to more consistent weights.</p></li>
+</ul>
+<img alt="_images/improve_skin_heels.gif" class="align-center" src="_images/improve_skin_heels.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/bind_settings.jpg" class="align-center" src="_images/bind_settings.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Facial Features</strong>: Improve skinning of facial parts by defining objects used for the eyeballs, tongue, and teeth. The eyelid borders can also be defined for more accurate skinning, by selecting vertices around the left eyelid, click <strong>Set Left</strong>, and same for the right eyelid. <a href="https://www.youtube.com/watch?v=BZNmCX4JkcE&t=38s" target="_blank">Video tutorial.</a></p></li>
+</ul>
+<ul class="simple">
+<li><p><strong>Selected Bones Only</strong>: Only the selected bones will be evaluated when binding. Useful to bind cloth meshes to clothes bones only for example.</p></li>
+<li><p><strong>Selected Vertices Only</strong>: Only the selected vertices will be evaluated when binding. Useful to bind specific parts of a mesh, for example to only bind fingers, select only finger vertices and enable this setting.</p></li>
+<li><p><strong>Apply Shape Keys</strong>: Evaluate the current shape keys deformations when binding. Useful if shape keys are deforming a lot the meshes.</p></li>
+<li><p><strong>Scale Fix</strong>: Enable this setting if meshes are very small (in Blender units space) and binding doesn’t work</p></li>
+</ul>
+<p>When binding, all existing vertex groups are cleared, except the ones used by modifiers (hair, cloth…) or nodes. However, in case some vertex groups that are actually used by other undetected features must be preserved, click their lock icon before binding:</p>
+<img alt="_images/vgroup_lock.jpg" class="align-center" src="_images/vgroup_lock.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Binding can take time, especially with high resolution meshes. See the <a class="reference internal" href="#clothesskin"><span class="std std-ref">Clothes</span></a> chapter to skin and attach clothes to the main body mesh easily.</p>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>If binding does not work, see the <a class="reference internal" href="faq.html#faq"><span class="std std-ref">Help / FAQ</span></a></p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="skinning-weight-painting-and-shape-keys">
+<span id="weightpainting"></span><h3>Skinning: Weight Painting and Shape Keys<a class="headerlink" href="#skinning-weight-painting-and-shape-keys" title="Link to this heading"></a></h3>
+<p>It’s time to carefully paint the weight vertices for each vertex group in the list. The auto-skinning can be considered as a basis, automatic weights are never perfect.</p>
+<p><strong>Facial rigging tutorials brought to you by CGDive!</strong></p>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+<iframe src="https://www.youtube.com/embed/nvjq7C9BbAQ" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+</div><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+<iframe src="https://www.youtube.com/embed/hxWxhNNp1r4" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+</div><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="how-to-paint-the-weights">
+<h4>How to paint the weights?<a class="headerlink" href="#how-to-paint-the-weights" title="Link to this heading"></a></h4>
+<p>To quickly select the deforming bones and check the associated vertex groups in one click, you can display only the <strong>Deform</strong> collection (layer 31 in older Blender versions) of the armature, wich includes the deforming bones only:</p>
+<img alt="_images/deform_collec.jpg" class="align-center" src="_images/deform_collec.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/last_layer_28.jpg" class="align-center" src="_images/last_layer_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>A quick search in Google (such as “blender weight painting tutorial”) will give you the basis of the Blender’s weight painting tools if you don’t know them, this is something I won’t elaborate more here. Basically, it’s all about browsing the vertex groups list and painting the weights.
+If you’re new to Blender skinning, you can check these two videos: <a href="https://youtu.be/gz7hsjcW1Xc" target="_blank">Rig Tips 1</a>, <a href="https://youtu.be/gqFN_e7nEEM" target="_blank">Rig Tips 2</a></p>
+<p>For a high quality skinning, this process can take some time, do not hesitate to test the skin accuracy by posing the character into several extreme position (arms up, arms down, arms ahead, thighs up…)</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <a href="https://lucky3d.fr/auto-rig-pro/mike.zip" target="_blank">Mike Rig</a> is a free character rigged with Auto-Rig Pro, it can be used as a reference to understand how the weights must be distributed for each bone. The facial rig is a mix of shape keys and bones.</p>
+</div>
+<img alt="_images/mike.jpg" class="align-center" src="_images/mike.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Here are a few notes about some specific painting regions:</p>
+</section>
+<section id="clothes">
+<span id="clothesskin"></span><h4>Clothes<a class="headerlink" href="#clothes" title="Link to this heading"></a></h4>
+<p>If the body is modeled and skinned under the clothes, a good practice is to transfer the weights from the body to the clothes. This way, they will perfectly stick to the body.</p>
+<ul class="simple">
+<li><p>Select the clothes objects, then the body (holding <strong>Shift</strong>, the target first, then the source), press <strong>F3 &gt; type “Transfer Mesh Data” &gt; choose “Vertex Groups”</strong>. In the tool shelf options (T key, bottom area) choose <strong>Nearest Face Interpolated</strong> instead of Nearest Vertex, <strong>All Layers</strong> instead of Active Layer, and you’ll find here more options to fine-tune the transfer.</p></li>
+</ul>
+<img alt="_images/transfer_weights_28.jpg" class="align-center" src="_images/transfer_weights_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="eyes">
+<h4>Eyes<a class="headerlink" href="#eyes" title="Link to this heading"></a></h4>
+<p>Make sure to assign the correct vertices to these bones:</p>
+<ul class="simple">
+<li><p>The big circle (c_eye_offset) is meant to deform both the eyes and eyelids. It simulates the muscles stretch and compression. The eyelids and eyesballs bones have their own vertex groups though (eyelid_bot, eyelid_top, c_eye and other secondaries), so this bone should just influence the external borders, gradually reduce the influence near the eyelids.</p></li>
+<li><p>The small circle (c_eye) is meant to rotate the eyeball only.</p></li>
+<li><p>The sphere circle (c_eye_ref) is meant to control the reflexion disk mesh (if any), sometime used to fake the eye reflexion, easily animatable.</p></li>
+</ul>
+<img alt="_images/eyes.gif" class="align-center" src="_images/eyes.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="shape-keys">
+<h4>Shape Keys<a class="headerlink" href="#shape-keys" title="Link to this heading"></a></h4>
+<p><strong>Lips roll</strong>: The <strong>c_lips_roll_top/bot</strong> bones controllers can drive shape keys, in case the <a class="reference internal" href="#lipsrollconstraints"><span class="std std-ref">Lips Roll Constraints</span></a> are disabled, or for more accurate deformations.</p>
+<img alt="_images/lips_roll.png" class="align-center" src="_images/lips_roll.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Note: Shape Keys can replace various skinning deformations, such as smile or eyebrows expressions.
+Then it’s best to disable skinning deformation for these bones since shape keys will replace it:
+select bones that should drive shape keys, and uncheck the <strong>Deform</strong> property in the bone property panel.</p>
+<img alt="_images/deform_checkbox_28.jpg" class="align-center" src="_images/deform_checkbox_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The addon includes a tool to quickly create drivers between a shape key and a bone controller:</p>
+<ul class="simple">
+<li><p>Select the armature, then in the <strong>Shapekeys Driver Tools</strong> enter the bone name driving the shape key or select it and click the <strong>little picker icon</strong>.</p></li>
+<li><p>Hold <strong>Shift</strong> key and select the mesh. In the shape key list, select the one to be driven</p></li>
+<li><p>Back in the Auto-Rig Pro tab, select the transform parameter you want to use to drive (location, rotation, scale and the axis)</p></li>
+<li><p>Click <strong>Create Driver</strong>.</p></li>
+</ul>
+<img alt="_images/create_driver_28.jpg" class="align-center" src="_images/create_driver_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>If the shape key increases too slowly or too fast while the bone is moving:</p>
+<ul class="simple">
+<li><p>Left click on the pink shape key value then multiply ‘var’ by any number using the * (asterisk/star) character, <strong>e.g to speed up 60 time faster, write</strong>:</p></li>
+</ul>
+<img alt="_images/driver_multiply_28.jpg" class="align-center" src="_images/driver_multiply_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>The <strong>0, 1 and Reset</strong> buttons are optional, you can use them to set a key to 0 or 1 on the curve, according to the current bone position. It’s especially useful when using multiple shape keys, such as the eyelid rotation that may involve several shapes for big eyes.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can also negate the expression to switch the bone direction: <strong>“-var”</strong></p>
+</div>
+<p>To delete a driver:</p>
+<ul class="simple">
+<li><p>Right click on the shape key value &gt; <strong>Delete driver</strong></p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="corrective-shape-keys">
+<h4>Corrective Shape Keys<a class="headerlink" href="#corrective-shape-keys" title="Link to this heading"></a></h4>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+<iframe src="https://www.youtube.com/embed/TcZOSF7lem8" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+</div><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Sometimes, painting weights is not enough to get correct deformations.
+For example, rotating the forearm or calf/leg bones at extreme positions often result in poor deformations, with penetrating faces.
+This is where corrective shape keys shine! They allow to fix deformations by editing the mesh manually for a given rotation.
+However accessing the bone rotation from the transform values is only possible with FK chains.
+For IK-FK chains such as the arms and legs, it’s a more complex to setup. This is why Auto-Rig Pro includes a convenient tool to do this in a few clicks:</p>
+<img alt="_images/correc_shape_side_side.gif" class="align-center" src="_images/correc_shape_side_side.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/correc_shape_02.gif" class="align-center" src="_images/correc_shape_02.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul>
+<li><p>Pose the arm, leg, hand… or any bone controller in the position that leads to incorrect deformations</p></li>
+<li><p>Enable the <strong>Deform</strong> collection (layer 31 in older Blender versions) to show deforming bones, or click <strong>Pick Selected Bone(s)</strong> that will show an error and display the <strong>Deform</strong> collection automatically.</p></li>
+<li><p>Select one or two deforming bones, that are related to the deformation, when they rotate to the current angle.</p>
+<blockquote>
+<div><p>If 1 bone is selected, must be an arm or leg bone. The other relative bone to calculate the angle from, will be automatically assigned.</p>
+<p>If 2 bones are selected, can be any bones. The first selected bone must be the rotated bone. For example, the <strong>foot</strong> and <strong>leg_twist</strong> bones must be selected to correct the ankle deformation when the foot rotates. To fix a deformation when the forearm rotates, select a bone from the <strong>forearm</strong>, and a bone from the <strong>upperarm</strong>.</p>
+</div></blockquote>
+</li>
+<li><p>Click <strong>Pick Selected Bone(s)</strong>. If the selection is not valid, an error message should pop up</p></li>
+<li><p>A new bone is created internally, used to define the shape key driver rotation.  You can click the eye button to show the bones and angle value (in radians) that will be applied to the driver.</p></li>
+</ul>
+<img alt="_images/correc_shape_03.gif" class="align-center" src="_images/correc_shape_03.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Select the mesh object and the corrective shape key to be applied to this pose (create one if there is none yet).</p></li>
+<li><p>Click <strong>Add Corrective Driver</strong></p></li>
+<li><p>Done! If necessary, you can use the <strong>0</strong> and <strong>1</strong> button above, to define when the shape key must start and end, as the bone rotates.</p></li>
+</ul>
+<img alt="_images/correc_shape_05.gif" class="align-center" src="_images/correc_shape_05.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>You can also use these buttons to create multiple intermediate shape keys that will be triggered one after another as the bone rotates, for more accurate deformations. Just copy the driver (right click on the pink area &gt; Copy) and paste it to another shape key (right click &gt; Paste), and use the 0/1/Reset buttons to define the shape key range.</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Use the <strong>Corrective Shape Key</strong> addon to easily edit your corrective shape. This allows to create corrective shapes from another object/mesh, while preserving the current mesh deformations (modifiers + shape keys). Powerful, because editing the shape keys directly on the main mesh can lead to “Crazy Space” issues, e.g. vertices moving to the right whereas you move the mouse cursor to the left. It comes by default with Blender, just enable it from the addons list.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+</section>
+<section id="hand-fist">
+<span id="handfist"></span><h2>Hand Fist<a class="headerlink" href="#hand-fist" title="Link to this heading"></a></h2>
+<img alt="_images/auto_fist.gif" class="align-center" src="_images/auto_fist.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Optionally, a fist controller can be added to hands.
+This controller is meant to blend the fingers into a predefined fist pose.
+This allows a better grasp than the default <a class="reference internal" href="rig_behaviour_doc.html#fingersbend"><span class="std std-ref">Fingers Grasp</span></a> property since that simply curls the phalanges along the X axis, wich may be inacurrate.</p>
+<p>To create the hand fist:</p>
+<ul class="simple">
+<li><p>Select the hand controller</p></li>
+<li><p>Click <strong>Add Fist Pose</strong></p></li>
+</ul>
+<img alt="_images/hand_fist_button_28.jpg" class="align-center" src="_images/hand_fist_button_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Click <strong>Apply Default Fist Pose</strong> to set automatically the fingers in a fist pose</p></li>
+<li><p>If the result is fine, click <strong>OK</strong>. If not, exit the popup window and tweak manually the fingers: rotate/move/scale directly the fingers controllers. <a class="reference internal" href="#rotfromscale"><span class="std std-ref">Rotate Fingers from Scale</span></a> should not be used here. Then click <strong>Add Fist Pose</strong> again and <strong>OK</strong> to generate the fist controller.</p></li>
+</ul>
+<img alt="_images/fist_pose_default.gif" class="align-center" src="_images/fist_pose_default.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>Fingers will curl into the fist pose when scaling the controller negatively.</p></li>
+<li><p>Optionally, an extended pose -fingers spread out- can be created as well. Same process, but select <strong>Extend</strong> after clicking <strong>Add Hand Fist</strong>. Will be applied when scaling positively.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="blink-pose">
+<span id="blinkpose"></span><h2>Blink Pose<a class="headerlink" href="#blink-pose" title="Link to this heading"></a></h2>
+<img alt="_images/blink_pose_auto.gif" class="align-center" src="_images/blink_pose_auto.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Optionally, a blink pose can be added.
+This is useful to blend eyelids into a predefined closed pose.
+This allows better eyelids contact, shape, in case the default rotation doesn’t fit.</p>
+<ul class="simple">
+<li><p>Select the main upper eyelid controller (c_eyelid_top) and click <strong>Add Blink Pose</strong></p></li>
+<li><p>Click <strong>Add Default Blink Pose</strong> to apply an automatic pose</p></li>
+<li><p>If the result is fine, click <strong>OK</strong> to confirm. If not, exit the popup window and tweak the eylid bones manually to improve the blink pose, then click again <strong>Add Blink Pose</strong> and <strong>OK</strong></p></li>
+<li><p>Now the eyelids controller will blend into this predefined pose when moving <strong>c_eyelid_top</strong>. The same process can be repeated for the lower eyelids.</p></li>
+<li><p>Optionally, multiple half-closed poses can be set. Just repeat the process with the eyelids being half-closed at 50% for example, and select <strong>As In-Between</strong> when prompted</p></li>
+</ul>
+<img alt="_images/eyelids_pose2.gif" class="align-center" src="_images/eyelids_pose2.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/blink_pose_prompt.jpg" class="align-center" src="_images/blink_pose_prompt.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="changing-the-rest-pose">
+<span id="changerestpose"></span><h2>Changing the Rest Pose<a class="headerlink" href="#changing-the-rest-pose" title="Link to this heading"></a></h2>
+<p>Optionally, the rest pose can be changed. For example, when exporting to Unreal Engine, it’s best to set the character in A-Pose.</p>
+<section id="set-pose">
+<h3>Set Pose<a class="headerlink" href="#set-pose" title="Link to this heading"></a></h3>
+<p>This function will automatically set the character into a predefined pose.</p>
+<img alt="_images/set_a_pose.gif" class="align-center" src="_images/set_a_pose.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="apply-pose-as-rest-pose">
+<h3>Apply Pose as Rest Pose<a class="headerlink" href="#apply-pose-as-rest-pose" title="Link to this heading"></a></h3>
+<p>To apply the current pose as the rest pose, the <strong>Apply Pose as Rest Pose</strong> button must be clicked.
+Then click <strong>Match to Rig</strong> to apply the changes to the final rig.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="set-character-name">
+<span id="setcharactername"></span><h2>Set Character Name<a class="headerlink" href="#set-character-name" title="Link to this heading"></a></h2>
+<p>For consistency and clarity in the final scene, set the character name used for collections and rig objects. To do this, click the button <strong>Set Character Name</strong>. E.g, naming a character “matt” will rename the collections to “matt_rig”, “matt_cs”…</p>
+<img alt="_images/set_char_name.jpg" class="align-center" src="_images/set_char_name.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="optimizing-the-rig-performances">
+<h2>Optimizing the Rig Performances<a class="headerlink" href="#optimizing-the-rig-performances" title="Link to this heading"></a></h2>
+<p>Most characters rigged with Auto-Rig Pro, except very high poly ones or with complex modifiers setup, should reach 60 fps in the Blender viewport.
+They don’t? Here are tips to drastically improve performances, by gaining up to 40 fps depending on the character meshes:</p>
+<section id="cleaning-weights">
+<h3>Cleaning Weights<a class="headerlink" href="#cleaning-weights" title="Link to this heading"></a></h3>
+<p>Reducing the number of bones/vertex groups influencing vertices is very efficient to improve performances.
+4 bones max is a good ratio to keep in mind.
+Some superfluous vertex groups with weight values set to 0.01 or below may be assigned to vertices, when transferring weights between meshes or smoothing weights.
+Blender has a one click tool to clean them up instantly!</p>
+<img alt="_images/clean_weights.gif" class="align-center" src="_images/clean_weights.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="clearing-custom-normals-and-auto-smoothing">
+<h3>Clearing Custom Normals and Auto-Smoothing<a class="headerlink" href="#clearing-custom-normals-and-auto-smoothing" title="Link to this heading"></a></h3>
+<p>Custom normals and polygons auto-smoothing are performance consuming. Unless these features are absolutely necessary, it’s best to remove them from meshes for optimal performances.
+Imported meshes from external file format often have custom normals.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/custom_normal_28.jpg" class="align-center" src="_images/custom_normal_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>Run this script to remove these bottlenecks automatically on all meshes:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">bpy</span>
+
+<span class="k">def</span> <span class="nf">set_active_object</span><span class="p">(</span><span class="n">object_name</span><span class="p">):</span>
+    <span class="n">bpy</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">view_layer</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">active</span> <span class="o">=</span> <span class="n">bpy</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">objects</span><span class="p">[</span><span class="n">object_name</span><span class="p">]</span>
+    <span class="n">bpy</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">objects</span><span class="p">[</span><span class="n">object_name</span><span class="p">]</span><span class="o">.</span><span class="n">select_set</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">bpy</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">objects</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="s2">&quot;MESH&quot;</span><span class="p">:</span>
+        <span class="k">continue</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">set_active_object</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">continue</span>
+
+    <span class="c1"># obj.data.use_auto_smooth = False# only for older Blender versions</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">bpy</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">customdata_mask_clear</span><span class="p">()</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="n">bpy</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">customdata_custom_splitnormals_clear</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="normal-maps-shaders">
+<h3>Normal Maps Shaders<a class="headerlink" href="#normal-maps-shaders" title="Link to this heading"></a></h3>
+<p>Eevee isn’t optimized by default to display normal maps quickly in the viewport. It results in a noticeable performance drop when rendering shaders on deformed meshes.</p>
+<p>Fortunately a providential addon can fix it! It automatically converts normal maps nodes to custom node groups that commonly reach 60 fps. Can be reverted anytime. Tested and approved!</p>
+<p><a class="reference external" href="https://github.com/theoldben/BlenderNormalGroups">https://github.com/theoldben/BlenderNormalGroups</a></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="playback-options">
+<h3>Playback Options<a class="headerlink" href="#playback-options" title="Link to this heading"></a></h3>
+<p>Playing back animation in all windows (3d viewport, animation editor) is more consuming than a single one. To ensure best results, in the playback options of the timeline window, disabled all but <strong>Active Editor Only</strong>:</p>
+<img alt="_images/playback_options.jpg" class="align-center" src="_images/playback_options.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="meshes-hiding">
+<h3>Meshes Hiding<a class="headerlink" href="#meshes-hiding" title="Link to this heading"></a></h3>
+<p>Sometimes we need to hide meshes (clothes, hair) to output different versions of a character in a single file.
+Hiding skinned meshes with the <strong>eye</strong> icon in the outliner is wrong: these meshes will be evaluated when playing the animation, even if they’re hidden.
+To ensure they’re excluded from the skinning evaluation, when playing the animation, hide them from a lower level using the <strong>screen</strong> icon.</p>
+<img alt="_images/hide_viewport.gif" class="align-center" src="_images/hide_viewport.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="appending-linking-in-a-scene">
+<span id="appendinglinking"></span><h2>Appending - Linking in a scene<a class="headerlink" href="#appending-linking-in-a-scene" title="Link to this heading"></a></h2>
+<p>There are two methods to load a rigged character in a final file. <strong>Appending</strong> will load a static copy of the rigged character in the file, this means if you change the character geometry or armature in the rig file, the changes won’t be applied to the character in the final file. It’s just a copy. On the contrary, <strong>Linking</strong> will load a dynamic copy of the character (instance). Changes made in the rig file will automatically be applied in the final file, which is very useful!</p>
+<ul class="simple">
+<li><p>First make sure your rig file only contains your character rig and meshes objects (no render camera, light….)</p></li>
+<li><p>Make sure meshes objects are parented to the armature</p></li>
+<li><p>By default, all rig/character objects are grouped inside the 3 collections “charactername”, “charactername_rig”, “charactername_cs”. Make sure to include any new objects added by you as well inside (new meshes, etc…).</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="appending">
+<h3>Appending<a class="headerlink" href="#appending" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>In a new scene, <strong>File &gt; Append &gt; Select the rigged character file &gt; Collections &gt; Select the root character collection</strong> &gt; click <strong>Append from Library</strong></p></li>
+</ul>
+</section>
+<section id="linking">
+<h3>Linking<a class="headerlink" href="#linking" title="Link to this heading"></a></h3>
+<p>There are two ways to link a rig: <strong>Library Overrides</strong> or <strong>Proxies</strong></p>
+<p>Use <strong>Library Overrides</strong> with Blender 3.0 and above (no choices, proxies don’t exist anymore, deprecated!)</p>
+<p>For Blender 2.93 and below, Library Overrides are possible, but it’s recommended to use <strong>Proxies</strong> for stability reasons.</p>
+<ul class="simple">
+<li><p><strong>For Proxies Only:</strong> First, you may want to hide (in viewport mode) the armature object in the source file, to prevent the rig to be displayed two times once it’s linked (it may lead to overlapping glitches).</p></li>
+</ul>
+<img alt="_images/hide_rig_viewport.jpg" class="align-center" src="_images/hide_rig_viewport.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>In a new scene,  <strong>File &gt; Link &gt; Select the rigged character file &gt; Collections &gt; Select the root character collection (“soldier” in the image above)</strong></p></li>
+<li><p><strong>For Proxies Only:</strong> If you wish to export later the rig + all skinned meshes, just click the button <strong>Link from Library</strong>. But in case you need to export the rig + selected meshes only, disable <strong>Instance Collections</strong> on the right, then click <strong>Link from Library</strong>. Disabling this setting allows to load individual, selectable instances of the meshes objects.</p></li>
+</ul>
+<img alt="_images/link_instance_collections.jpg" class="align-center" src="_images/link_instance_collections.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p>After linking, all objects are frozen. To unfreeze them, depending if you use Library Overrides or Proxy:</p></li>
+<li><p><strong>Library Overrides:</strong> Click the Object menu &gt; Relations &gt; Make Library Overrides…:</p></li>
+</ul>
+<img alt="_images/make_lib_override.jpg" class="align-center" src="_images/make_lib_override.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Proxies:</strong> press <strong>F3 &gt; type “make proxy” and click it &gt; type the rig object name and click it</strong></p></li>
+</ul>
+<img alt="_images/make_proxy_28.jpg" class="align-center" src="_images/make_proxy_28.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>For Proxies Only</strong>: If the rig contains a picker: select the rig collection, and turn the “cam_ui” camera into a proxy: press <strong>F3 &gt; type “make proxy” and click it &gt; type “cam_ui” and click it</strong>. The newly created proxy camera is named “charactername_rig_proxy”, select it and rename it “cam_ui”, and finally parent it to the proxy armature (in object mode, <strong>Ctrl-P &gt; Object (Keep Transforms)</strong>). In a new window (3d viewport), select a bone in pose mode and click <strong>Set Picker Cam</strong> in the <strong>Rig Main Properties</strong> tab</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="compatibility-with-other-addons">
+<h2>Compatibility with other Addons<a class="headerlink" href="#compatibility-with-other-addons" title="Link to this heading"></a></h2>
+<p>Auto-Rig Pro complies with other rigging related addons such as:</p>
+<section id="cascadeur-to-game-engines">
+<h3>Cascadeur to Game Engines<a class="headerlink" href="#cascadeur-to-game-engines" title="Link to this heading"></a></h3>
+<img alt="_images/addon_cascadeur.jpg" src="_images/addon_cascadeur.jpg" />
+<p>Transfer your animated characters created in the Cascadeur software to Unreal Engine, Unity and Godot -just a click of the mouse:
+<a href="https://boosty.to/zhukovp/posts/20d04ad3-ac5d-4f37-a5d6-ceffb806e9f5?locale=en_US" target="_blank">Cascadeur to Game Engines</a></p>
+</section>
+<section id="x-muscles-system">
+<h3>X-Muscles System<a class="headerlink" href="#x-muscles-system" title="Link to this heading"></a></h3>
+<img alt="_images/addon_xmuscles.jpg" src="_images/addon_xmuscles.jpg" />
+<p>Muscles simulation addon, raising the bar for realism: <a href="https://superhivemarket.com/products/x-muscle-system?ref=46" target="_blank">X-Muscles System</a></p>
+</section>
+<section id="x-pose-picker">
+<h3>X-Pose Picker<a class="headerlink" href="#x-pose-picker" title="Link to this heading"></a></h3>
+<img alt="_images/addon_xposepicker.jpg" src="_images/addon_xposepicker.jpg" />
+<p>Bone picker panel addon, to select bones controller from a separate interface: <a href="https://superhivemarket.com/products/x-pose-picker?ref=46" target="_blank">X-Pose Picker</a></p>
+</section>
+<section id="id21">
+<h3>Rig UI<a class="headerlink" href="#id21" title="Link to this heading"></a></h3>
+<img alt="_images/addon_rigui.jpg" src="_images/addon_rigui.jpg" />
+<div class="line-block">
+<div class="line">Enhance the rig interface and functions with extra, convenient tools!</div>
+<div class="line"><a href="https://gumroad.com/a/523613459/ogjthe" target="_blank">Rig UI on Gumroad</a></div>
+<div class="line"><a href="https://superhivemarket.com/products/rig-ui?ref=46" target="_blank">Rig UI on Superhive</a></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="conclusion">
+<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading"></a></h2>
+<p>Make sure to check the other documentation chapters on the left, <a class="reference internal" href="rig_behaviour_doc.html#rigfeatures"><span class="std std-ref">Rig Features</span></a>, <a class="reference internal" href="ge_export_doc.html#gameengineexport"><span class="std std-ref">Game Engine Export</span></a> and other chapters.</p>
+<p>Feel free to get in touch for any remarks, if anythying broke with a newest Blender API update or whatever… and happy blending!</p>
+<p>Artell</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="install.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="rig_behaviour_doc.html" class="btn btn-neutral float-right" title="Rig Features" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2016-2023, Artell.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

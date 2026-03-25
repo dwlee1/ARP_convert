@@ -1,0 +1,119 @@
+Installation
+==========================================
+
+
+    
+.. _INSTALLATION:  
+    
+Installing the Add-Ons
+----------------------
+
+.. important::
+    | Do not unzip the downloaded files.
+    | **Mac OS**: The *Safari* browser may unzip files automatically, in that case either re-zip the files after downloading, or |Safari_settings|.
+
+
+.. |Safari_settings| raw:: html
+
+    <a href="https://www.howtogeek.com/789559/how-to-stop-safari-from-automatically-unzipping-downloaded-files-on-mac/" target="_blank">adjust the Safari settings</a>
+    
+    
+* In Blender, click **Edit > Preferences...** 
+
+.. image:: img/blender_prefs.gif
+	:align: center
+    
+|
+    
+* If an older version is already installed, make sure to **uninstall** the older version before installing the new one. Otherwise, the python cache won't update, resulting in random errors.
+
+.. image:: img/uninstall_extension.jpg
+	:align: center
+    
+|
+
+
+* In the **Get Extensions** (or **Add-ons**) tab, click the down arrow button at the top right corner > **Install from Disk...**
+
+.. image:: img/install_extension.gif
+	:align: center
+    
+|
+
+* The select the addon zip file **auto_rig_pro_x.xx.xx.zip** and click **Install from Disk**
+
+|
+
+.. _AIinstall:
+
+AI files (Smart tool)
+"""""""""""""""""""""
+| Since version 3.74, Auto-Rig Pro comes with AI files. 
+| Given these are heavy files (~400 mb), not cross-platforms, and an optional feature, they are not packed with the main add-on to keep it lighter.
+| They grant access to new features such as :ref:`guessmarkers`, to automatically add the Smart markers on humanoid characters.
+| If they are not installed, the related features will be missing, but it won't prevent the rest of the add-on from working.
+
+* Download the AI zip file for your distribution: **AI_win.zip** for Windows, **AI_linux.zip** for Linux...
+* In the Auto-Rig Pro preferences, scroll down to **Install AI Files...** and click it
+* Select the zip file and install
+
+.. image:: img/install_ai.gif
+	:align: center
+
+|
+
+Proxy Picker (Optional)
+"""""""""""""""""""""""""
+The addon to select bones using the separate interface. Only necessary if you plan to use this interface.
+
+.. image:: img/picker_image2.jpg	
+    :scale: 35 %
+
+
+* Select **proxy_picker.zip** then click **Install from Disk**
+
+|
+
+GLTF Exporter 
+"""""""""""""""
+
+.. important::
+    If you run Blender 4.2 or greater, please **skip this GLTF exporter installation**. Do not do what's written below. Only for older Blender versions!
+
+
+If you wish to export to GLTF, the patched version of the GLTF exporter must be installed manually in order to export animated shape keys successfully.
+The default GLTF exporter packed with Blender will fail, it is necessary to replace it manually with this patched version, if you need to export animated shape keys.
+
+* Open the Blender add-on folder:
+
+Blender Installation Directory/4.1/scripts/addons/
+
+.. image:: img/gltf_install_folder.gif
+	:align: center
+    
+|
+
+* Remove the **io_scene_gltf2** folder
+
+* Download **io_scene_gltf2.zip**
+* Open it. Inside, 3 versions are available: for Blender 3.6, 4.0 and 4.1 (zip files names ending with _36, _40...)
+* Select the correct version that matches the Blender version you currently use, and unzip the folder **io_scene_gltf2** in the Blender addons folder.
+
+.. image:: img/gltf_install_copy.gif
+	:align: center
+
+
+|
+
+Rig Tools (extra)
+""""""""""""""""""
+* Only install the Rig Tools addon **rig_tools_x.xx.xx.zip** if you don't install the Auto-Rig addon (e.g. after rigging your character, you can send it to the animator to ensure the IK snaps and other rig functions). Do not to install both addons, it could potentially lead to internal conflicts.
+
+
+
+
+.. toctree::
+   :maxdepth: 1
+  
+
+

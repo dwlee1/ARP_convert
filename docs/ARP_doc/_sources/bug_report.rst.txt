@@ -1,0 +1,55 @@
+.. _BugReport:
+
+Bug Report - Support
+=====================
+
+ 
+
+
+Hey, it's not working!
+----------------------
+
+Support and bug report is granted to anyone who purchased the addon, these messages will be treated as a priority within 1-3 days.
+Other reports (Github issues, forum posts...) may be eventually treated but they remain at the back of the line.
+
+* For Superhive users, log into your account, then click **Contact the creator** at the right of the Auto-Rig Pro page: |Superhive|.
+
+.. image:: img/support_BM.jpg
+	:align: center
+
+.. |Superhive| raw:: html
+	
+	<a href="https://superhivemarket.com/products/auto-rig-pro?ref=46" target="_blank">Contact Creator</a>
+
+* For Gumroad users, send an email with the same email address used when purchasing, including invoice/receipt informations, to the address given by Gumroad, or contact@lucky3d.fr
+
+Thanks for your understanding.
+
+
+Bug found?
+""""""""""
+
+* Please **make sure it's a bug first**! Check these documentation pages, :ref:`FAQ` , videos... Especially if you're new to Blender, the "bug" may be more probably... a user error.
+
+* If something does not make sense in the documentation and you need suppport, i'll be glad to help. Just drop a line as explained below.
+
+.. figure:: img/lolcat.gif
+	:align: center
+	
+	A cat trying to play chess
+
+This said, as all softwares, this addon is subject to bugs (sigh). They'll be treated as a priority if you find any.
+Please write the message this way:
+
+* *The bug is: ...*
+* *It occurs when doing the following: step1, step2,...*
+* *Sending the blend file is also very efficient to debug it quickly.*
+
+
+
+
+
+
+
+
+

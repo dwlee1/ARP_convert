@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick Rig &mdash; AutoRigPro Doc  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=eafc0fe6" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Updates Log" href="updates_log.html" />
+    <link rel="prev" title="Remap" href="remap_doc.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search"  style="background: #738dbe" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AutoRigPro Doc
+              <img src="_static/logo_cropped_esmall.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="auto_rig.html">Auto-Rig</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rig_behaviour_doc.html">Rig Features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ge_export_doc.html">Game Engine Export</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remap_doc.html">Remap</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quick Rig</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#add-limbs">Add Limbs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#limbs-definition">Limbs Definition</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#arms">Arms</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#arms-twist-scheme">Arms Twist Scheme</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#legs">Legs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#spine">Spine</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#head">Head</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#head-facial">Head Facial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#common-settings">Common Settings</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#weights-overrides">Weights Overrides</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#orphan-bones">Orphan Bones</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#generating-the-rig">Generating the Rig</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#settings">Settings</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#presets-import-export">Presets Import-Export</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ue-mannequin-import-export-roundtrip">UE Mannequin Import-Export Roundtrip</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="updates_log.html">Updates Log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Help / FAQ</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bug_report.html">Bug Report - Support</a></li>
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #738dbe" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AutoRigPro Doc</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Quick Rig</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/quick_rig_doc.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quick-rig">
+<span id="quickrig"></span><h1>Quick Rig<a class="headerlink" href="#quick-rig" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p><a href="https://blendermarket.com/products/auto-rig-pro-quick-rig?ref=46" target="_blank">Quick Rig</a> is a powerful extension for Auto-Rig Pro that turns rapidly any skeleton+mesh into a full Auto-Rig Pro armature with controllers, including weights preservation, IK-FK generation…
+Built to comply with the vast majority of character skeletons, even non-standard bones axes.</p>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+<iframe src="https://www.youtube.com/embed/3EPnO6rO9hc" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+</div><div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="add-limbs">
+<h2>Add Limbs<a class="headerlink" href="#add-limbs" title="Link to this heading"></a></h2>
+<p>First of all, each limb must be added in the limb list.</p>
+<img alt="_images/quickrig_add.jpg" class="align-center" src="_images/quickrig_add.jpg" />
+<ul class="simple">
+<li><p>Select the pelvis bone</p></li>
+<li><p>Click the <strong>+</strong> button to add a new spine limb</p></li>
+<li><p>Select a shoulder bone</p></li>
+<li><p>Clck the <strong>+</strong> button to add an arm limb</p></li>
+<li><p>And so on, for each limb</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="limbs-definition">
+<span id="limbdef"></span><h3>Limbs Definition<a class="headerlink" href="#limbs-definition" title="Link to this heading"></a></h3>
+<p>Bones are automatically set in the limb definition when adding new limbs.
+However, the automatic guess may fail depending on the skeleton complexity. It’s recommended to check that each input is correct and modify them if necessary.</p>
+<img alt="_images/quickrig_limbdef.jpg" class="align-center" src="_images/quickrig_limbdef.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="arms">
+<h4>Arms<a class="headerlink" href="#arms" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><strong>Twist Bones Amount</strong>: Number of twist bones used for the upperarm and forearm bones (e.g. 2 twist bones = 2 upperarm twist bones + 2 forearm twist bones =&gt; 4 total)</p></li>
+<li><p><strong>Shoulder, Arm, Twist…</strong>: The name of the bones for each of these type of joint.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The arm, forearm and hand bone are required for the arm limb. Other bones are optional if they don’t exist in the skeleton.</p>
+</div>
+<ul class="simple">
+<li><p><strong>Fingers</strong>: Supports 3 or 4 fingers phalanges. 3 means excluding metacarpal bones inside the palm, while 4 includes these bones (except the thumb which is always made of 3 bones)</p></li>
+<li><p><strong>Hand and Fingers Up Axis</strong>: Define which axis is pointing up for the hand and finger bones.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="arms-twist-scheme">
+<h4>Arms Twist Scheme<a class="headerlink" href="#arms-twist-scheme" title="Link to this heading"></a></h4>
+<p>How should be filled the Twist 1, Twist 2… entries? Here are details.</p>
+<p>The upper arm twist bone is near the shoulder, while the forearm twist bone is near the wrist.
+This is also the way it works “physically”, if you want you can test it by twisting your own wrist or upper arm.
+You might say: OK, but the forearm twist is actually twisting while twisting the hand.
+While the upper arm twist bone is not twisting when twisting the upper arm, then this can be misleading.
+That’s right, but from a technical standpoint in a character rig, the twist constraints are actually located on the bone near the shoulder, to preserve the shoulder deformation in this area.
+Then it’s somewhat the other way round, but it works that way.
+And actually, legs twist bones are built upon the same scheme. Thigh twist bones are near the hips, while calf twist bones are near the ankles.
+Some rigs are working differently though. But the vast majority are working like explained above.</p>
+<p>Here is a typical 1 twist bone arm structure (the same goes for the legs),  Quick Rig - Auto-Rig Pro works on that basis:</p>
+<img alt="_images/quickrig_twist.jpg" class="align-center" src="_images/quickrig_twist.jpg" />
+<p>And multiple twist bones:</p>
+<img alt="_images/quickrig_twist_multi.jpg" class="align-center" src="_images/quickrig_twist_multi.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="legs">
+<h4>Legs<a class="headerlink" href="#legs" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><strong>Twist Bones Amount</strong>: Number of twist bones used for the thigh and calf bones (e.g. 2 twist bones = 2 thigh twist bones + 2 calf twist bones =&gt; 4 total)</p></li>
+<li><p><strong>Thigh, Twist, Calf…</strong>: The name of the bones for each of these type of joint</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The thigh, calf, foot bones are required for the leg limb. Other bones are optional if they don’t exist in the skeleton.</p>
+</div>
+<ul class="simple">
+<li><p><strong>Use World Z</strong>: Use the world Z axis coordinates to define the foot axis that is pointing up. If disabled, set it manually with the input below.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="spine">
+<h4>Spine<a class="headerlink" href="#spine" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><strong>Pelvis, Spine1, Spine2…</strong>: The name of the bones for each of these type of joint</p></li>
+<li><p><strong>Use World Y</strong>: The spine bones Z axis will point toward the world Y axis</p></li>
+<li><p><strong>Connect</strong>: The head of a bone should be a the tail position of its parent bone. Recommended, unless it leads to issues with the final rig.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="head">
+<h4>Head<a class="headerlink" href="#head" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><strong>Neck, Neck 2, Head…</strong>: The name of the bones for each of these type of joint</p></li>
+<li><p><strong>Use World Y</strong>: Ise the world Y axis coordinates to define the head axis orientation.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Only the head bone is required. Other bones are optional if they don’t exist in the skeleton.</p>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="head-facial">
+<h4>Head Facial<a class="headerlink" href="#head-facial" title="Link to this heading"></a></h4>
+<img alt="_images/qr_facial.jpg" class="align-center" src="_images/qr_facial.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="line-block">
+<div class="line">Head limbs have facial features in option, to transfer facial skeletons and shape keys to the control rig.</div>
+</div>
+<p><strong>Shape Keys</strong>:</p>
+<div class="line-block">
+<div class="line">The “Shape Key” icon at the right of the entries allows to connect shape keys to the bone controller.</div>
+<div class="line">For example, to connect a shape key deformation when the first eyebrow bone “Brow 1” is moving down, click it, then enter the name of the shape key in the “browDown_L” entry:</div>
+</div>
+<img alt="_images/qr_facial_sk.jpg" class="align-center" src="_images/qr_facial_sk.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="common-settings">
+<h4>Common Settings<a class="headerlink" href="#common-settings" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><strong>Auto Primary Axis</strong>: Automatically find the primary axis of bones. The primary axis is generally the axis pointing toward the child of the bone. If disabled, the axis is defined using the manual input below.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="weights-overrides">
+<h4>Weights Overrides<a class="headerlink" href="#weights-overrides" title="Link to this heading"></a></h4>
+<p>If enabled, allows to use another bone weights as weights for the specified bone. Useful for non-standard, complex skeleton that uses unusual weights distribution.</p>
+<p>For example, if the arm bone doesn’t deform the mesh with weights, but another child bone of the arm bone does, you may want to use these weights instead. In this case, enable <strong>Weights Override</strong>, click the new bone icon that popped up next to the bone name in the list, and set the name of the bone that should deform.</p>
+<img alt="_images/quickrig_weight_override.jpg" class="align-center" src="_images/quickrig_weight_override.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="orphan-bones">
+<h4>Orphan Bones<a class="headerlink" href="#orphan-bones" title="Link to this heading"></a></h4>
+<p>Additional bones, called <strong>orphan bones</strong>, that don’t belong to the limb definition (e.g. a watch around the wrist, eye, nose…) are automatically inserted in the rig hierarchy later when building the final rig.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+</section>
+<section id="generating-the-rig">
+<h2>Generating the Rig<a class="headerlink" href="#generating-the-rig" title="Link to this heading"></a></h2>
+<p>Once all limbs are set in the list, the rig can be generated:</p>
+<ul class="simple">
+<li><p>Click <strong>Quick Rig!</strong></p></li>
+</ul>
+<img alt="_images/quickrig_quickrig.jpg" class="align-center" src="_images/quickrig_quickrig.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<section id="settings">
+<h3>Settings<a class="headerlink" href="#settings" title="Link to this heading"></a></h3>
+<img alt="_images/quickrig_make.jpg" class="align-center" src="_images/quickrig_make.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul>
+<li><dl>
+<dt><strong>Convert</strong>:</dt><dd><div class="line-block">
+<div class="line">The base skeleton will be converted to a full Auto-Rig Pro rig, changing meshes vertex groups names, to match Auto-Rig Pro conventions.</div>
+<div class="line">If enabled, all Auto-Rig Pro editing, and export functions will be compliant with it. This is useful if you don’t plan to preserve the original skeleton, and want to ensure best compatibility with Auto-Rig Pro rigging tools.</div>
+</div>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt><strong>Preserve</strong>:</dt><dd><div class="line-block">
+<div class="line">The base skeleton will be preserved as it is, but bound to the Auto-Rig Pro control rig with constraints. This way, the base skeleton won’t be modified at all. But the control rig is driving it with constraints.</div>
+<div class="line">If enabled, the Auto-Rig Pro editing and export functions will be locked, since the rig won’t be compliant with Auto-Rig Pro features.</div>
+<div class="line">This is useful if you don’t plan to edit the rig afterwards, but only wish to add a control rig to the base skeleton for posing/animation, and still export the original skeleton, to Fbx format for example.</div>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul>
+<li><dl>
+<dt><strong>Animation</strong>:</dt><dd><div class="line-block">
+<div class="line">Optionally, bake the existing skeleton animations, to the control rig. See the <strong>Multiple Anim…</strong> menu to bake multiple animations.</div>
+<div class="line">In <strong>Bake Animation</strong> mode, animations are baked with default settings that should fit usual purposes.</div>
+<div class="line">In <strong>Bind Only (Remap)</strong> mode, the control rig will only be bound/constrained to the skeleton, in order to bake it later with the <strong>Remap</strong> tool of Auto-Rig Pro. This way, more settings can be adjusted in the Remap menu before retargetting.</div>
+</div>
+</dd>
+</dl>
+</li>
+<li><p><strong>Orphan Bones Locations</strong>: Defines if the orphan bones (bones that are not part of any limb definition) should be retargetted using <strong>Global</strong> or <strong>Local</strong> space for location coordinates. <strong>Global</strong> is the default one as it should work best for most cases, but it can be sometimes necessary to switch it to <strong>Local</strong>.</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Arms/Legs</strong>: Default values for IK-FK switch of arms and legs</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Neck Twist</strong>: To enable automatic neck twist rotation when rotating the head</p></li>
+<li><p><strong>Ignore “Root” Bone</strong>: The base skeleton may contain a root bone generally named “root” at the root level of the bones hierarchy. This bone may not be necessary in the rigged armature. To ignore it, enable this setting.</p></li>
+<li><p><strong>Match to Rig</strong>: If enabled, build the final rig with controllers. If disabled, the rig will be left in “Edit Reference Bones” mode, for manual adjustments of the joints positions. “Match to Rig” can be clicked later anytime to complete the rig, in the Auto-Rig Pro main panel.</p></li>
+<li><p><strong>X-Ray Display</strong>: If enabled, controllers and bones will be displayed over the character mesh, so that they will always be visible, even when located inside the character mesh, for easier selection.</p></li>
+<li><p><strong>Preserve Volume</strong>: enable dual quaternion skinning for better volume preservation (typically used to improve arm and leg twist deformation, elbow, knee…). Not recommended when exporting to game engine, they don’t support this type of skinning, then the deformations in game engine would be different from deformations in Blender.</p></li>
+<li><p><strong>Same Origin</strong>: If enabled, the generated control rig origin position will match the base skeleton origin position. It’s useful if the base skeleton is not in the world center but shifted somewhere else. Otherwise when disabled, the origin will always be initialized in the world center (0,0,0).</p></li>
+<li><p><strong>Hide Base Armature</strong>: Hide the base skeleton if enabled, otherwise let it be visible</p></li>
+</ul>
+<p>Orphan Bones:</p>
+<ul class="simple">
+<li><p><strong>Parent to Main Bones</strong>: Some skeletons may have complex hierarchy, that requires to parent the orphan bones to the main limbs bones, instead of other orphan bones. This is usually not necessary for most skeletons, but sometimes can be required. If some orphan bones have incorrect parents or no parent at all after generating the rig, revert, and try to enable this setting.</p></li>
+<li><p><strong>Copy Constraints</strong>: To copy orphan bones constraints from the base skeleton to the control rig. For example, if a character has a simple facial rig with constraints on it, the constraints will be duplicated as well to the facial control bones, to preserve the facial rig.</p></li>
+<li><p><strong>Retarget Shape Keys Drivers</strong>: If orphan bones transforms values (loc, rot, scale) are used to drive shape keys, these drivers will be transferred to the orphan bones in the control rig as well. For example, if the character has facial shape keys for facial expressions, driven by bones transforms, the facial shape keys will still work with drivers after generating the control rig.</p></li>
+</ul>
+<img alt="_images/retarget_shape_keys_drivers.gif" class="align-center" src="_images/retarget_shape_keys_drivers.gif" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li><p><strong>Shapes</strong>: Set the custom shape of orphan bone with this shape data</p></li>
+<li><p><strong>Scale</strong>: Set the orphan bone scale</p></li>
+<li><p><strong>Color</strong>: Set the orphan bone’s group color, as drawn in the 3D viewport</p></li>
+<li><p><strong>Collection/Layer</strong>: Add orphan bones to this armature collection (Blender 4+ versions) or layer (older versions)</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+<section id="presets-import-export">
+<h2>Presets Import-Export<a class="headerlink" href="#presets-import-export" title="Link to this heading"></a></h2>
+<p>Mapping presets can be imported and exported as a file, to quickly load them later when using a similar skeleton.
+The downarrow button allows to import default presets.</p>
+<img alt="_images/quickrig_io.jpg" class="align-center" src="_images/quickrig_io.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="ue-mannequin-import-export-roundtrip">
+<h2>UE Mannequin Import-Export Roundtrip<a class="headerlink" href="#ue-mannequin-import-export-roundtrip" title="Link to this heading"></a></h2>
+<p>The UE5 Mannequin skeleton can be imported into Blender as FBX.
+A control rig can be generated, animated, and the skeleton can be sent back to UE.</p>
+<p>Guidelines:</p>
+<ul class="simple">
+<li><p>Import the Mannequin FBX into Blender</p></li>
+<li><p>Load the preset “UE5 Manny (2 Twists, for UE Export)”</p></li>
+<li><p>Generate only a control rig, using the “Preserve” mode. Leave default settings.</p></li>
+<li><p>Animate/pose the control rig</p></li>
+<li><p>Select the original skeleton, select all bones, click “Set Custom Bones” in the ARP: Export tab</p></li>
+<li><p>Hit “Export FBX” in the ARP:Export tab</p></li>
+<li><p>Enable “Bake Animations” to export animations</p></li>
+<li><p>Export</p></li>
+</ul>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="remap_doc.html" class="btn btn-neutral float-left" title="Remap" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="updates_log.html" class="btn btn-neutral float-right" title="Updates Log" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2016-2023, Artell.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,1254 @@
+.. _GameEngineExport:
+
+Game Engine Export
+*******************
+
+   
+.. image:: img/game_engine_header.jpg
+    :width: 60%
+    
+.. image:: img/godot_logo.png
+    :width: 30%
+
+.. raw:: html
+
+	<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+	<iframe src="https://www.youtube.com/embed/0qLuFpeZvVs" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+	</div>
+
+|
+
+
+.. important::
+	Unreal Engine: **UE 5.5+ does not import the bind pose** properly (previous versions do work).
+    
+    | Then, to export animations, the skeletal mesh and animations must be exported separately:
+    | 1) One FBX file containing the skeleton + meshes in rest/bind pose. No animations.
+    | 2) One or multiple FBX files containing the animated skeleton (+ the meshes in case of animated morph targets/ shape keys)
+    | 
+    | Or, use the "TO As Ref Pose" import setting, and always key the frame 0 of each animation in a rest pose
+
+|
+    
+Overview
+=========
+
+* Once the character is rigged and skinned, select its armature and go to **File > Export > Auto-Rig Pro FBX/GLTF**
+
+.. image:: img/file_export_28.jpg
+	:align: center
+    
+|
+
+2 types of skeleton can be exported: **Humanoid** for human characters, **Universal** for any skeletons
+
+Format: **FBX** or **GLTF**
+
+.. note::
+	GLTF requires Bender 3.4 and higher
+    
+    Currently, UE 5.5 does not import GLTF morph targets/shape keys
+	
+	Although it's not officially supported, it's still possible to export to other formats by importing back the file in Blender, and exporting with built-in Blender exporters (DAE for example)
+
+Shape keys are exported, with option to apply them on top of existing modifiers.
+
+Full support in Unity, Unreal Engine (FBX), Godot (FBX, GLTF), and probably other game engines supporting these formats as well. 
+
+|
+
+
+Export Requisites
+=================
+
+Scale
+-------------
+
+Ensure the character is not too small, otherwise it may lead to issues, such as bad retargeting. Try to consider one meter = one grid unit, ideally it has to be approximately this big compared to the grid floor (see screenshot below). Scale the mesh and armature (**S key** otherwise).
+
+.. image:: img/ge_scale_28.jpg
+	:align: center   
+    
+|
+
+Make sure that the scene Unit Scale is normalized to one:
+
+.. image:: img/unit_scale_one.jpg
+	:align: center   
+    
+    
+|
+
+
+.. _custombonesexport:
+
+Custom Bones
+-------------
+:ref:`Custom Bones <adding_custom_bones>` (new bones created in the rig manually, such as clothes, hair, props...) are not exported by default. 
+To export them, they must be tagged as custom bones:
+
+* Select the custom bones and click the dedicated button:
+
+.. image:: img/set_custom_bones.jpg
+	:align: center
+    
+|
+
+* Or, their name must starts with **'cc\_'** (stands for custom controller, e.g. 'cc\_sword').
+
+* Or, tag them with a **'cc'** or **'custom_bone'** property, by adding a custom property to the bone
+
+.. image:: img/custom_bone_prop.jpg
+	:align: center
+    
+|
+    
+
+If they are parented to an FK bone, they will be parented to the deforming bone automatically at export time. E.g, if "cc_watch" is parented to "c_forearm_fk", it will be parented to "forearm_stretch" which is the final deforming bone in the exported armature. If "cc_hat" is parented to "c_head.x", it will be parented to "head.x". Make sure to parent them directly to the "_stretch" bones when using an IK chain which has no direct controllers, such as "forearm_stretch".
+    
+
+|
+
+
+Stretch - Scale
+----------------
+Stretch/scale of the arms and legs bones is not properly handled by the Fbx format, since the children bones always inherit the scale from their parent bones, and this is leading to rotation issues when scaling axes non-uniformly.
+For this reason, the stretch features must either be disabled or use additional tricks:
+
+No stretch:
+
+- Make sure to set to zero the **Auto-Stretch** and **Stretch Length** values of the arms and legs, and do not move the **c_stretch** controllers (elbows, knees).
+
+If stretchy bones are required:
+
+- Use the **No Parents** feature, see :ref:`exportsettings`, to flatten the exported skeleton hierarchy (bones are not parented)
+
+- Or, use the **Soft-Link** feature. Select deforming bones that should be stretched (for example arm bones) and click **Set Soft-Link Bones**. This will preserve bones scaling to 1 (no scale), while keeping their actual stretched position. This especially works well with multiple twist bones (more than 2), it gives the illusion that bones are scaled, while they are not.
+
+.. image:: img/softlink_button.jpg
+	:align: center
+    
+|
+    
+.. image:: img/softlink.jpg
+	:align: center
+    
+|   
+
+
+Preserve Volume
+----------------
+
+In game engines, dual quaternions skinning is generally not supported, unlike Blender does with the "Preserve Volume" feature in the armature modifier. So make sure to uncheck **Preserve Volume** in the armature modifier in Blender to see the right deformations.
+
+.. image:: img/preserve_volume_28.jpg
+	:align: center
+    
+|
+    
+It may be best to use multiple twist bones for the arms and legs, see :ref:`armsoptions`
+
+|
+
+
+.. _shapekeysexport:
+
+Shape Keys
+-----------
+
+| Animations of shape keys are exported automatically.
+| Topology changing modifiers (e.g Solidfy, Mask, Subdivision Surface...), are supported by the **Apply Modifiers** feature in the **Misc** export tab.
+
+- If a single animation is exported, it is possible to simply keyframe the shapes. 
+- However, the best practice is to create custom properties. In example, for facial shape keys, create them on the head control (c_head.x), and setup drivers so that the properties drive the shape keys values (for example a property "smile" drives the "smile" shape key value). Right click the property > **Copy as New Driver**, then right click the shape key value > **Paste Driver**.
+
+.. image:: img/sk_drivers_prop.gif
+	:align: center
+    
+|
+
+| This way, the shape keys animations are stored in the same action as the control rig since they're connected to the bone's properties, allowing export of multiple actions/animations correctly.
+
+| Without properties, shape keyframes are stored in separate actions dedicated to shape keys, without any link declared between the rig action and shape keys action.
+| Blender 4.4 and higher versions do support shape keys as action slot, thus somewhat establishing the connection between the shape key animation and the rig animation, however this is not yet supported by the Auto-Rig Pro exporter. Also, if the action contains multiple slots for the rig animation, there is no way in that case to declare a link between them and the shape keys slots, then make sure to setup the properties method explained above to resolve all issues.
+
+|
+
+
+.. _ROOTMOTION:
+
+Root Motion
+------------
+
+Unity Humanoid
+"""""""""""""""
+
+| In Unity, root motion is automatically computed when importing **Humanoid** skeletons.
+| Unity evaluates the body orientation/center of mass of the skeleton on each frame then deduces the root motion.
+| No extra export step required, settings can be adjusted in Unity.
+
+.. image:: img/unity_humanoid.jpg
+	:align: center
+    
+|
+
+.. image:: img/unity_root_motion.jpg
+	:align: center
+    
+|
+
+
+Unity Generic and Unreal Engine
+"""""""""""""""""""""""""""""""""
+ 
+| For Unity **Generic** skeletons and for **Unreal Engine**, the armature (rig) object itself must be animated, since this is the root node of the FBX file. 
+| But animating the armature object is not practical, animating bones/controllers is easier and more streamlined.
+| Then, Auto-Rig Pro comes with an option to transfer and bake the **c_traj** controller animation to the armature object at export time:
+
+.. image:: img/c_traj.png
+	:align: center
+    
+|
+
+.. image:: img/root_motion_2_28.jpg
+	:align: center
+
+|
+
+| The **c_traj** motion can either be animated manually, extracted, or constrained. 
+| See :ref:`ExtractRootMotion`, :ref:`FreeRootMotion`,  :ref:`ConstrainedRootMotion` 
+
+|
+
+**Enabling Root Motion in Unity (Generic):**
+Set **Root Node** to "root" in the import settings. There used to be other settings to select a custom root bone in option, but in recent Unity version -2023 and higher- it seems broken.
+
+.. image:: img/unity_generic_root.jpg
+	:align: center
+
+|
+
+**Enabling Root Motion in Unreal Engine:**
+Tick EnableRootMotion in the Animation window/ Asset Details:
+
+.. image:: img/ue_root_motion.jpg
+	:align: center
+
+|
+
+Godot
+"""""""
+
+To export root motion for Godot, make sure to enable **Export Root Bone (c_traj)** and **Godot Root Axes** in the export settings.
+
+|
+
+
+
+Root Motion Extraction
+"""""""""""""""""""""""""
+
+.. image:: img/extract_root_motion_ex.gif
+	:align: center
+    
+|
+
+To extract the c_traj motion from an animated rig, see :ref:`ExtractRootMotion`.
+
+|
+
+
+.. _FreeRootMotion:
+
+Free Root Motion
+""""""""""""""""""""""
+
+.. image:: img/free_root_motion.gif
+	:align: center
+
+|
+
+By default, the IK feet and hips (**c_root_master.x**) controllers are parented to the **c_traj** bone. 
+Animators may prefer to unparent them, so that **c_traj** can move independently. To do so:
+
+* Select the IK feet bones (**c_foot_ik**) and set their Child Of constraint influence to 0. 
+* Same for the IK poles (mute constraint if the influence is driven).
+
+.. image:: img/constraints_feet_28.jpg
+	:align: center
+    
+|
+
+* Select the **c_root_master.x** bone, enter Edit Mode (Tab key), clear its parent bone.
+
+.. image:: img/parent_root_28.jpg
+	:align: center
+    
+|
+
+* Then select a spine reference bone, and set the **Parent Fallback** to nothing in **Limb Options**, instead of **c_traj**. This way, the parent won't reset to **c_traj** when Match to Rig.
+
+
+.. image:: img/spine_parent_fallback.jpg
+	:align: center
+    
+|
+    
+* In option, you can add a **Child Of** constraint to **c_root_master.x** with **c_traj** as target, in order to let the animator decides if he needs to free the **c_traj**, on the fly, since constraints are animatable.
+    
+|
+
+.. _ConstrainedRootMotion:
+
+Constrained Root Motion 
+""""""""""""""""""""""""""
+
+After freeing the c_traj hierarchy as explained above, animators may also prefer automatic tracking of the "c_traj" position using a constraint: 
+
+- Add a **Copy Location** constraint to **c_traj**, with the rig and **root.x** bone as target
+- Disable Z axis to keep it on the ground level
+
+.. image:: img/traj_constraint.gif
+	:align: center
+    
+|
+
+Custom Master Bones
+--------------------
+
+Sometimes, the game engines may require a specific skeleton hierarchy, with a dedicated root/master bone at the base.
+
+* For example::
+
+    MyRootBone
+        L pelvis
+            L spine...
+
+
+If that is the case for you, follow these guidelines.
+By default, Auto-Rig Pro will not export the c_pos and c_traj master controller, looking like this in the Blender scene::
+
+    c_pos
+        L c_traj
+            L c_root_master.x
+                L c_spine_01.x...
+                
+
+* To add a custom master bone that will be exported to Fbx, create a new bone (Edit mode > Shift A) and insert it in the hierarchy after the "c_traj" bone::
+
+    c_pos
+        L c_traj
+            L MyRootBone
+                L c_root_master.x...
+
+
+* Note that it's also necessary to replace the target bone in the "c_foot_ik" and "c_hand_ik" bones constraints, since "c_traj" is the default target bone.
+
+* Then make sure to select your custom master bone, and click "Set Custom Bones" to include it in the export.
+            
+* Done, the exported hierarchy will be the following::
+
+    MyRootBone
+        L pelvis
+            L spine...
+
+
+
+
+|
+	
+|
+
+.. _EXPORTACTIONS:
+
+Animations Export
+-------------------
+
+Actions
+""""""""""""
+
+In Blender, animations are called "actions" and multiple actions can be created for a character. 
+However, when exporting to Fbx, all actions contained in the file are exported by default, no matter if they've been created to animate the rig or other objects.
+Exporting actions that are not linked to the rig may potentially corrupt the character animation. 
+To see why, open the **Action** window of Blender, and try to link other actions to the character. It may get distorted, scaled weirdly, depending on the keyframes stored in the action.
+
+.. image:: img/assign_actions_28.jpg
+	:align: center
+    
+|
+
+
+To fix it, in the export options, you can click the eye button to display the exported actions. Click the check boxes to enable or disable action export, or use "Only Containing" to filter by name.
+
+.. image:: img/select_action_3_28.jpg
+	:align: center    
+    
+|
+
+Actions Linker
+""""""""""""""""
+
+.. image:: img/actions_linker.jpg
+	:align: center    
+    
+|
+
+
+| The **Actions Linker** is required only if multiple characters will be exported, and if they rely on each other.
+| For example, if two characters are holding each other's hands, the hands are constrained to the other character's hand with a ChildOf constrained or similar.
+| In that case, to export properly, the actions of the two characters must be declared as linked, in the Actions Linker.
+
+Example:
+
+- Click **Actions Linker...** (**Show Advanced** must be enabled)
+- Click the **+** button to add a new relation
+- Under the **Rig A** label, set the armature of the first character, and under **Rig B**, set the other armature.
+- Click the **+** button below to add Rig A's action, and the corresponding Rig B's action
+
+
+
+|
+
+Keyframes Interpolation
+"""""""""""""""""""""""""
+
+Bones animations are baked when exporting, one keyframe per frame, in order to export correct transforms out of the control rig that is driven with complex mechanics, constraints.
+The default keyframe interpolation is set to Linear by default, which interpolates smoothly from one frame to the next.
+
+.. image:: img/linear_interp.gif
+	:align: center
+    
+|
+
+
+For blocky animation style (stop-motion like), Constant interpolation can be used instead of Linear.
+Constant interpolation is supported as a per-bone setting (applied to all animations for the given bones), via the **Set Const. Bones** button in the export menu, that is applied to all selected deforming bones.
+
+.. image:: img/set_const_bones.jpg
+    :align: center
+
+|
+    
+.. image:: img/const_interp.gif
+    :align: center
+
+|
+
+.. _fixrig:
+
+Check-Fix Rig
+===============
+
+.. image:: img/check_fix_rig.jpg
+	:align: center
+    
+|
+
+These tools are useful to identify and fix quickly possible problems with the rig, that would make it not compatible with export, especially bones stretch issues.
+
+The **Check Rig** buttons only reports issues in a pop-up window, while the **Fix Rig** button will apply the following changes:
+
+* Disable all possible arms and legs stretches (c_stretch controller set to location 0, disable auto-stretch, set stretch length to 0...)
+
+* Disable the *Preserve Volume* option of the armature modifiers of skinned meshes, to show the actual exported deformations in Blender.
+
+This may change somehow the result, then it's recommended to check that animations still look good in the scene, and you can correct them if necessary.
+
+
+|
+
+Export Types
+==============
+
+* The dropdown list at the top allows you to select the target game engine: 
+
+- **Unity**
+- **Unreal Engine**
+- **Godot**
+- **Others**
+
+This hides or shows the export options dedicated to each engine.
+
+.. image:: img/universal_04_28.jpg
+	:align: center
+    
+|
+
+Below, the export rig type can be selected:
+
+- **Universal**: Exports the deforming skeleton for any creature: bipeds, quadrupeds, spiders, centaurs...
+- **Humanoid**: For human, bipeds rigs only. Exports the deforming skeleton, plus the following options:
+
+    * Export basic or full facial bones. Automatic  weights tranfer to the head if basic
+    * Metacarpal fingers: include or exclude them from export. Automatic weights transfer to the hand if disabled
+    * UE Mannequin bones axes orientation
+    * UE Mannequin bones naming
+    * UE Mannequin IK Bones
+    * Godot Humanoid bones naming
+
+| The Humanoid skeleton is required for animation retargeting, root motion in game engines... 
+| The drawback of this type is it's a predefined skeleton template. It can be more restrictive. 
+| See :ref:`Unity Humanoid <unityhumanoid>`
+
+
+
+
+|
+
+.. _exportsettings:
+
+Export Settings
+================
+Rig
+----
+
+.. image:: img/ge_panel_rig.jpg
+	:align: center
+
+|
+
+Selected Objects Only
+""""""""""""""""""""""
+By default, all skinned objects are exported. If enabled, only the selected ones will be exported. Useful if you only need to export animation data for example (select only the rig), or specific meshes (select the rig + meshes).
+
+|
+
+Selected Bones Only
+""""""""""""""""""""""
+By default, all deforming bones exported. If enabled, only the selected ones will be exported.
+
+|
+
+Full Facial
+""""""""""""
+**[Humanoid Only]** Exports all facial bones, otherwise only the main ones are exported (jaw, eyes...) and facial bones weights that are not exported are transferred onto the head weights.
+
+|
+
+Advanced
+""""""""""
+Exports the bend/secondary bones (especially useful for cartoon characters to curve the arms, legs).
+
+.. note::
+    Arms and legs **Secondary Controllers** are automatically exported if they're set to **Twist** (see :ref:`SecondaryControllers`)
+
+.. image:: img/cardman_noodles.gif
+	:align: center
+    
+|
+
+Push Additive
+""""""""""""""
+If **Secondary Controllers** are set to **Additive** mode, compensate the weight loss of the additive bend bones, since the additive armature is not exported.
+
+|
+
+Export Twist
+""""""""""""""
+Exports twist bones. 
+
+**Twist Amount**: A percentage can be defined to set the amount of twist. Generally 0.5 gives best results. This setting is only active if there is a single twist bone.
+	
+	1.0
+	
+	.. image:: img/twist_inf_100.jpg
+		:align: center
+	
+	|
+	
+	0.5
+
+	.. image:: img/twist_inf_50.jpg
+		:align: center
+        
+.. note::
+    Twist bones are automatically exported if there's more than one twist bone per limb (see :ref:`armsoptions`, :ref:`legsoptions`)    
+
+
+.. note::
+    Unity internally handles the hand twist by twisting the forearm bone without using a dedicated twist bone, unless an additional script/plugin is used to handle the twist bone.
+    
+|
+
+No Parents
+""""""""""""
+| Natively, bone stretching/scaling is poorly supported when exporting, since the children bones always inherit the scale from their parent, leading to weird effects.
+| To workaround that, enabling the **No Parents** setting will export a flat hierarchy, bones are not parented, leading to correct stretchy animated bones. 
+
+.. image:: img/allow_stretch.gif
+    :align: center
+
+    
+|
+
+Rename Bones
+""""""""""""
+
+| Not happy with the default bone names of Auto-Rig Pro? Gotcha.
+| Rename bones with custom names!
+| Create a .txt file, or write a new text block in the Blender's Text Editor.
+| Then define the custom names by writing:
+
+base_name (default export name) = new_name, one per line::
+    
+
+    root.x = pelvis
+    spine_01.x = spine1
+    spine_02.x = spine2
+    ...
+    
+This .txt file path must be set in the "Rename Bones from File" field in the **Auto-Rig Pro: Export** panel.
+If the text was written in the Blender's Text Editor, enter the name of the text block here:
+
+.. image:: img/rename_bones_from_file.png
+    :align: center
+
+    
+|
+
+
+Custom Export Script
+""""""""""""""""""""
+
+| A python script can be written to execute post-instructions on the export skeleton. 
+| It is run after generating the export skeleton, and before baking actions.
+| Set the script file path in the **Custom Export Script** field in the **Auto-Rig Pro: Export** panel. 
+| It can be a text datablock written with the Blender's text editor as well, in that case enter the text name only.
+
+Example to print bone names::
+
+    import bpy
+
+    rig_export = bpy.context.active_object
+    print(rig_export.name)
+    
+    bpy.ops.object.mode_set(mode='POSE')
+    
+    for pb in rig_export.pose.bones:
+        print(pb.name)
+        
+
+Remove some bones from the skeleton::
+
+
+    import bpy
+
+    rig_export = bpy.context.active_object
+    to_delete = ['c_eye_target.l', 'c_eye_target.r']
+
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    for bone_name in to_delete:
+        b = rig_export.data.edit_bones.get(bone_name)
+        rig_export.data.edit_bones.remove(b)
+
+        
+.. note::   
+    The rig object name must not be changed with custom script. It's defined by the :ref:`rigname` setting in the Misc tab.
+    These custom instructions are "use it at your own risks", they should be written carefully
+
+|
+
+
+.. _rigname:
+
+Rig Name
+""""""""""
+| Set the name of the exported skeleton.
+| Warning, to avoid name clashing, mesh objects names must all be different and cannot be named like the rig.
+
+|
+
+Units x100
+""""""""""""   
+| Game engines like Unity, Unreal, have a different scale factor than Blender. 
+| Units must be multiplied by 100 for correct compatibility.
+| Allows retargeting in Unreal, and initialized scale transform in Unity as well (1.0).
+
+|
+
+UE4 Legacy
+""""""""""""""
+**[Unreal Only]** Must be enabled when exporting to the older UE4 version. Metacarpal finger bones are not exported.
+
+|
+
+Rename for UE
+""""""""""""""
+**[Unreal Only]** Rename bones according to the Unreal Engine's humanoid naming. Unity will handle the default names properly so this checkbox is not visible when Unity is chosen.
+
+|
+
+Mannequin Axes
+""""""""""""""""
+**[Unreal Only]** Match the bones axes of the Unreal Mannequin.
+If enabled, allows to directly import the skeleton as the Mannequin skeleton in Unreal. 
+
+- 4 spine bones and 1 neck bone are required to match the **UE4** Mannequin.
+- 6 spine bones and 2 neck bones are required to match the **UE5** Mannequin.
+
+It's also best to export the character in A-Pose when exporting to UE, see :ref:`ChangeRestPose`, but in latest UE versions, animation retargeting does not really depend anymore on the pose.
+
+ 
+.. image:: img/skeleton_mannequin_ue2.jpg
+	:align: center
+    
+    
+|
+
+Root Motion
+""""""""""""
+Transfer the "c_traj" bone animation to the armature object animation (root node in Fbx file) when exporting, in order to support root motion in game engines.
+See :ref:`ROOTMOTION` requirements for more details.
+
+|
+
+Add IK Bones
+""""""""""""""
+**[Unreal Only]** Add the Unreal Mannequin IK bones: "ik_foot_root", "ik_foot_l",...
+
+
+|
+
+
+Animations
+-----------
+
+.. image:: img/select_action_3_28.jpg
+	:align: center
+    
+|
+
+Bake Animations
+""""""""""""""""""
+Enable animation/action export. See :ref:`EXPORTACTIONS` requirements for more details.
+
+Type
+""""""
+Type of actions to export. **Actions** will export individual actions, while **NLA** will export a single animation for the whole scene as defined in the NonLinearAnimation editor.
+
+As Multiple Fbx Files
+""""""""""""""""""""""""
+To export one Fbx file per action
+
+One File per Actions List
+""""""""""""""""""""""""""""
+| [Only if the :ref:`ACTIONMANAGER` is enabled]
+| If enabled, one file per Action List is exported. Each Action List (each file) contains a list of actions, as defined in the **Actions Manager**.
+
+
+Frame Range
+""""""""""""""
+To define the frame range that will be exported for each action (start and end frames). 
+
+The **Markers** setting allows to export frames between two markers named "start" and "end" inserted at the desired frames in the action.
+
+.. important::
+    Only works with "Action" markers.
+    To convert Scene markers to Action, select them and click the Marker menu > **Make Markers as Local**
+
+
+.. image:: img/markers.gif
+	:align: center
+    
+|
+
+Action Names
+""""""""""""""
+| Set the formatting of exported action/animation names.
+
+| The default name format is: 
+| RigName|ActionName. 
+
+| The default **|** separator can be changed in the dropdown list, such as **-** :
+| RigName-ActionName
+
+| **Only Action Name** will export only the name of the action, getting rid of the skeleton name.
+
+|
+
+Simplify Factor
+""""""""""""""""""
+| Animations data can be very big, leading to write large files, because of the numerous keyframes values.
+| To mitigate this problem, this setting will compress/simplify the values at a given threshold.
+| Higher value will decrease the file size at the expense of the quality. Lower values are recommended to fix animation inaccuracies such as "floating" feet effects.
+
+|
+
+.. _ACTIONMANAGER:
+
+Actions Manager
+""""""""""""""""""
+
+| If enabled, the actions manager will be used to define which actions will be exported. 
+| Actions can be grouped together in a list, and each list can be enabled or disabled for export.
+
+| Can be useful when having multiple characters in the same file: create one list of actions per character, and populate each list with the related actions belonging to each character. 
+| Then, when eporting, only enable the corresponding group related to the selected character.
+
+.. image:: img/action_manager.jpg
+	:align: center
+    
+
+|
+
+Only Active
+""""""""""""""
+To export only the current, active action linked to the rig.
+
+|
+
+Ignore Linked Actions
+""""""""""""""""""""""
+| When linking rigs fom an external file, linked actions may be imported too, if the source rig file contains actions.
+| Linked actions can be a problem, because they cannot be edited, unless they are in an overridden state.
+| The "Exportable" checkbox that is stored on each action cannot be edited either. So, if this setting is enabled, it simply ignores and hides the linked actions to avoid problems when exporting linked actions.
+
+|
+
+Search field
+"""""""""""""
+| To export only actions including the given word in their name. 
+| E.g. setting "soldier" will export the action "soldier_walk" but won't export "john_walk". Useful when dealing with multiple actions in the scene.
+
+Actions can be included/excluded from export by ticking or unticking the boxes, and removed from the file by clicking the **X** button.
+
+.. image:: img/action_export_box.gif
+	:align: center
+
+    
+|
+
+
+.. _gemisc:
+
+Misc
+------
+
+.. image:: img/ge_panel_misc.jpg
+	:align: center
+    
+|
+
+Global Scale
+""""""""""""""
+Apply a global scale to the exported character. 
+
+.. warning::
+    This may lead to issues in game engines, use it carefully. A safer option is to scale the armature and meshes manually before exporting. 
+
+|
+
+Smoothing
+""""""""""""
+| Polygons smoothing options (normals data), **Normals Only, Face, Edge**. 
+| Choose **Edge** to avoid import warning message in UE (the warning message is benign though).
+
+|
+
+Apply Modifiers 
+""""""""""""""""
+| Apply modifiers when exporting. Supports topology changing modifiers (e.g Solidify, Bevel, Mirror...).
+| Shape keys + modifiers are supported. They are re-baked internally on top for correct export.
+
+.. warning::
+    Modifiers are not allowed to change the amount of vertices on each frame, it must remain constant (such as a Bevel modifier that generate different vertices while the polygon angle is changing on each frame). If it does, the modifier will fail to apply when exporting.
+
+|
+
+Apply Subsurf Modifiers
+""""""""""""""""""""""""""
+Apply Subsurf modifiers when exporting.
+
+|
+
+Triangulate
+""""""""""""""
+Triangulate all polygons when exporting.
+
+|
+
+Vertex Colors
+""""""""""""""
+Set the vertex color space. Can be specific to game engines/shader used.
+
+|
+
+Fix Rotation
+""""""""""""""
+Add imperceptible jitter to bones position to avoid rotation issues when exporting animations. 
+Should be enabled only when necessary in case of buggy rotations, due to an inaccurate decimal value in the transform matrix evaluation.
+
+|
+
+Fix Matrices
+""""""""""""""
+| Use an alternative method to evaluate bones matrices, to avoid rotation buggy issues when exporting animations.
+
+|
+
+Add Dummy Mesh
+""""""""""""""
+| When no meshes are exported, only the skeleton, it can be useful to add an empty/dummy mesh object that has no vertices, no polygons, so that the animated skeleton can still be imported in game engines.
+| For example, Unreal Engine needs it, since it does not allow import of skeletons without meshes.
+
+|
+
+Force Rest Pose Export
+"""""""""""""""""""""""
+| By default the bind pose/rest pose is not exported if no meshes are exported along the skeleton.
+| This will force the export of the rest pose data anyway.
+
+|
+
+Initialize Fbx Armature Rotation
+""""""""""""""""""""""""""""""""""
+If the skeleton object has non-zeroed out rotations values in the game engine, and if this is a problem for your project, enable this setting.
+
+|
+
+Initialize Fbx Meshes Rotation
+""""""""""""""""""""""""""""""""""
+If the meshes objects have non-zeroed out rotations in the game engine, and this is a problem for your project, enable this setting.
+
+|
+
+Bake Axis Conversion
+"""""""""""""""""""""
+**[Unity Only]** Enables special axes and scale values when exporting, to comply with the Bake Axis Conversion attribute of Unity.
+
+|
+
+Bones Axes
+""""""""""""
+| Set custom primary and secondary axes of bones when exporting. 
+| Should usually not be changed to avoid issues, unless specific axes are required by your game project for some reasons.
+| The primary axis in Blender is the bone's Y axis, defined by the Head-Tail vector of the bone. The secondary axis is either the bone's X or Z axis.
+
+.. image:: img/bone_axes.jpg
+	:align: center
+
+|
+
+
+Embed Textures
+"""""""""""""""
+Force textures to be embedded in the FBX file.
+
+.. important::
+    May not work if shaders are different from a Principled BSDF shader, with simple textures connections.
+
+|
+
+Export by Script
+=================
+
+| Exporting by script is fully supported, here are some examples for various purposes.
+| These snippets can be copy-pasted in the Blender text editor, then click **Run Script** in the editor header menu.
+
+.. image:: img/run_script.jpg
+	:align: center
+
+|
+    
+* Export a character::
+	
+    import bpy
+    import os
+
+    # set the file path output here
+    file_output = "F:\\MyExportFbx.fbx"
+
+    # set some settings...
+    scn = bpy.context.scene
+    scn.arp_export_rig_type = 'UNIVERSAL'# or 'HUMANOID'
+    scn.arp_engine_type = 'UNREAL'
+    # others...
+    # scn.arp_keep_bend_bones = True
+    # scn.arp_units_x100 = True
+    # scn.arp_bake_actions = True
+    # scn.arp_export_name_actions = True
+    # scn.arp_export_name_string = "test"
+    # scn.arp_mesh_smooth_type = 'EDGE'
+    # scn.arp_ue_root_motion = True
+    # scn.arp_export_noparent = True
+    # scn.arp_export_twist = True
+
+
+    # run export
+    bpy.ops.arp.arp_export_fbx_panel(filepath=file_output)
+
+	
+|
+
+* Batch export all selected rigs::
+
+    import bpy
+    import os
+
+    character_names = [i.name for i in bpy.context.selected_objects]
+
+    def set_active_object(object_name):
+        bpy.context.view_layer.objects.active = bpy.data.objects.get(object_name)
+        bpy.data.objects.get(object_name).select_set(state=1)
+
+    for char_name in character_names:
+        bpy.ops.object.select_all(action='DESELECT')
+        set_active_object(char_name)
+        # set the file path output here
+        file_output = "F:\\"+char_name+".fbx"
+        # export it
+        bpy.ops.arp.arp_export_fbx_panel(filepath=file_output)
+        
+|
+
+* Batch export character meshes as separate Fbx files (including the skeleton)::
+
+    import bpy
+    import os
+
+    mesh_names = ['Cube.001', 'Cube']# add your mesh object names to the list here
+    rig_name = 'rig'# set here your armature name
+
+    bpy.context.scene.arp_ge_sel_only = True
+
+    def set_active_object(object_name):
+        bpy.context.view_layer.objects.active = bpy.data.objects.get(object_name)
+        bpy.data.objects.get(object_name).select_set(state=1)
+
+    for mesh_name in mesh_names :
+        bpy.ops.object.select_all(action='DESELECT')
+        set_active_object(mesh_name)
+        set_active_object(rig_name)
+        # set the file path output here
+        file_output = "F:\\"+mesh_name+".fbx"
+        # export it
+        bpy.ops.arp.arp_export_fbx_panel(filepath=file_output)
+    
+|
+
+
+Unreal Engine Tips
+======================
+
+Import specifications
+-----------------------
+
+If the mesh have shape keys, importing with **Use TOAs Ref Pose** enabled may lead to incorrect blend shapes in Unreal.
+If this happens, make sure to turn it off.
+
+.. image:: img/unreal_import_toa.png
+	:align: center
+    
+|
+
+
+Retargeting
+--------------
+
+Troubleshoot UE Anim Retargeting
+""""""""""""""""""""""""""""""""""""
+
+Auto-Rig Pro features UE settings to export correct bone names and axes for UE, but this is only the first half of the work.
+For best results, UE needs the imported character to have a very similar skeleton to the UE Mannequin skeleton.
+
+When retargeting animations, UE will move and rotate the bones of the imported skeleton, so that they are close to the Mannequin skeleton.
+Then, if there are important differences in the location and rotation of bones, the animations will suffer from them.
+    
+Typical issues reside in spine and shoulder bones.
+
+Below is the UE Quinn skeleton for reference. Notice the spine and shoulders shape:
+
+.. image:: img/UE_quinn_skel_ref.jpg
+	:align: center
+    
+|
+
+Now, the reference bones of our character look like this. We can see the spine and shoulders shapes are too far from the expected Quinn skeleton.
+So they must be corrected!
+
+.. image:: img/UE_soldier_skel_example.jpg
+	:align: center
+    
+|
+
+After re-shaping the reference bones, animations will work out right of the bat in UE, without unexpected distortions.
+
+.. image:: img/UE_soldier_skel_example_fixed.jpg
+	:align: center
+    
+|
+
+.. important::
+    The character may be modelled in a pose that is too far from the UE Mannequin. In that case, it's best to reshape the model too.
+    
+    
+.. note::
+    Alternatively, retargeting can be improved by adjusting the translation type in UE. See the chapter below.
+
+|
+    
+.. _retargetskeleton:
+
+Retargeting Translation Type
+""""""""""""""""""""""""""""""
+
+As mentioned above, animations will retarget fine in UE, only if the imported skeleton and the UE skeleton are very similar.
+If they are too different, try setting their translation type to **Skeleton**.
+That will help to reduce undesired distortions.
+
+* Display the retargeting options by clicking this in the bones tree:
+
+.. image:: img/ue_retarget_options.jpg
+	:align: center
+    
+|
+
+Then set to Skeleton this property:
+
+.. image:: img/ue_retarget_skeleton.jpg
+	:align: center
+
+
+    
+|
+
+Rotation Offsets
+-----------------
+
+Sometime, because of differences in the rest position of the source and target rig, or because the animation itself contains artefacts, it's necessary to apply rotation offset over the retargetted animation for better results.
+
+It's especially true for the fingers. Here is how to fix wrong fingers rotations of the ThirdPersonRun included in UE:
+
+* Select and rotate the bones in the 3d viewport (animation window)
+
+.. image:: img/ue_fingers_offset_01.jpg
+
+
+.. image:: img/ue_fingers_offset_02.jpg
+
+
+
+* Select all the bones you've modified in the Skeleton Tree:
+
+.. image:: img/ue_fingers_offset_03.jpg
+	:align: center
+    
+|
+
+* Click the **Key** cross button then the **Apply** button.
+
+.. image:: img/ue_fingers_offset_04.jpg
+	:align: center
+    
+|
+
+* Save your asset and you're done!
+
+|
+
+
+Control Rig 
+--------------
+
+While there is no tool yet in Auto-Rig Pro that would generate a control rig in UE for any rigs, the UE default control rig can be attached to any humanoids skeletons easily.
+Here is a quick example in UE 5.4, the workflow may differ in more recent versions though.
+
+
+- Export the rigged character to FBX with UE Humanoid settings
+- In a third person UE project, import it as a Mannequin skeleton
+- Duplicate the default **Control Rig** asset
+
+.. image:: img/ue_duplicate_ctrl_rig.jpg
+	:align: center
+
+|
+
+- Open the duplicated Control Rig, and change the preview mesh to the imported character, save it
+
+|
+
+Animation editing and baking:
+
+- The control rig can now be dragged and dropped in the 3D viewport. The Sequencer window should automatically open after dropping it. 
+- Click the **+** button next to the *Animation* track, to add an existing animation, for example a walk cycle
+- Mute the ControlRig track, then the animation should show and play without the control rig
+
+.. image:: img/ue_add_anim_ctrl_rig.jpg
+	:align: center
+    
+    
+|
+    
+- To bake the animation to the control rig, right click the top control rig track > **Bake to Control Rig** > select the duplicated asset
+
+.. image:: img/ue_bake_ctrl_rig.jpg
+	:align: center
+    
+|
+
+- Done, but it may be necessary to mute the animation track to show the baked animated control rig
+
+
+|
+
+Unity Tips
+============
+
+.. _unityhumanoid:
+
+Humanoid System
+-------------------
+
+Unity's Humanoid rig comes in very handy when retargeting animations to multiple characters.
+However, there are certain drawbacks when compared to Generic rigs:
+
+- Does not support extra bones by default. For example, only the jaw and eye bones are supported as facial bones. To add more, extra steps are required using masks (see Unity documentation, |forumlink|).
+
+.. |forumlink| raw:: html
+	
+	<a href="https://discussions.unity.com/t/humanoid-rigs-and-extra-bones/601395/2" target="_blank">forum</a>
+
+- No twist bones. Arms and legs twist bones are not natively supported, leading to poorer deformation when twisting arms/legs. However, they can be handled with additional code, plugins.
+
+- The skeleton is automatically set to a reference T-pose. This may lead to slight offsets in bones rotations.
+
+
+|
+
+
+.. _skintotalweights:
+
+Skin Weights
+--------------
+
+In Unity, the **Skin Weights** setting in the **Quality** panel defines the maximum number of deforming bones per vertex.
+This is useful to keep high realtime performances since too many deforming bones can slow down calculations.
+However, this may lead to bad deformations, if this value doesn't match the number of deforming bones in the Blender rig. 
+For example, if some vertices are deformed by 5 bones while the Unity limit is set to 2, this is going to lead to some serious deformation issues.
+
+
+.. image:: img/unity_skin_weights.jpg
+    :align: center
+    
+|
+
+* If you're concerned with in-game performances, then make sure to keep the **Skin Weights** value to 4 bones or less.
+    In Blender, ensure vertices have no more than 4 deforming bones.
+    This can be automatically done with the |limittotaldoc| setting. Then ensure deformations are still correct after this, and tweak weights if necessary.
+    
+.. |limittotaldoc| raw:: html
+	
+	<a href="https://docs.blender.org/manual/en/latest/scene_layout/object/editing/cleanup.html?highlight=limit%20total#limit-total-vertex-groups" target="_blank">Limit Total Vertex Groups</a>
+    
+
+.. image:: img/limit_total_vgroup.gif
+    :align: center       
+
+|
+    
+* If performances are not a deal breaker, set **Skin Weights** to **Unlimited** in Unity to ensures all weights are taken into account
+
+|
+
+
