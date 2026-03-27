@@ -2329,11 +2329,126 @@ def _detect_leg_sides(arp_obj):
     return sides
 
 
+def _fc_insert(action, data_path, index, frame, value, group, fc_set):
+    """FCurve에 직접 키프레임 삽입 (Blender 4.5 Action Slot 우회)."""
+    fc = action.fcurves.find(data_path, index=index)
+    if fc is None:
+        fc = action.fcurves.new(data_path, index=index, action_group=group)
+    fc.keyframe_points.insert(frame, value)
+    fc_set.add(fc)
+
+
+def _kf_transforms(action, pb, frame, fcs, loc=True, rot=True, scale=True):
+    """pose bone transforms → FCurve 직접 삽입."""
+    n = pb.name
+    if loc:
+        dp = f'pose.bones["{n}"].location'
+        for i in range(3):
+            _fc_insert(action, dp, i, frame, pb.location[i], n, fcs)
+    if rot:
+        if pb.rotation_mode == "QUATERNION":
+            dp = f'pose.bones["{n}"].rotation_quaternion'
+            for i in range(4):
+                _fc_insert(action, dp, i, frame, pb.rotation_quaternion[i], n, fcs)
+        else:
+            dp = f'pose.bones["{n}"].rotation_euler'
+            for i in range(3):
+                _fc_insert(action, dp, i, frame, pb.rotation_euler[i], n, fcs)
+    if scale:
+        dp = f'pose.bones["{n}"].scale'
+        for i in range(3):
+            _fc_insert(action, dp, i, frame, pb.scale[i], n, fcs)
+
+
+def _kf_custom_prop(action, pb, prop, frame, fcs):
+    """pose bone custom property → FCurve 직접 삽입."""
+    dp = f'pose.bones["{pb.name}"]["{prop}"]'
+    _fc_insert(action, dp, 0, frame, pb.get(prop, 0.0), pb.name, fcs)
+
+
+def _keyframe_ik_leg_fcurves(action, pose_bones, side, frame, fcs):
+    """ik_to_fk_leg 스냅 결과를 직접 FCurve로 키프레임.
+
+    ARP ik_to_fk_leg()의 keyframe 블록과 동일한 본/채널을 키프레임하되,
+    pb.keyframe_insert() 대신 action.fcurves 직접 접근으로 Blender 4.5
+    Action Slot 호환성 문제를 우회한다.
+    """
+    foot_ik = pose_bones.get("c_foot_ik" + side)
+    if not foot_ik:
+        return
+
+    c_thigh_b = pose_bones.get("c_thigh_b" + side)
+    foot_01 = pose_bones.get("c_foot_01" + side)
+    foot_roll = pose_bones.get("c_foot_roll_cursor" + side)
+    toes_ik = pose_bones.get("c_toes_ik" + side)
+    pole_ik = pose_bones.get("c_leg_pole" + side)
+    c_thigh_ik = pose_bones.get("c_thigh_ik" + side)
+    toes_pivot = pose_bones.get("c_toes_pivot" + side)
+    ik_offset = pose_bones.get("c_foot_ik_offset" + side)
+    ik_pivot = pose_bones.get("c_foot_ik_pivot" + side)
+    c_leg_ik3 = pose_bones.get("c_leg_ik3" + side)
+
+    foot_fk = pose_bones.get("c_foot_fk" + side)
+    thigh_fk = pose_bones.get("c_thigh_fk" + side)
+    leg_fk = pose_bones.get("c_leg_fk" + side)
+    toes_fk = pose_bones.get("c_toes_fk" + side)
+    thigh_b_fk = pose_bones.get("c_thigh_b_fk" + side)
+
+    # ── IK chain custom properties ──
+    _kf_custom_prop(action, foot_ik, "ik_fk_switch", frame, fcs)
+    if "stretch_length" in foot_ik:
+        _kf_custom_prop(action, foot_ik, "stretch_length", frame, fcs)
+    if "auto_stretch" in foot_ik:
+        _kf_custom_prop(action, foot_ik, "auto_stretch", frame, fcs)
+
+    # ── IK chain transforms ──
+    if c_leg_ik3:  # 3 Bones Type 2
+        _kf_transforms(action, c_leg_ik3, frame, fcs, loc=False, scale=False)
+
+    if c_thigh_b:
+        _kf_transforms(action, c_thigh_b, frame, fcs)
+
+    _kf_transforms(action, foot_ik, frame, fcs)
+
+    if foot_01:
+        _kf_transforms(action, foot_01, frame, fcs, loc=False, scale=False)
+    if foot_roll:
+        _kf_transforms(action, foot_roll, frame, fcs, rot=False, scale=False)
+    if toes_ik:
+        _kf_transforms(action, toes_ik, frame, fcs, loc=False)
+    if pole_ik:
+        _kf_transforms(action, pole_ik, frame, fcs, rot=False, scale=False)
+    if c_thigh_ik:
+        dp = f'pose.bones["{c_thigh_ik.name}"].rotation_euler'
+        _fc_insert(action, dp, 1, frame, c_thigh_ik.rotation_euler[1], c_thigh_ik.name, fcs)
+    if toes_pivot:
+        _kf_transforms(action, toes_pivot, frame, fcs, scale=False)
+    if ik_offset:
+        _kf_transforms(action, ik_offset, frame, fcs)
+    if ik_pivot:
+        _kf_transforms(action, ik_pivot, frame, fcs)
+
+    # ── FK chain ──
+    if foot_fk and "stretch_length" in foot_fk:
+        _kf_custom_prop(action, foot_fk, "stretch_length", frame, fcs)
+    if foot_fk:
+        _kf_transforms(action, foot_fk, frame, fcs, loc=False)
+    if thigh_b_fk:
+        _kf_transforms(action, thigh_b_fk, frame, fcs, loc=False, scale=False)
+    if thigh_fk:
+        _kf_transforms(action, thigh_fk, frame, fcs, loc=False, scale=False)
+    if leg_fk:
+        _kf_transforms(action, leg_fk, frame, fcs, loc=False, scale=False)
+    if toes_fk:
+        _kf_transforms(action, toes_fk, frame, fcs, loc=False)
+
+
 def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
     """FK 리타겟 결과를 IK 컨트롤러에 베이크.
 
-    ARP 네이티브 ik_to_fk_leg() 함수를 사용하여 FK 포즈를 IK 컨트롤러에 스냅.
-    3-bone Type 1 leg의 c_thigh_b 공유 본, pole vector 등을 자동 처리.
+    ARP 네이티브 ik_to_fk_leg(add_keyframe=False)로 FK→IK 포즈 스냅 후,
+    action.fcurves에 직접 키프레임을 삽입한다.
+    pb.keyframe_insert()는 Blender 4.5 Action Slot 문제로 사용하지 않는다.
     """
     from bl_ext.user_default.auto_rig_pro.src.rig_functions import ik_to_fk_leg
 
@@ -2349,14 +2464,19 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
     scene = bpy.context.scene
     pose_bones = arp_obj.pose.bones
 
+    # 활성 액션 확인
+    anim_data = arp_obj.animation_data
+    action = anim_data.action if anim_data else None
+    if not action:
+        log("  FK→IK 베이크: 활성 액션 없음", "WARN")
+        return 0
+
     # Pose 모드 진입 (ik_to_fk_leg는 active_object 기반)
     ensure_object_mode()
     select_only(arp_obj)
     bpy.ops.object.mode_set(mode="POSE")
 
     # ── 3-bone Type 1: c_thigh_b 회전 사전 저장 ──────────────
-    # c_thigh_b는 IK/FK 체인에서 공유되므로 스냅 시 덮어쓰기 발생.
-    # 모든 프레임의 원래 회전을 먼저 저장한 뒤 스냅 전 복원한다.
     thigh_b_saved = {}  # {side: {frame: Euler}}
     for s in sides:
         thigh_b = pose_bones.get("c_thigh_b" + s)
@@ -2369,7 +2489,8 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
                 thigh_b_saved[s][frame] = thigh_b.rotation_euler.copy()
             log(f"  3-bone Type 1 c_thigh_b{s}: {f_end - f_start + 1}프레임 회전 저장")
 
-    # ── 프레임별 IK 스냅 + 키프레임 ──────────────────────────
+    # ── 프레임별 IK 스냅 + FCurve 직접 키프레임 ──────────────
+    all_fcurves = set()
     keyframed = 0
     for frame in range(f_start, f_end + 1):
         scene.frame_set(frame)
@@ -2380,8 +2501,16 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
                 if thigh_b:
                     thigh_b.rotation_euler = thigh_b_saved[s][frame]
 
-            ik_to_fk_leg(arp_obj, s, add_keyframe=True)
+            # ARP 네이티브 스냅 (키프레임 없이 — Slot 문제 우회)
+            ik_to_fk_leg(arp_obj, s, add_keyframe=False)
+
+            # 직접 FCurve에 키프레임 삽입
+            _keyframe_ik_leg_fcurves(action, pose_bones, s, frame, all_fcurves)
             keyframed += 1
+
+    # FCurve 정렬 업데이트
+    for fc in all_fcurves:
+        fc.update()
 
     bpy.ops.object.mode_set(mode="OBJECT")
 
