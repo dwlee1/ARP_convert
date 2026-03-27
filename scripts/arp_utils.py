@@ -74,7 +74,11 @@ def ensure_retarget_context(source_obj, arp_obj):
     ensure_object_mode()
     bpy.context.scene.source_rig = source_obj.name
     bpy.context.scene.target_rig = arp_obj.name
-    select_only(source_obj)
+    # auto_scale poll은 소스+타겟 양쪽 선택 + 소스 활성 필요
+    bpy.ops.object.select_all(action="DESELECT")
+    source_obj.select_set(True)
+    arp_obj.select_set(True)
+    bpy.context.view_layer.objects.active = source_obj
     log(f"리타게팅 컨텍스트: 소스={source_obj.name}, 타겟={arp_obj.name}")
 
 

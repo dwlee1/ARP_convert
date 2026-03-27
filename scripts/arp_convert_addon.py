@@ -33,7 +33,7 @@ from bpy.props import (
     PointerProperty,
     StringProperty,
 )
-from bpy.types import Operator, Panel, PropertyGroup
+from bpy.types import Operator, Panel, PropertyGroup, UIList
 from mathutils import Vector
 
 # ═══════════════════════════════════════════════════════════════
@@ -2524,16 +2524,16 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 오퍼레이터: Step 4 — 리타게팅
+# 오퍼레이터: Step 3.5 — Remap 설정 (ARP bones_map_v2 직접 사용)
 # ═══════════════════════════════════════════════════════════════
 
 
-class ARPCONV_OT_Retarget(Operator):
-    """동적 .bmap 생성 + 애니메이션 리타게팅"""
+class ARPCONV_OT_RemapSetup(Operator):
+    """Remap 설정: .bmap 생성 → ARP bones_map_v2 로드"""
 
-    bl_idname = "arp_convert.retarget"
-    bl_label = "애니메이션 리타게팅"
-    bl_description = "Preview 매핑으로 .bmap 자동 생성 후 리타게팅"
+    bl_idname = "arp_convert.remap_setup"
+    bl_label = "Remap Setup"
+    bl_description = ".bmap 생성 후 ARP 리타게팅 설정 (auto_scale → build_bones_list → import_config_preset → rest pose)"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -2547,7 +2547,6 @@ class ARPCONV_OT_Retarget(Operator):
                 find_arp_armature,
                 log,
                 run_arp_operator,
-                select_only,
             )
             from skeleton_analyzer import (
                 generate_bmap_content,
@@ -2566,16 +2565,14 @@ class ARPCONV_OT_Retarget(Operator):
             self.report({"ERROR"}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
             return {"CANCELLED"}
 
-        ensure_object_mode()
-
-        # 동적 .bmap 생성 (ARP 아마추어에서 실제 컨트롤러 이름 탐색)
+        # 1. .bmap 생성
         ik_mode = props.retarget_ik_mode
-        log(f"동적 .bmap 생성 (IK legs: {ik_mode})")
         analysis = preview_to_analysis(preview_obj)
         bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj, ik_legs=ik_mode)
 
         bmap_name = "auto_generated"
         blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
+        bmap_path = None
 
         for presets_dir in [
             os.path.join(
@@ -2606,8 +2603,12 @@ class ARPCONV_OT_Retarget(Operator):
                 log(f".bmap 저장: {bmap_path}")
                 break
 
-        # 리타게팅 설정
-        log("리타게팅 설정")
+        if not bmap_path:
+            self.report({"ERROR"}, "ARP remap_presets 경로를 찾을 수 없습니다.")
+            return {"CANCELLED"}
+
+        # 2. ARP 리타게팅 설정 체인
+        ensure_object_mode()
         try:
             ensure_retarget_context(source_obj, arp_obj)
             run_arp_operator(bpy.ops.arp.auto_scale)
@@ -2624,12 +2625,113 @@ class ARPCONV_OT_Retarget(Operator):
             run_arp_operator(bpy.ops.arp.save_pose_rest)
             ensure_object_mode()
         except Exception as e:
-            self.report({"ERROR"}, f"리타게팅 설정 실패: {e}")
+            self.report({"ERROR"}, f"Remap 설정 실패: {e}")
             log(traceback.format_exc(), "ERROR")
             return {"CANCELLED"}
 
-        # 액션별 리타게팅
-        log("액션별 리타게팅")
+        # 3. 결과 보고
+        scn = context.scene
+        if hasattr(scn, "bones_map_v2"):
+            count = len(scn.bones_map_v2)
+            self.report({"INFO"}, f"Remap Setup 완료: bones_map_v2에 {count}개 매핑 로드됨")
+        else:
+            self.report(
+                {"WARNING"}, "Remap Setup 완료: ARP bones_map_v2를 찾을 수 없습니다 (ARP 미설치?)"
+            )
+
+        return {"FINISHED"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# UIList: ARP bones_map_v2 직접 표시
+# ═══════════════════════════════════════════════════════════════
+
+
+def _find_arp_armature_cached():
+    """ARP 아마추어를 캐시하여 UIList draw에서 반복 탐색 방지"""
+    for obj in bpy.data.objects:
+        if obj.type == "ARMATURE" and obj.name.startswith("rig"):
+            return obj
+    return None
+
+
+class ARPCONV_UL_BoneMap(UIList):
+    """ARP bones_map_v2 기반 소스↔타겟 본 매핑 리스트"""
+
+    bl_idname = "ARPCONV_UL_bone_map"
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index):
+        if self.layout_type in {"DEFAULT", "COMPACT"}:
+            split = layout.split(factor=0.4, align=True)
+
+            # 좌측: 소스 본 이름 (읽기 전용)
+            left = split.row(align=True)
+            if item.source_bone:
+                left.label(text=item.source_bone, icon="BONE_DATA")
+            else:
+                left.alert = True
+                left.label(text="(empty)", icon="ERROR")
+
+            # 우측: 타겟 본 (편집 가능 — ARP 본 검색)
+            right = split.row(align=True)
+            arp_obj = _find_arp_armature_cached()
+            if arp_obj and arp_obj.data:
+                right.prop_search(item, "name", arp_obj.data, "bones", text="")
+            else:
+                right.prop(item, "name", text="")
+
+            # IK 표시
+            if item.ik:
+                layout.label(text="", icon="CON_KINEMATIC")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: Step 4 — 리타게팅
+# ═══════════════════════════════════════════════════════════════
+
+
+class ARPCONV_OT_Retarget(Operator):
+    """bones_map_v2 기반 애니메이션 리타게팅 (Remap Setup 후 실행)"""
+
+    bl_idname = "arp_convert.retarget"
+    bl_label = "애니메이션 리타게팅"
+    bl_description = "Remap Setup으로 설정된 bones_map_v2 기반 리타게팅"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        _ensure_scripts_path()
+        _reload_modules()
+
+        try:
+            from arp_utils import (
+                ensure_object_mode,
+                find_arp_armature,
+                log,
+                run_arp_operator,
+                select_only,
+            )
+        except ImportError as e:
+            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
+            return {"CANCELLED"}
+
+        props = context.scene.arp_convert_props
+        source_obj = bpy.data.objects.get(props.source_armature)
+        arp_obj = find_arp_armature()
+
+        if not all([source_obj, arp_obj]):
+            self.report({"ERROR"}, "소스/ARP 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
+
+        # bones_map_v2 확인
+        scn = context.scene
+        if not hasattr(scn, "bones_map_v2") or len(scn.bones_map_v2) == 0:
+            self.report({"ERROR"}, "Remap Setup을 먼저 실행하세요 (bones_map_v2 비어있음).")
+            return {"CANCELLED"}
+
+        ensure_object_mode()
+
+        # 액션별 리타게팅 — bones_map_v2는 이미 채워져 있으므로 바로 실행
+        log(f"액션별 리타게팅 (bones_map_v2: {len(scn.bones_map_v2)}개 매핑)")
         actions = list(bpy.data.actions)
         success = 0
         fail = 0
@@ -2748,6 +2850,10 @@ class ARPCONV_OT_RunRegression(Operator):
 
             should_run_retarget = props.regression_run_retarget and fixture_data["run_retarget"]
             if should_run_retarget:
+                result = bpy.ops.arp_convert.remap_setup()
+                if "FINISHED" not in result:
+                    raise RuntimeError("Remap Setup 실패")
+
                 result = bpy.ops.arp_convert.retarget()
                 if "FINISHED" not in result:
                     raise RuntimeError("Retarget 실패")
@@ -2901,13 +3007,95 @@ class ARPCONV_PT_MainPanel(Panel):
 
         # Step 3: 리그 생성
         box = layout.box()
-        box.label(text="Step 3: 적용", icon="PLAY")
+        box.label(text="Step 3: Build Rig", icon="MOD_ARMATURE")
         box.prop(props, "front_3bones_ik", slider=True)
-        col = box.column(align=True)
-        col.scale_y = 1.3
-        col.operator("arp_convert.build_rig", icon="MOD_ARMATURE")
-        col.operator("arp_convert.retarget", icon="ACTION")
+        row = box.row()
+        row.scale_y = 1.3
+        row.operator("arp_convert.build_rig", icon="MOD_ARMATURE")
+
+        layout.separator()
+
+        # Step 3.5: Remap 설정 (ARP bones_map_v2 직접 사용)
+        box = layout.box()
+        box.label(text="Step 3.5: Remap 설정", icon="UV_SYNC_SELECT")
+
         box.prop(props, "retarget_ik_mode")
+        row = box.row()
+        row.scale_y = 1.3
+        row.operator("arp_convert.remap_setup", icon="FILE_REFRESH")
+
+        # ARP bones_map_v2 리스트
+        scn = context.scene
+        has_bones_map = hasattr(scn, "bones_map_v2") and len(scn.bones_map_v2) > 0
+        if has_bones_map:
+            box.template_list(
+                "ARPCONV_UL_bone_map",
+                "",
+                scn,
+                "bones_map_v2",
+                scn,
+                "bones_map_index",
+                rows=8,
+            )
+
+            # 매핑 통계
+            total = len(scn.bones_map_v2)
+            stat_row = box.row()
+            stat_row.label(text=f"매핑: {total}개")
+
+            # 선택된 항목 상세 편집
+            if scn.bones_map_index < total:
+                item = scn.bones_map_v2[scn.bones_map_index]
+                detail = box.box()
+
+                # Source → Target
+                row = detail.row(align=True)
+                row.label(text=f"{item.source_bone}:")
+                arp_obj = _find_arp_armature_cached()
+                if arp_obj and arp_obj.data:
+                    row.prop_search(item, "name", arp_obj.data, "bones", text="")
+                else:
+                    row.prop(item, "name", text="")
+
+                # Root / Location
+                row = detail.row(align=True)
+                row.prop(item, "set_as_root", text="Set as Root")
+                sub = row.row()
+                sub.enabled = not item.ik and not item.set_as_root
+                sub.prop(item, "location", text="Location")
+
+                # IK 설정
+                row = detail.row(align=True)
+                split = row.split(factor=0.2)
+                if item.set_as_root:
+                    split.enabled = False
+                split.prop(item, "ik", text="IK")
+                if item.ik and arp_obj and arp_obj.data:
+                    split2 = split.split(factor=0.9, align=True)
+                    split2.prop_search(item, "ik_pole", arp_obj.data, "bones", text="Pole")
+
+                    row = detail.row(align=False)
+                    row.enabled = item.ik
+                    row.prop(item, "ik_world", text="IK World Space")
+
+                    row = detail.row(align=False)
+                    row.enabled = item.ik
+                    row.prop(item, "ik_auto_pole", text="")
+                    row.prop(item, "ik_create_constraints")
+
+                    row = detail.row(align=False)
+                    row.enabled = item.ik
+                    row.label(text="IK Axis Correc:")
+                    row.prop(item, "IK_axis_correc", text="")
+
+        layout.separator()
+
+        # Step 4: 리타게팅
+        box = layout.box()
+        box.label(text="Step 4: Retarget", icon="ACTION")
+        row = box.row()
+        row.scale_y = 1.3
+        row.operator("arp_convert.retarget", icon="PLAY")
 
         layout.separator()
 
@@ -2930,6 +3118,8 @@ classes = [
     ARPCONV_OT_CreatePreview,
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
+    ARPCONV_OT_RemapSetup,
+    ARPCONV_UL_BoneMap,
     ARPCONV_OT_Retarget,
     ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,
