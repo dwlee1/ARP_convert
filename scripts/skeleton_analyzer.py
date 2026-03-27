@@ -1548,10 +1548,26 @@ _CTRL_SEARCH_PATTERNS = {
     "back_leg_r": [r"^c_thigh_fk\.r", r"^c_leg_fk\.r", r"^c_foot_fk\.r"],
     "back_foot_l": [r"^c_toes\.l"],
     "back_foot_r": [r"^c_toes\.r"],
-    "front_leg_l": [r"^c_shoulder\.l", r"^c_arm_fk\.l", r"^c_forearm_fk\.l"],
-    "front_leg_r": [r"^c_shoulder\.r", r"^c_arm_fk\.r", r"^c_forearm_fk\.r"],
-    "front_foot_l": [r"^c_hand_fk\.l"],
-    "front_foot_r": [r"^c_hand_fk\.r"],
+    # dog 프리셋: 앞다리가 _dupli_001 복제 체인. humanoid 프리셋은 arm 계열.
+    # 두 패턴을 모두 나열 — dog에서는 dupli만, humanoid에서는 arm만 매칭됨.
+    "front_leg_l": [
+        r"^c_thigh_b_dupli_\d+\.l",
+        r"^c_thigh_fk_dupli_\d+\.l",
+        r"^c_leg_fk_dupli_\d+\.l",
+        r"^c_shoulder\.l",
+        r"^c_arm_fk\.l",
+        r"^c_forearm_fk\.l",
+    ],
+    "front_leg_r": [
+        r"^c_thigh_b_dupli_\d+\.r",
+        r"^c_thigh_fk_dupli_\d+\.r",
+        r"^c_leg_fk_dupli_\d+\.r",
+        r"^c_shoulder\.r",
+        r"^c_arm_fk\.r",
+        r"^c_forearm_fk\.r",
+    ],
+    "front_foot_l": [r"^c_toes(_fk)?_dupli_\d+\.l", r"^c_hand_fk\.l"],
+    "front_foot_r": [r"^c_toes(_fk)?_dupli_\d+\.r", r"^c_hand_fk\.r"],
     "tail": [r"^c_tail_\d+\."],
     "ear_l": [r"^c_ear_\d+\.l"],
     "ear_r": [r"^c_ear_\d+\.r"],
@@ -1563,25 +1579,25 @@ def discover_arp_ctrl_map(arp_obj):
     match_to_rig 이후 ARP 아마추어에서 실제 컨트롤러 이름을 역할별로 탐색.
 
     Returns:
-        dict: {role: [ctrl_name, ...], ...}  역할별 컨트롤러 이름 리스트 (깊이순 정렬)
+        dict: {role: [ctrl_name, ...], ...}  역할별 컨트롤러 이름 리스트 (패턴 순서 유지)
     """
     import re
 
     if arp_obj is None or arp_obj.type != "ARMATURE":
         return {}
 
-    all_bones = [b.name for b in arp_obj.data.bones]
+    all_bones = set(b.name for b in arp_obj.data.bones)
     ctrl_map = {}
 
     for role, patterns in _CTRL_SEARCH_PATTERNS.items():
+        # 패턴 순서대로 매칭 (알파벳 정렬하면 leg chain 순서가 뒤집힘)
         matched = []
-        for bone_name in all_bones:
-            for pat in patterns:
+        for pat in patterns:
+            for bone_name in all_bones:
                 if re.match(pat, bone_name):
                     matched.append(bone_name)
-                    break
+                    break  # 패턴당 첫 매칭만
         if matched:
-            matched.sort()
             ctrl_map[role] = matched
 
     return ctrl_map
@@ -1658,19 +1674,52 @@ def _dynamic_ctrl_names(role, count):
     return base
 
 
-def generate_bmap_content(analysis, arp_obj=None):
+def _apply_ik_to_foot_ctrl(ctrl_name, role):
+    """foot 역할의 FK 컨트롤러를 IK로 변환. (ik_legs 모드용)
+
+    leg 체인은 건드리지 않고, foot 역할 본만 IK 컨트롤러에 매핑한다.
+
+    Returns:
+        (ik_ctrl_name, pole_name, ik_flag)
+    """
+    import re
+
+    # c_toes 계열 → c_foot_ik 계열 (IK=True, pole=c_leg_pole)
+    # 매칭 대상: c_toes.l, c_toes_dupli_001.l, c_toes_fk_dupli_001.l
+    m = re.match(r"^c_toes(?:_fk)?(_dupli_\d+)?(\.[lr])$", ctrl_name)
+    if m:
+        dupli = m.group(1) or ""
+        side = m.group(2)
+        return f"c_foot_ik{dupli}{side}", f"c_leg_pole{dupli}{side}", True
+    # humanoid: c_hand_fk → c_hand_ik
+    if role.startswith("front_foot") and ctrl_name.startswith("c_hand_fk"):
+        suffix = ctrl_name[len("c_hand_fk") :]
+        return f"c_hand_ik{suffix}", f"c_arm_pole{suffix}", True
+    return ctrl_name, "", False
+
+
+def generate_bmap_content(analysis, arp_obj=None, ik_legs=False):
     """
     분석 결과에서 .bmap 파일 내용을 생성.
 
     Args:
         analysis: analyze_skeleton() 결과
         arp_obj: ARP 아마추어 오브젝트 (있으면 실제 컨트롤러 이름 사용)
+        ik_legs: True이면 다리 끝점을 IK 컨트롤러로 매핑
 
     Returns:
         str: .bmap 파일 내용
     """
     chains = analysis.get("chains", {})
     lines = []
+
+    # IK 적용 대상: foot 역할만 (leg chain은 FK 유지)
+    _IK_FOOT_ROLES = {
+        "back_foot_l",
+        "back_foot_r",
+        "front_foot_l",
+        "front_foot_r",
+    }
 
     # ARP 아마추어에서 실제 컨트롤러 이름 탐색 (가능한 경우)
     actual_ctrl_map = discover_arp_ctrl_map(arp_obj) if arp_obj else {}
@@ -1687,17 +1736,32 @@ def generate_bmap_content(analysis, arp_obj=None):
         if not ctrl_bones:
             continue
 
+        # IK 모드: foot 역할의 FK 컨트롤러를 IK로 교체
+        # ik_info: 원래 ctrl 이름 → (ik_pole, ik_flag) 매핑 저장
+        ik_info = {}
+        if ik_legs and role in _IK_FOOT_ROLES:
+            ctrl_bones = list(ctrl_bones)  # copy
+            for i, name in enumerate(ctrl_bones):
+                ik_name, ik_pole, ik_flag = _apply_ik_to_foot_ctrl(name, role)
+                ctrl_bones[i] = ik_name
+                if ik_flag:
+                    ik_info[ik_name] = (ik_pole, True)
+
         mapping = map_role_chain(role, source_bones, ctrl_bones)
 
         for src_bone, ctrl_bone in mapping.items():
             is_root = role == "root"
-            # .bmap 포맷: 4줄 반복
+
+            # IK 플래그: 이름 교체 시 저장한 정보 사용
+            ik_pole, ik_flag = ik_info.get(ctrl_bone, ("", False))
+
+            # .bmap 포맷: 5줄 반복
             flags = f"{'True' if is_root else 'False'}%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%"
             lines.append(f"{ctrl_bone}%{flags}")
             lines.append(src_bone)
             lines.append("True" if is_root else "False")
-            lines.append("False")
-            lines.append("")
+            lines.append("True" if ik_flag else "False")
+            lines.append(ik_pole)
 
     # unmapped 커스텀 본 매핑 추가 (원본 이름 유지, cc_ 접두사 없음)
     custom_bones = order_bones_by_hierarchy(

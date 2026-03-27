@@ -642,12 +642,15 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
     for mesh_obj in meshes:
         log(f"  메시 '{mesh_obj.name}' 처리 중...")
 
-        # ARP vertex group 초기화
+        # ARP vertex group 초기화 (소스==타겟인 커스텀 본은 제외)
+        all_sources = set(weight_map.keys())
         all_targets = set()
         for mappings in weight_map.values():
             for arp_name, _ in mappings:
                 all_targets.add(arp_name)
         for arp_name in all_targets:
+            if arp_name in all_sources:
+                continue  # 소스와 이름이 같은 VG는 삭제하면 안됨
             existing = mesh_obj.vertex_groups.get(arp_name)
             if existing:
                 mesh_obj.vertex_groups.remove(existing)
@@ -2566,9 +2569,10 @@ class ARPCONV_OT_Retarget(Operator):
         ensure_object_mode()
 
         # 동적 .bmap 생성 (ARP 아마추어에서 실제 컨트롤러 이름 탐색)
-        log("동적 .bmap 생성")
+        ik_mode = props.retarget_ik_mode
+        log(f"동적 .bmap 생성 (IK legs: {ik_mode})")
         analysis = preview_to_analysis(preview_obj)
-        bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj)
+        bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj, ik_legs=ik_mode)
 
         bmap_name = "auto_generated"
         blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
@@ -2649,11 +2653,6 @@ class ARPCONV_OT_Retarget(Operator):
                     fake_user_action=True,
                     interpolation_type="LINEAR",
                 )
-
-                # IK 모드: FK 결과를 IK 컨트롤러에 베이크
-                if props.retarget_ik_mode:
-                    ik_keys = _bake_fk_to_ik(arp_obj, f_start, f_end, log)
-                    log(f"    FK→IK 베이크: {ik_keys}개 키프레임")
 
                 success += 1
             except Exception as e:
