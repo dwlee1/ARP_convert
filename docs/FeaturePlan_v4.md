@@ -1,6 +1,6 @@
 # Feature Plan v4 — 리그 변환 품질 개선
 
-최종 수정: 2026-03-25
+최종 수정: 2026-03-27
 
 > 이 문서는 4개 신규 기능의 설계·구현 계획을 정리한다.
 > 전체 프로젝트 상태는 `docs/ProjectPlan.md` 참조.
@@ -14,7 +14,7 @@
 | F1 | 웨이트 0 본 프리뷰 제외 | 1 | 낮음 | 완료 |
 | F2 | IK pole vector 위치 매칭 | 2 | 중간 | 완료 |
 | F3 | Shape key 드라이버 보존 | 3 | 높음 | 완료 |
-| F4 | 리타게팅 IK 모드 | 4 | 높음 | 완료 |
+| F4 | 리타게팅 IK 모드 | 4 | 높음 | Blender 테스트 대기 |
 
 ---
 
@@ -139,7 +139,7 @@ def scan_shape_key_drivers(mesh_obj):
 - [x] transform 기반 드라이버 보존
 - [x] 커스텀 프로퍼티 기반 드라이버 보존
 - [x] shape key가 없는 메시에서 에러 없음
-- [ ] Cat에서 실제 shape key 동작 확인 (Blender 테스트 필요)
+- [x] Cat에서 실제 shape key 동작 확인 (2026-03-26 Blender 테스트 통과)
 
 ---
 
@@ -150,19 +150,26 @@ def scan_shape_key_drivers(mesh_obj):
 - 현재 리타게팅은 FK(본 회전) 기반 → 발 슬라이딩, 바닥 접지 불안정
 - 사족 동물은 IK 기반이 더 자연스러운 결과
 
-### 구현
+### 구현 (실제)
 
-1. **소스 발/손 위치 추출**: 매 프레임 world space 위치 베이크
-2. **IK 컨트롤러에 키프레임**: `c_foot_ik.*`, `c_hand_ik.*` 등 ARP IK 본에 loc 키프레임
-3. **폴 벡터 위치 계산**: 무릎/팔꿈치 위치에서 폴 벡터 방향 계산, 프레임별 적용
-4. **FK/IK 전환**: ARP의 `ik_fk_switch` 프로퍼티를 IK 모드로 설정
+1. ARP `bpy.ops.arp.retarget`으로 FK 리타게팅 실행 (기존 경로)
+2. ARP 네이티브 `ik_to_fk_leg(add_keyframe=False)`로 FK 포즈 → IK 컨트롤러 스냅
+3. `action.fcurves.new()` + `keyframe_points.insert()`로 직접 FCurve에 키프레임 삽입
+4. `pb.keyframe_insert()`는 Blender 4.5 Action Slot 호환성 문제로 사용하지 않음
+5. 3-bone Type 1 leg의 `c_thigh_b` 공유 본은 사전 저장 후 복원
+
+### 해결한 Blender 4.5 호환성 이슈
+
+| 이슈 | 원인 | 수정 |
+|------|------|------|
+| `use_keyframes_insert_auto` AttributeError | Blender 4.5에서 속성명 변경 (`use_keyframe_insert_auto`) | 해당 save/restore 제거 (불필요) |
+| `Could not insert key for slot OBLegacy Slot` | `pb.keyframe_insert()`가 Action Slot 시스템과 비호환 | `action.fcurves` 직접 접근으로 우회 |
 
 ### 변경 파일
 
 | 파일 | 변경 |
 |------|------|
-| `scripts/arp_convert_addon.py` | 리타게팅 오퍼레이터에 IK 모드 옵션 추가 |
-| `scripts/arp_utils.py` | FK→IK 변환 유틸 함수 |
+| `scripts/arp_convert_addon.py` | `retarget_ik_mode` 옵션, `_bake_fk_to_ik()`, FCurve 직접 삽입 헬퍼 |
 
 ### 완료 조건
 
