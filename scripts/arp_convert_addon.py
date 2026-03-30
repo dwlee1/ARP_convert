@@ -2523,6 +2523,75 @@ def _bake_fk_to_ik(arp_obj, f_start, f_end, log):
     return keyframed
 
 
+def _bake_source_to_preview(source_obj, preview_obj, action, f_start, f_end, log):
+    """원본 소스의 evaluated deform 본 포즈를 Preview 본에 베이크.
+
+    원본 리그의 IK/Child Of 등 컨스트레인트가 반영된 최종 포즈를
+    depsgraph 평가로 읽어서, 컨스트레인트 없는 Preview 본에 클린 FCurve로 기록한다.
+
+    소스와 Preview의 rest pose 미세 차이를 보정하기 위해,
+    evaluated matrix에서 소스 rest를 역산하여 basis를 추출한 뒤
+    Preview rest에 재조립한다.
+
+    Returns:
+        bpy.types.Action: 베이크된 액션 (정리 책임은 호출자에게)
+    """
+    # 1. source에 액션 할당
+    if source_obj.animation_data is None:
+        source_obj.animation_data_create()
+    source_obj.animation_data.action = action
+
+    # 2. preview용 새 액션 생성
+    baked = bpy.data.actions.new(name=action.name)
+    if preview_obj.animation_data is None:
+        preview_obj.animation_data_create()
+    preview_obj.animation_data.action = baked
+
+    # 3. rest pose 역보정 행렬 사전 계산 (프레임 루프 밖)
+    # bone.matrix_local = armature-local rest pose (부모 체인 포함)
+    # src_basis = src_rest_inv @ src_evaluated_matrix
+    # corrected_matrix = pvw_rest @ src_basis
+    rest_correction = {}
+    for pb in preview_obj.pose.bones:
+        src_data_bone = source_obj.data.bones.get(pb.name)
+        if src_data_bone is None:
+            continue
+        src_rest_inv = src_data_bone.matrix_local.inverted()
+        pvw_rest = pb.bone.matrix_local
+        rest_correction[pb.name] = (src_rest_inv, pvw_rest)
+
+    # 4. 프레임별 베이크
+    fcs = set()
+    scene = bpy.context.scene
+
+    for frame in range(f_start, f_end + 1):
+        scene.frame_set(frame)
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        source_eval = source_obj.evaluated_get(depsgraph)
+
+        for pb in preview_obj.pose.bones:
+            src_bone = source_eval.pose.bones.get(pb.name)
+            if src_bone is None:
+                continue
+            correction = rest_correction.get(pb.name)
+            if correction is None:
+                continue
+
+            src_rest_inv, pvw_rest = correction
+            # evaluated matrix → 소스 basis 추출 → Preview rest에 재조립
+            src_basis = src_rest_inv @ src_bone.matrix
+            pb.matrix = pvw_rest @ src_basis
+
+            _kf_transforms(baked, pb, frame, fcs)
+
+    # 5. FCurve 보간 정리
+    for fc in fcs:
+        fc.update()
+
+    log(f"  베이크 완료: '{action.name}' → Preview ({f_end - f_start + 1} frames)")
+    return baked
+
+
 # ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: Step 3.5 — Remap 설정 (ARP bones_map_v2 직접 사용)
 # ═══════════════════════════════════════════════════════════════
@@ -2610,8 +2679,20 @@ class ARPCONV_OT_RemapSetup(Operator):
         # 2. ARP 리타게팅 설정 체인
         ensure_object_mode()
         try:
+            # RemapSetup은 원본 소스로 유지 (build_bones_list poll 요구사항)
+            # Preview 전환은 Retarget 시점에만 적용
             ensure_retarget_context(source_obj, arp_obj)
-            run_arp_operator(bpy.ops.arp.auto_scale)
+
+            # auto_scale 스킵: 우리 파이프라인은 이미 소스 본 위치에 맞춰 ref 본을
+            # 세팅했으므로 소스 스케일을 변경할 필요가 없다.
+            # 대신 global_scale을 수동 설정 (소스/타겟 스케일 비율).
+            scn = context.scene
+            src_scale = source_obj.scale[0] if source_obj.scale[0] != 0 else 1.0
+            tgt_scale = arp_obj.scale[0] if arp_obj.scale[0] != 0 else 1.0
+            if hasattr(scn, "global_scale"):
+                scn.global_scale = src_scale / tgt_scale
+                log(f"global_scale 수동 설정: {scn.global_scale:.4f} (auto_scale 스킵)")
+
             ensure_object_mode()
             run_arp_operator(bpy.ops.arp.build_bones_list)
 
@@ -2705,6 +2786,7 @@ class ARPCONV_OT_Retarget(Operator):
         try:
             from arp_utils import (
                 ensure_object_mode,
+                ensure_retarget_context,
                 find_arp_armature,
                 log,
                 run_arp_operator,
@@ -2716,10 +2798,11 @@ class ARPCONV_OT_Retarget(Operator):
 
         props = context.scene.arp_convert_props
         source_obj = bpy.data.objects.get(props.source_armature)
+        preview_obj = bpy.data.objects.get(props.preview_armature)
         arp_obj = find_arp_armature()
 
-        if not all([source_obj, arp_obj]):
-            self.report({"ERROR"}, "소스/ARP 아마추어를 찾을 수 없습니다.")
+        if not all([source_obj, preview_obj, arp_obj]):
+            self.report({"ERROR"}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
             return {"CANCELLED"}
 
         # bones_map_v2 확인
@@ -2730,7 +2813,15 @@ class ARPCONV_OT_Retarget(Operator):
 
         ensure_object_mode()
 
-        # 액션별 리타게팅 — bones_map_v2는 이미 채워져 있으므로 바로 실행
+        # 리타겟 소스를 Preview로 전환
+        # (RemapSetup은 원본 source_obj로 build_bones_list 실행,
+        #  여기서 Preview로 전환하여 베이크된 클린 FCurve 사용)
+        # ARP update_source_rig 콜백이 animation_data.action을 읽으므로 미리 생성
+        if preview_obj.animation_data is None:
+            preview_obj.animation_data_create()
+        ensure_retarget_context(preview_obj, arp_obj)
+
+        # 액션별 리타게팅: 소스 → Preview 베이크 → ARP retarget
         log(f"액션별 리타게팅 (bones_map_v2: {len(scn.bones_map_v2)}개 매핑)")
         actions = list(bpy.data.actions)
         success = 0
@@ -2741,11 +2832,15 @@ class ARPCONV_OT_Retarget(Operator):
             f_end = int(action.frame_range[1])
             log(f"  [{i + 1}/{len(actions)}] '{action.name}' ({f_start}~{f_end})")
 
+            baked = None
             try:
-                if source_obj.animation_data is None:
-                    source_obj.animation_data_create()
-                source_obj.animation_data.action = action
+                # 소스 → Preview 베이크 (컨스트레인트 평가 결과 캡처)
+                baked = _bake_source_to_preview(
+                    source_obj, preview_obj, action, f_start, f_end, log
+                )
 
+                # ARP retarget (소스 = Preview, 액션 = baked)
+                # ensure_retarget_context()에서 scene.source_rig = preview_obj 설정 완료
                 ensure_object_mode()
                 select_only(arp_obj)
                 run_arp_operator(
@@ -2760,6 +2855,15 @@ class ARPCONV_OT_Retarget(Operator):
             except Exception as e:
                 fail += 1
                 log(f"    실패: {e}", "WARN")
+            finally:
+                # 베이크 중간 액션 정리 (원본 액션은 보존)
+                if baked and baked.users == 0:
+                    bpy.data.actions.remove(baked)
+                elif baked:
+                    # retarget 후에도 preview에 남아있으면 연결 해제
+                    if preview_obj.animation_data and preview_obj.animation_data.action == baked:
+                        preview_obj.animation_data.action = None
+                    bpy.data.actions.remove(baked)
 
         mode_label = "IK" if props.retarget_ik_mode else "FK"
         self.report({"INFO"}, f"리타게팅 완료 ({mode_label}): {success}/{len(actions)} 성공")

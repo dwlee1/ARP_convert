@@ -10,8 +10,9 @@
 ## 기준 문서
 
 - **`docs/ProjectPlan.md`** — 단일 기준 문서 (상태, 체크리스트, 남은 기능). 작업 전 반드시 읽을 것
+- `docs/FeaturePlan_v5.md` — F9 Remap UI 통합 설계
+- `docs/FoxTestChecklist.md` — 여우 파일 테스트 기록
 - `docs/RegressionRunner.md` — 대표 샘플 GUI 회귀 테스트 (대량 처리 전략 아님)
-- `docs/AutoMappingPlan.md`, `docs/ConversionPlan.md`, `docs/FeaturePlan_v3.md` — 참고 이력 문서
 
 ## 파일 맵
 
@@ -64,7 +65,14 @@ Preview 기반 addon 경로가 메인이다. 기준 파이프라인:
 1. 소스 deform 본 분석 → 2. Preview Armature 생성 → 3. 역할 수정
 4. ARP 리그 생성 (`append_arp`) → 5. 체인 개수 매칭 (`set_spine/neck/tail/ears`)
 6. ref 본 위치 설정 → 7. `match_to_rig` → 8. 앞다리 3 Bones IK 값 설정
-9. 커스텀 본 추가 (원본 이름 유지 + `custom_bone` 프로퍼티) → 10. 전체 웨이트 전송 → 11. Remap 설정 → 12. 액션별 retarget
+9. 커스텀 본 추가 (원본 이름 유지 + `custom_bone` 프로퍼티) → 10. 전체 웨이트 전송
+11. FBX 익스포트/임포트 (클린 아마추어) → 12. Remap 설정 (.bmap → ARP) → 13. ARP 네이티브 retarget
+
+### 리타게팅 방식 (F10)
+
+- Preview 베이크 방식은 rest pose 차이로 품질 문제 발생 → 폐기
+- **FBX 클린 아마추어 방식**: 원본을 FBX(Deform Only + Anim)로 익스포트 → 재임포트 → ARP 네이티브 retarget
+- 애드온이 FBX 익스포트/임포트를 자동 처리
 
 ## 검증
 

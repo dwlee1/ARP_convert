@@ -1573,6 +1573,9 @@ _CTRL_SEARCH_PATTERNS = {
     "ear_r": [r"^c_ear_\d+\.r"],
 }
 
+# 와일드카드(다중 본) 패턴 — 이 역할은 하나의 패턴이 여러 본을 매칭해야 함
+_MULTI_BONE_ROLES = {"spine", "tail", "ear_l", "ear_r"}
+
 
 def discover_arp_ctrl_map(arp_obj):
     """
@@ -1590,13 +1593,20 @@ def discover_arp_ctrl_map(arp_obj):
     ctrl_map = {}
 
     for role, patterns in _CTRL_SEARCH_PATTERNS.items():
-        # 패턴 순서대로 매칭 (알파벳 정렬하면 leg chain 순서가 뒤집힘)
         matched = []
+        multi = role in _MULTI_BONE_ROLES
+
         for pat in patterns:
-            for bone_name in all_bones:
-                if re.match(pat, bone_name):
-                    matched.append(bone_name)
-                    break  # 패턴당 첫 매칭만
+            if multi:
+                # 다중 본 역할: 패턴에 매칭되는 모든 본을 수집
+                hits = sorted([bn for bn in all_bones if re.match(pat, bn)])
+                matched.extend(hits)
+            else:
+                # 단일 본 역할: 패턴당 첫 매칭만
+                for bone_name in all_bones:
+                    if re.match(pat, bone_name):
+                        matched.append(bone_name)
+                        break
         if matched:
             ctrl_map[role] = matched
 
