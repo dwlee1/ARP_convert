@@ -318,13 +318,25 @@ def filter_deform_bones(all_bones, weighted_bones=None):
     Args:
         all_bones: 전체 본 딕셔너리
         weighted_bones: 웨이트가 있는 본 이름 집합 (None이면 웨이트 필터링 안 함)
+
+    Returns:
+        tuple: (deform_bones dict, excluded_info list)
+            excluded_info: [{"name": str, "parent": str|None}, ...] 웨이트 0 제외 본과
+            가장 가까운 포함된 deform 조상 정보
     """
     deform_names = {name for name, b in all_bones.items() if b["is_deform"]}
+    excluded_info = []
     if weighted_bones is not None:
-        excluded = deform_names - weighted_bones
-        if excluded:
-            print(f"[DEBUG] 웨이트 0 deform 본 제외: {sorted(excluded)}")
-        deform_names &= weighted_bones
+        excluded_names = deform_names - weighted_bones
+        if excluded_names:
+            print(f"[DEBUG] 웨이트 0 deform 본 제외: {sorted(excluded_names)}")
+        included = deform_names & weighted_bones
+        for name in sorted(excluded_names):
+            parent_name = all_bones[name]["parent"]
+            while parent_name and parent_name not in included:
+                parent_name = all_bones[parent_name]["parent"]
+            excluded_info.append({"name": name, "parent": parent_name})
+        deform_names = included
     deform_bones = {}
 
     for name in deform_names:
@@ -349,7 +361,7 @@ def filter_deform_bones(all_bones, weighted_bones=None):
 
         deform_bones[name] = b
 
-    return deform_bones
+    return deform_bones, excluded_info
 
 
 ROOT_NAME_HINTS = {"pelvis", "hips", "hip", "root"}
@@ -1252,7 +1264,7 @@ def analyze_skeleton(armature_obj):
     # 1. 본 데이터 추출
     all_bones = extract_bone_data(armature_obj)
     weighted_bones = get_weighted_bone_names(armature_obj)
-    deform_bones = filter_deform_bones(all_bones, weighted_bones)
+    deform_bones, excluded_zero_weight = filter_deform_bones(all_bones, weighted_bones)
     original_deform_bones = {
         name: dict(info, children=list(info.get("children", [])))
         for name, info in deform_bones.items()
@@ -1427,6 +1439,7 @@ def analyze_skeleton(armature_obj):
         "bone_data": deform_bones,  # 위치 정보 포함
         "pole_vectors": pole_vectors,  # IK pole vector 위치
         "preview_parent_overrides": build_preview_parent_overrides(unmapped, original_deform_bones),
+        "excluded_zero_weight": excluded_zero_weight,
     }
 
 

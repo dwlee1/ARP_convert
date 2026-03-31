@@ -195,6 +195,110 @@ def find_mesh_objects(armature_obj):
     return meshes
 
 
+def export_clean_fbx(source_obj, fbx_path=None):
+    """
+    소스 아마추어를 FBX(Deform Only + Anim)로 익스포트.
+
+    Args:
+        source_obj: 소스 아마추어 오브젝트
+        fbx_path: 저장 경로. None이면 임시 파일 생성.
+
+    Returns:
+        str: FBX 파일 경로
+    """
+    import tempfile
+
+    if fbx_path is None:
+        fd, fbx_path = tempfile.mkstemp(suffix=".fbx", prefix="arp_clean_")
+        os.close(fd)
+
+    ensure_object_mode()
+    select_only(source_obj)
+
+    bpy.ops.export_scene.fbx(
+        filepath=fbx_path,
+        use_selection=True,
+        add_leaf_bones=False,
+        bake_anim=True,
+        bake_anim_use_all_actions=True,
+        bake_anim_force_startend_keying=True,
+        axis_forward="-Z",
+        axis_up="Y",
+        use_armature_deform_only=True,
+    )
+    log(f"FBX 익스포트 완료: {fbx_path}")
+    return fbx_path
+
+
+def import_clean_fbx(fbx_path):
+    """
+    FBX를 임포트하여 clean armature를 반환.
+
+    Args:
+        fbx_path: FBX 파일 경로
+
+    Returns:
+        bpy.types.Object: 임포트된 아마추어 오브젝트 (없으면 None)
+    """
+    existing_armatures = {obj.name for obj in bpy.data.objects if obj.type == "ARMATURE"}
+
+    ensure_object_mode()
+    bpy.ops.import_scene.fbx(filepath=fbx_path)
+
+    # 새로 생긴 아마추어 찾기
+    new_armature = None
+    for obj in bpy.data.objects:
+        if obj.type == "ARMATURE" and obj.name not in existing_armatures:
+            new_armature = obj
+            break
+
+    if new_armature:
+        log(f"FBX 임포트 완료: clean armature '{new_armature.name}'")
+    else:
+        log("FBX 임포트 후 새 아마추어를 찾을 수 없습니다.", "WARN")
+
+    return new_armature
+
+
+def create_clean_source(source_obj):
+    """
+    소스 아마추어를 FBX로 익스포트 → 재임포트하여 clean armature를 생성.
+
+    Args:
+        source_obj: 소스 아마추어 오브젝트
+
+    Returns:
+        tuple: (clean_obj, fbx_path) — clean armature 오브젝트와 임시 FBX 경로
+    """
+    fbx_path = export_clean_fbx(source_obj)
+    clean_obj = import_clean_fbx(fbx_path)
+    if clean_obj is None:
+        raise RuntimeError("Clean armature 생성 실패: FBX 임포트 결과 없음")
+    return clean_obj, fbx_path
+
+
+def cleanup_clean_source(clean_obj, fbx_path):
+    """
+    clean armature 오브젝트와 임시 FBX 파일을 정리.
+
+    Args:
+        clean_obj: 정리할 아마추어 오브젝트 (None이면 스킵)
+        fbx_path: 삭제할 임시 FBX 파일 경로 (None이면 스킵)
+    """
+    if clean_obj:
+        name = clean_obj.name
+        # 임포트 시 딸려온 메시도 함께 제거
+        children = [c for c in bpy.data.objects if c.parent == clean_obj]
+        for child in children:
+            bpy.data.objects.remove(child, do_unlink=True)
+        bpy.data.objects.remove(clean_obj, do_unlink=True)
+        log(f"Clean armature 정리 완료: '{name}'")
+
+    if fbx_path and os.path.exists(fbx_path):
+        os.remove(fbx_path)
+        log(f"임시 FBX 삭제: {fbx_path}")
+
+
 def load_mapping_profile(profile_name, project_root=None):
     """
     mapping_profiles/{profile_name}.json 로드.

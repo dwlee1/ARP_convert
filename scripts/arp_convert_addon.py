@@ -27,6 +27,7 @@ import traceback
 import bpy
 from bpy.props import (
     BoolProperty,
+    CollectionProperty,
     EnumProperty,
     FloatProperty,
     IntProperty,
@@ -76,6 +77,48 @@ def _reload_modules():
 def _make_cc_bone_name(source_bone_name):
     """source 본 이름을 커스텀 본 이름으로 변환. 원본 이름 유지 (cc_ 접두사 없음)."""
     return source_bone_name
+
+
+def _populate_hierarchy_collection(context, analysis):
+    """deform 본 + 제외 본을 depth-first 순서로 CollectionProperty에 저장."""
+    coll = context.scene.arp_source_hierarchy
+    coll.clear()
+
+    bone_data = analysis.get("bone_data", {})
+    excluded = analysis.get("excluded_zero_weight", [])
+
+    if not bone_data:
+        return
+
+    # 제외 본을 부모별로 그룹핑
+    excluded_by_parent = {}
+    for info in excluded:
+        p = info["parent"]
+        excluded_by_parent.setdefault(p, []).append(info["name"])
+
+    # bone_data에서 루트부터 DFS
+    roots = [name for name, b in bone_data.items() if b["parent"] is None]
+
+    def _walk(name, depth):
+        item = coll.add()
+        item.name = name
+        item.depth = depth
+        # 이 본의 자식 중 제외 본 추가
+        for excl_name in excluded_by_parent.get(name, []):
+            ei = coll.add()
+            ei.name = excl_name
+            ei.depth = depth + 1
+        # deform 자식 재귀
+        for child_name in bone_data[name].get("children", []):
+            _walk(child_name, depth + 1)
+
+    for root in roots:
+        _walk(root, 0)
+    # 부모 없는 제외 본 (루트 레벨)
+    for excl_name in excluded_by_parent.get(None, []):
+        ei = coll.add()
+        ei.name = excl_name
+        ei.depth = 0
 
 
 def _build_preview_hierarchy(preview_obj):
@@ -903,11 +946,19 @@ ROLE_IDS = {item[0] for item in ROLE_ITEMS}
 # ═══════════════════════════════════════════════════════════════
 
 
+class ARPCONV_HierarchyBoneItem(PropertyGroup):
+    """하이어라키 트리 아이템 (name은 PropertyGroup에서 상속)"""
+
+    depth: IntProperty(default=0)
+
+
 class ARPCONV_Props(PropertyGroup):
     """전역 프로퍼티"""
 
     preview_armature: StringProperty(name="Preview Armature", default="")
     source_armature: StringProperty(name="소스 Armature", default="")
+    clean_source_armature: StringProperty(name="Clean Source", default="")
+    clean_fbx_path: StringProperty(name="Clean FBX Path", default="")
     is_analyzed: BoolProperty(name="분석 완료", default=False)
     confidence: FloatProperty(name="신뢰도", default=0.0)
     regression_fixture: StringProperty(
@@ -934,6 +985,11 @@ class ARPCONV_Props(PropertyGroup):
     retarget_ik_mode: BoolProperty(
         name="IK 모드 리타게팅",
         description="FK 리타게팅 후 발/손 IK 컨트롤러에 위치를 베이크하고 IK 모드로 전환",
+        default=False,
+    )
+    show_source_hierarchy: BoolProperty(
+        name="Source Hierarchy",
+        description="소스 본 하이어라키 트리 표시",
         default=False,
     )
 
@@ -1001,6 +1057,9 @@ class ARPCONV_OT_CreatePreview(Operator):
         props.preview_armature = preview_obj.name
         props.is_analyzed = True
         props.confidence = analysis.get("confidence", 0)
+
+        # 하이어라키 트리 데이터 채우기
+        _populate_hierarchy_collection(context, analysis)
 
         # Preview 선택
         bpy.ops.object.select_all(action="DESELECT")
@@ -1338,6 +1397,37 @@ def _compute_auto_foot_guide_world(
     tail = head + forward * bone_len
     tail.z = 0.0
     return head, tail
+
+
+class ARPCONV_OT_SelectBone(Operator):
+    """하이어라키 트리에서 본 클릭 시 Preview armature에서 선택"""
+
+    bl_idname = "arp_convert.select_bone"
+    bl_label = "본 선택"
+    bl_options = {"REGISTER", "UNDO"}
+
+    bone_name: StringProperty()
+
+    def execute(self, context):
+        props = context.scene.arp_convert_props
+        preview_obj = bpy.data.objects.get(props.preview_armature)
+        if not preview_obj:
+            self.report({"WARNING"}, "Preview armature 없음")
+            return {"CANCELLED"}
+
+        # Preview 활성화 + Pose 모드에서 본 선택
+        context.view_layer.objects.active = preview_obj
+        preview_obj.select_set(True)
+        if context.mode != "POSE":
+            bpy.ops.object.mode_set(mode="POSE")
+        bpy.ops.pose.select_all(action="DESELECT")
+        bone = preview_obj.data.bones.get(self.bone_name)
+        if bone:
+            bone.select = True
+            preview_obj.data.bones.active = bone
+        else:
+            self.report({"INFO"}, f"{self.bone_name}: 제외된 본 (Preview에 없음)")
+        return {"FINISHED"}
 
 
 class ARPCONV_OT_SetRole(Operator):
@@ -2611,6 +2701,8 @@ class ARPCONV_OT_RemapSetup(Operator):
 
         try:
             from arp_utils import (
+                cleanup_clean_source,
+                create_clean_source,
                 ensure_object_mode,
                 ensure_retarget_context,
                 find_arp_armature,
@@ -2633,6 +2725,14 @@ class ARPCONV_OT_RemapSetup(Operator):
         if not all([preview_obj, source_obj, arp_obj]):
             self.report({"ERROR"}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
             return {"CANCELLED"}
+
+        # 0. 기존 clean source 정리
+        old_clean = bpy.data.objects.get(props.clean_source_armature)
+        old_fbx = props.clean_fbx_path
+        if old_clean or old_fbx:
+            cleanup_clean_source(old_clean, old_fbx)
+            props.clean_source_armature = ""
+            props.clean_fbx_path = ""
 
         # 1. .bmap 생성
         ik_mode = props.retarget_ik_mode
@@ -2676,22 +2776,27 @@ class ARPCONV_OT_RemapSetup(Operator):
             self.report({"ERROR"}, "ARP remap_presets 경로를 찾을 수 없습니다.")
             return {"CANCELLED"}
 
-        # 2. ARP 리타게팅 설정 체인
+        # 2. Clean FBX source 생성
+        try:
+            clean_obj, fbx_path = create_clean_source(source_obj)
+            props.clean_source_armature = clean_obj.name
+            props.clean_fbx_path = fbx_path
+        except Exception as e:
+            self.report({"ERROR"}, f"Clean source 생성 실패: {e}")
+            log(traceback.format_exc(), "ERROR")
+            return {"CANCELLED"}
+
+        # 3. ARP 리타게팅 설정 체인 (clean source 사용)
         ensure_object_mode()
         try:
-            # RemapSetup은 원본 소스로 유지 (build_bones_list poll 요구사항)
-            # Preview 전환은 Retarget 시점에만 적용
-            ensure_retarget_context(source_obj, arp_obj)
+            ensure_retarget_context(clean_obj, arp_obj)
 
-            # auto_scale 스킵: 우리 파이프라인은 이미 소스 본 위치에 맞춰 ref 본을
-            # 세팅했으므로 소스 스케일을 변경할 필요가 없다.
-            # 대신 global_scale을 수동 설정 (소스/타겟 스케일 비율).
             scn = context.scene
-            src_scale = source_obj.scale[0] if source_obj.scale[0] != 0 else 1.0
+            src_scale = clean_obj.scale[0] if clean_obj.scale[0] != 0 else 1.0
             tgt_scale = arp_obj.scale[0] if arp_obj.scale[0] != 0 else 1.0
             if hasattr(scn, "global_scale"):
                 scn.global_scale = src_scale / tgt_scale
-                log(f"global_scale 수동 설정: {scn.global_scale:.4f} (auto_scale 스킵)")
+                log(f"global_scale 수동 설정: {scn.global_scale:.4f}")
 
             ensure_object_mode()
             run_arp_operator(bpy.ops.arp.build_bones_list)
@@ -2710,11 +2815,15 @@ class ARPCONV_OT_RemapSetup(Operator):
             log(traceback.format_exc(), "ERROR")
             return {"CANCELLED"}
 
-        # 3. 결과 보고
+        # 4. 결과 보고
         scn = context.scene
         if hasattr(scn, "bones_map_v2"):
             count = len(scn.bones_map_v2)
-            self.report({"INFO"}, f"Remap Setup 완료: bones_map_v2에 {count}개 매핑 로드됨")
+            self.report(
+                {"INFO"},
+                f"Remap Setup 완료: bones_map_v2에 {count}개 매핑 로드됨"
+                f" (clean source: {clean_obj.name})",
+            )
         else:
             self.report(
                 {"WARNING"}, "Remap Setup 완료: ARP bones_map_v2를 찾을 수 없습니다 (ARP 미설치?)"
@@ -2745,13 +2854,14 @@ class ARPCONV_UL_BoneMap(UIList):
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             split = layout.split(factor=0.4, align=True)
 
-            # 좌측: 소스 본 이름 (읽기 전용)
+            # 좌측: 소스 본 (clean armature 본 검색)
             left = split.row(align=True)
-            if item.source_bone:
-                left.label(text=item.source_bone, icon="BONE_DATA")
+            props = context.scene.arp_convert_props
+            clean_obj = bpy.data.objects.get(props.clean_source_armature)
+            if clean_obj and clean_obj.data:
+                left.prop_search(item, "source_bone", clean_obj.data, "bones", text="")
             else:
-                left.alert = True
-                left.label(text="(empty)", icon="ERROR")
+                left.prop(item, "source_bone", text="")
 
             # 우측: 타겟 본 (편집 가능 — ARP 본 검색)
             right = split.row(align=True)
@@ -2772,11 +2882,11 @@ class ARPCONV_UL_BoneMap(UIList):
 
 
 class ARPCONV_OT_Retarget(Operator):
-    """bones_map_v2 기반 애니메이션 리타게팅 (Remap Setup 후 실행)"""
+    """Clean FBX source 기반 ARP 네이티브 리타게팅 (Remap Setup 후 실행)"""
 
     bl_idname = "arp_convert.retarget"
     bl_label = "애니메이션 리타게팅"
-    bl_description = "Remap Setup으로 설정된 bones_map_v2 기반 리타게팅"
+    bl_description = "Clean FBX source 기반 ARP 네이티브 리타게팅"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -2786,7 +2896,6 @@ class ARPCONV_OT_Retarget(Operator):
         try:
             from arp_utils import (
                 ensure_object_mode,
-                ensure_retarget_context,
                 find_arp_armature,
                 log,
                 run_arp_operator,
@@ -2797,12 +2906,16 @@ class ARPCONV_OT_Retarget(Operator):
             return {"CANCELLED"}
 
         props = context.scene.arp_convert_props
-        source_obj = bpy.data.objects.get(props.source_armature)
-        preview_obj = bpy.data.objects.get(props.preview_armature)
+        clean_obj = bpy.data.objects.get(props.clean_source_armature)
         arp_obj = find_arp_armature()
 
-        if not all([source_obj, preview_obj, arp_obj]):
-            self.report({"ERROR"}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
+        if not clean_obj:
+            self.report(
+                {"ERROR"}, "Clean source armature가 없습니다. Remap Setup을 먼저 실행하세요."
+            )
+            return {"CANCELLED"}
+        if not arp_obj:
+            self.report({"ERROR"}, "ARP 아마추어를 찾을 수 없습니다.")
             return {"CANCELLED"}
 
         # bones_map_v2 확인
@@ -2813,17 +2926,34 @@ class ARPCONV_OT_Retarget(Operator):
 
         ensure_object_mode()
 
-        # 리타겟 소스를 Preview로 전환
-        # (RemapSetup은 원본 source_obj로 build_bones_list 실행,
-        #  여기서 Preview로 전환하여 베이크된 클린 FCurve 사용)
-        # ARP update_source_rig 콜백이 animation_data.action을 읽으므로 미리 생성
-        if preview_obj.animation_data is None:
-            preview_obj.animation_data_create()
-        ensure_retarget_context(preview_obj, arp_obj)
+        # Clean source의 액션으로 ARP 네이티브 retarget
+        # RemapSetup에서 이미 ensure_retarget_context(clean_obj, arp_obj) 완료
+        log(f"Clean FBX 기반 리타게팅 (bones_map_v2: {len(scn.bones_map_v2)}개 매핑)")
 
-        # 액션별 리타게팅: 소스 → Preview 베이크 → ARP retarget
-        log(f"액션별 리타게팅 (bones_map_v2: {len(scn.bones_map_v2)}개 매핑)")
-        actions = list(bpy.data.actions)
+        # clean armature의 액션 수집
+        actions = []
+        if clean_obj.animation_data:
+            # FBX 임포트 시 액션이 직접 연결되어 있음
+            if clean_obj.animation_data.action:
+                actions.append(clean_obj.animation_data.action)
+            # NLA 트랙에 있는 액션도 수집
+            if clean_obj.animation_data.nla_tracks:
+                for track in clean_obj.animation_data.nla_tracks:
+                    for strip in track.strips:
+                        if strip.action and strip.action not in actions:
+                            actions.append(strip.action)
+
+        # clean에 직접 연결된 액션이 없으면 원본 소스의 액션 사용
+        if not actions:
+            source_obj = bpy.data.objects.get(props.source_armature)
+            if source_obj:
+                for action in bpy.data.actions:
+                    actions.append(action)
+
+        if not actions:
+            self.report({"WARNING"}, "리타게팅할 액션이 없습니다.")
+            return {"FINISHED"}
+
         success = 0
         fail = 0
 
@@ -2832,15 +2962,13 @@ class ARPCONV_OT_Retarget(Operator):
             f_end = int(action.frame_range[1])
             log(f"  [{i + 1}/{len(actions)}] '{action.name}' ({f_start}~{f_end})")
 
-            baked = None
             try:
-                # 소스 → Preview 베이크 (컨스트레인트 평가 결과 캡처)
-                baked = _bake_source_to_preview(
-                    source_obj, preview_obj, action, f_start, f_end, log
-                )
+                # clean source에 액션 할당
+                if clean_obj.animation_data is None:
+                    clean_obj.animation_data_create()
+                clean_obj.animation_data.action = action
 
-                # ARP retarget (소스 = Preview, 액션 = baked)
-                # ensure_retarget_context()에서 scene.source_rig = preview_obj 설정 완료
+                # ARP 네이티브 retarget
                 ensure_object_mode()
                 select_only(arp_obj)
                 run_arp_operator(
@@ -2850,20 +2978,10 @@ class ARPCONV_OT_Retarget(Operator):
                     fake_user_action=True,
                     interpolation_type="LINEAR",
                 )
-
                 success += 1
             except Exception as e:
                 fail += 1
                 log(f"    실패: {e}", "WARN")
-            finally:
-                # 베이크 중간 액션 정리 (원본 액션은 보존)
-                if baked and baked.users == 0:
-                    bpy.data.actions.remove(baked)
-                elif baked:
-                    # retarget 후에도 preview에 남아있으면 연결 해제
-                    if preview_obj.animation_data and preview_obj.animation_data.action == baked:
-                        preview_obj.animation_data.action = None
-                    bpy.data.actions.remove(baked)
 
         mode_label = "IK" if props.retarget_ik_mode else "FK"
         self.report({"INFO"}, f"리타게팅 완료 ({mode_label}): {success}/{len(actions)} 성공")
@@ -3040,6 +3158,49 @@ class ARPCONV_PT_MainPanel(Panel):
         # Step 2: 역할 수정
         box = layout.box()
         box.label(text="Step 2: 역할 수정", icon="BONE_DATA")
+
+        # Source Hierarchy (접이식)
+        hier_coll = getattr(context.scene, "arp_source_hierarchy", None)
+        if hier_coll and len(hier_coll) > 0:
+            row = box.row()
+            row.prop(
+                props,
+                "show_source_hierarchy",
+                icon="TRIA_DOWN" if props.show_source_hierarchy else "TRIA_RIGHT",
+                text=f"Source Hierarchy ({len(hier_coll)})",
+                emboss=False,
+            )
+            if props.show_source_hierarchy:
+                _ensure_scripts_path()
+                from skeleton_analyzer import ROLE_PROP_KEY
+
+                preview_obj = bpy.data.objects.get(props.preview_armature)
+                hier_box = box.box()
+                col = hier_box.column(align=True)
+                for item in hier_coll:
+                    row = col.row(align=True)
+                    # 들여쓰기
+                    if item.depth > 0:
+                        indent = row.row()
+                        indent.ui_units_x = item.depth * 0.8
+                        indent.label(text="")
+                    # 아이콘: Preview에 있으면 role 읽기, 없으면 제외 본
+                    pbone = preview_obj.pose.bones.get(item.name) if preview_obj else None
+                    if pbone is None:
+                        icon = "RADIOBUT_OFF"
+                        label = f"{item.name} (w=0)"
+                    else:
+                        role = pbone.get(ROLE_PROP_KEY, "unmapped")
+                        icon = "CHECKMARK" if role != "unmapped" else "DOT"
+                        label = f"{item.name} [{role}]" if role != "unmapped" else item.name
+                    op = row.operator(
+                        "arp_convert.select_bone",
+                        text=label,
+                        icon=icon,
+                        emboss=False,
+                    )
+                    op.bone_name = item.name
+
         box.label(text="본 선택 후 역할을 변경하세요:")
 
         # 역할 버튼 — 카테고리별 정리
@@ -3154,7 +3315,12 @@ class ARPCONV_PT_MainPanel(Panel):
 
                 # Source → Target
                 row = detail.row(align=True)
-                row.label(text=f"{item.source_bone}:")
+                props = context.scene.arp_convert_props
+                clean_obj = bpy.data.objects.get(props.clean_source_armature)
+                if clean_obj and clean_obj.data:
+                    row.prop_search(item, "source_bone", clean_obj.data, "bones", text="")
+                else:
+                    row.prop(item, "source_bone", text="")
                 arp_obj = _find_arp_armature_cached()
                 if arp_obj and arp_obj.data:
                     row.prop_search(item, "name", arp_obj.data, "bones", text="")
@@ -3218,8 +3384,10 @@ class ARPCONV_PT_MainPanel(Panel):
 # ═══════════════════════════════════════════════════════════════
 
 classes = [
+    ARPCONV_HierarchyBoneItem,
     ARPCONV_Props,
     ARPCONV_OT_CreatePreview,
+    ARPCONV_OT_SelectBone,
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
     ARPCONV_OT_RemapSetup,
@@ -3234,9 +3402,12 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.arp_convert_props = PointerProperty(type=ARPCONV_Props)
+    bpy.types.Scene.arp_source_hierarchy = CollectionProperty(type=ARPCONV_HierarchyBoneItem)
 
 
 def unregister():
+    if hasattr(bpy.types.Scene, "arp_source_hierarchy"):
+        del bpy.types.Scene.arp_source_hierarchy
     del bpy.types.Scene.arp_convert_props
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

@@ -387,7 +387,14 @@ def main():
                     log(f"동적 .bmap 생성: {bmap_path}")
                     break
 
-        ensure_retarget_context(source_obj, arp_obj)
+        # Clean FBX source 생성
+        from arp_utils import cleanup_clean_source, create_clean_source
+
+        clean_obj, fbx_path = create_clean_source(source_obj)
+        log(f"Clean source 생성: '{clean_obj.name}'")
+        result.add_step("clean_source_created")
+
+        ensure_retarget_context(clean_obj, arp_obj)
         run_arp_operator(bpy.ops.arp.auto_scale)
         log("auto_scale 완료")
 
@@ -417,17 +424,45 @@ def main():
         result.save(output_dir)
         return
 
-    # Step 3: 액션별 리타게팅
-    print("\n--- Step 3: 액션별 리타게팅 ---")
+    # Step 3: 액션별 리타게팅 (clean source 기반)
+    print("\n--- Step 3: 액션별 리타게팅 (Clean FBX source) ---")
+
+    # clean armature의 액션 수집
     actions = []
-    for action in bpy.data.actions:
-        actions.append(
-            {
-                "name": action.name,
-                "frame_start": int(action.frame_range[0]),
-                "frame_end": int(action.frame_range[1]),
-            }
-        )
+    if clean_obj.animation_data:
+        if clean_obj.animation_data.action:
+            act = clean_obj.animation_data.action
+            actions.append(
+                {
+                    "name": act.name,
+                    "frame_start": int(act.frame_range[0]),
+                    "frame_end": int(act.frame_range[1]),
+                }
+            )
+        if clean_obj.animation_data.nla_tracks:
+            seen = {a["name"] for a in actions}
+            for track in clean_obj.animation_data.nla_tracks:
+                for strip in track.strips:
+                    if strip.action and strip.action.name not in seen:
+                        actions.append(
+                            {
+                                "name": strip.action.name,
+                                "frame_start": int(strip.action.frame_range[0]),
+                                "frame_end": int(strip.action.frame_range[1]),
+                            }
+                        )
+                        seen.add(strip.action.name)
+
+    # clean에 액션이 없으면 원본 소스 액션 사용
+    if not actions:
+        for action in bpy.data.actions:
+            actions.append(
+                {
+                    "name": action.name,
+                    "frame_start": int(action.frame_range[0]),
+                    "frame_end": int(action.frame_range[1]),
+                }
+            )
 
     success_count = 0
     fail_count = 0
@@ -444,9 +479,9 @@ def main():
                 fail_count += 1
                 continue
 
-            if source_obj.animation_data is None:
-                source_obj.animation_data_create()
-            source_obj.animation_data.action = action
+            if clean_obj.animation_data is None:
+                clean_obj.animation_data_create()
+            clean_obj.animation_data.action = action
 
             ensure_object_mode()
             select_only(arp_obj)
@@ -461,6 +496,10 @@ def main():
         except Exception as e:
             fail_count += 1
             result.add_warning(f"액션 '{name}' 리타게팅 실패: {e}")
+
+    # Clean source 정리
+    cleanup_clean_source(clean_obj, fbx_path)
+    result.add_step("clean_source_cleaned")
 
     result.retarget_stats = {
         "total": len(actions),

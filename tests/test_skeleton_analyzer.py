@@ -46,7 +46,7 @@ def run_analysis(all_bones, weighted_bones=None):
     fixture의 all_bones로 전체 분석 파이프라인 실행.
     extract_bone_data()를 건너뛰고 순수 분석 로직만 실행.
     """
-    deform_bones = sa.filter_deform_bones(all_bones, weighted_bones)
+    deform_bones, _ = sa.filter_deform_bones(all_bones, weighted_bones)
     sa._reconstruct_spatial_hierarchy(deform_bones, all_bones)
 
     root_result = sa.find_root_bone(deform_bones)
@@ -510,10 +510,11 @@ class TestWeightFiltering:
         }
         # Pole_L은 deform이지만 웨이트 없음
         weighted = {"Root", "Spine"}
-        result = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
+        result, excluded = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
         assert "Root" in result
         assert "Spine" in result
         assert "Pole_L" not in result, "웨이트 0 본이 제외되지 않음"
+        assert any(e["name"] == "Pole_L" for e in excluded), "제외 본 목록에 Pole_L 포함"
 
     def test_filter_without_weight_info_keeps_all(self):
         """weighted_bones=None이면 모든 deform 본 유지."""
@@ -543,8 +544,9 @@ class TestWeightFiltering:
                 "use_connect": True,
             },
         }
-        result = sa.filter_deform_bones(all_bones, weighted_bones=None)
+        result, excluded = sa.filter_deform_bones(all_bones, weighted_bones=None)
         assert len(result) == 2, "weighted_bones=None이면 모든 deform 본 유지"
+        assert excluded == [], "weighted_bones=None이면 제외 목록 빈 리스트"
 
     def test_non_deform_bones_still_excluded(self):
         """non-deform 본은 웨이트와 관계없이 제외."""
@@ -575,9 +577,10 @@ class TestWeightFiltering:
             },
         }
         weighted = {"Deform", "NonDeform"}
-        result = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
+        result, excluded = sa.filter_deform_bones(all_bones, weighted_bones=weighted)
         assert "Deform" in result
         assert "NonDeform" not in result, "non-deform 본은 웨이트와 관계없이 제외"
+        assert excluded == [], "non-deform 본은 제외 목록에 포함되지 않음"
 
 
 class TestPoleVectors:
