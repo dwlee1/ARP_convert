@@ -325,7 +325,7 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
 
     try:
         for action in actions:
-            anim_data.action = action
+            _assign_action_with_slot(anim_data, action, clean_obj)
             f_start = int(action.frame_range[0])
             f_end = int(action.frame_range[1])
 
@@ -396,7 +396,7 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
             mats = world_matrices.get(action.name, {})
             if not mats:
                 continue
-            clean_obj.animation_data.action = action
+            _assign_action_with_slot(clean_obj.animation_data, action, clean_obj)
 
             # 모든 유지 본의 기존 FCurve 삭제
             remove_fcs = []
@@ -473,6 +473,41 @@ def _collect_actions(armature_obj):
             if any(fc.data_path.startswith('pose.bones["') for fc in action.fcurves):
                 actions.append(action)
     return actions
+
+
+def _assign_action_with_slot(anim_data, action, armature_obj):
+    """
+    액션을 animation_data에 할당하고, Blender 4.5+ 슬롯도 설정.
+
+    FBX 임포트 시 첫 번째 액션만 슬롯이 연결되고 나머지는 비어있을 수 있다.
+    슬롯이 없으면 액션이 평가되지 않으므로 자동으로 할당/생성한다.
+    """
+    anim_data.action = action
+
+    # Blender 4.5+ action slot 시스템 대응
+    if not hasattr(anim_data, "action_slot"):
+        return  # 슬롯 시스템 미지원 버전
+
+    if anim_data.action_slot is not None:
+        return  # 이미 슬롯 할당됨
+
+    # 기존 슬롯에서 매칭 시도
+    if hasattr(action, "slots"):
+        for slot in action.slots:
+            try:
+                anim_data.action_slot = slot
+                if anim_data.action_slot is not None:
+                    return
+            except Exception:
+                continue
+
+        # 슬롯 생성
+        try:
+            slot = action.slots.new(for_id=armature_obj)
+            anim_data.action_slot = slot
+            log(f"액션 '{action.name}' 슬롯 생성")
+        except Exception as e:
+            log(f"액션 '{action.name}' 슬롯 생성 실패: {e}", "WARN")
 
 
 def _norm_fc_insert(action, data_path, index, frame, value, group=""):
