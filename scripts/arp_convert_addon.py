@@ -2707,6 +2707,7 @@ class ARPCONV_OT_RemapSetup(Operator):
                 ensure_retarget_context,
                 find_arp_armature,
                 log,
+                normalize_clean_hierarchy,
                 run_arp_operator,
             )
             from skeleton_analyzer import (
@@ -2785,6 +2786,14 @@ class ARPCONV_OT_RemapSetup(Operator):
             self.report({"ERROR"}, f"Clean source 생성 실패: {e}")
             log(traceback.format_exc(), "ERROR")
             return {"CANCELLED"}
+
+        # 2.5. Clean armature 하이어라키 정규화
+        try:
+            reparented = normalize_clean_hierarchy(clean_obj, analysis.get("bone_data", {}))
+            if reparented:
+                log(f"Clean armature 정규화: {reparented}개 본 처리")
+        except Exception as e:
+            log(f"하이어라키 정규화 실패 (계속 진행): {e}", "WARN")
 
         # 3. ARP 리타게팅 설정 체인 (clean source 사용)
         ensure_object_mode()

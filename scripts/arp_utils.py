@@ -260,6 +260,216 @@ def import_clean_fbx(fbx_path):
     return new_armature
 
 
+def normalize_clean_hierarchy(clean_obj, bone_data):
+    """
+    Clean armature의 하이어라키를 분석 결과(bone_data) 기반으로 정규화.
+
+    - bone_data에 있는 본: 부모 관계가 다르면 리페어런팅
+    - bone_data에 없는 본: 웨이트 0 deform 본 등 → 삭제 대상
+    - 리페어런팅/삭제 후 애니메이션을 리베이크하여 월드 스페이스 모션 보존
+
+    Args:
+        clean_obj: FBX 임포트된 clean armature
+        bone_data: analyze_skeleton() 결과의 bone_data (재구성된 하이어라키)
+
+    Returns:
+        int: 변경된 본 수 (리페어런팅 + 삭제). 0이면 변경 없음.
+    """
+    if not bone_data or not clean_obj or clean_obj.type != "ARMATURE":
+        return 0
+
+    clean_bones = clean_obj.data.bones
+
+    # Step A: 리페어런팅 대상 + 삭제 대상 식별
+    reparent_map = {}  # {bone_name: new_parent_name_or_None}
+    delete_bones = []  # bone_data에 없는 본 (웨이트 0 등)
+
+    for bone in clean_bones:
+        bd = bone_data.get(bone.name)
+        if bd is None:
+            # bone_data에 없음 → 삭제 대상
+            delete_bones.append(bone.name)
+            continue
+
+        desired_parent = bd.get("parent")
+        current_parent = bone.parent.name if bone.parent else None
+
+        if desired_parent != current_parent:
+            # desired_parent가 clean armature에 존재하는지 확인
+            if desired_parent is None or desired_parent in clean_bones:
+                reparent_map[bone.name] = desired_parent
+
+    if not reparent_map and not delete_bones:
+        return 0
+
+    # 삭제 대상 본의 자식도 리페어런팅 필요 확인
+    for del_name in delete_bones:
+        del_bone = clean_bones.get(del_name)
+        if not del_bone:
+            continue
+        for child in del_bone.children:
+            if child.name not in reparent_map and child.name not in delete_bones:
+                # 삭제 본의 자식 → bone_data 부모로 리페어런팅
+                bd = bone_data.get(child.name)
+                if bd:
+                    new_parent = bd.get("parent")
+                    if new_parent is None or new_parent in clean_bones:
+                        reparent_map[child.name] = new_parent
+
+    affected_bones = set(reparent_map.keys())
+    log(f"하이어라키 정규화: 리페어런팅 {len(reparent_map)}개, 삭제 {len(delete_bones)}개")
+
+    # Step B: 월드 행렬 기록 (리페어런팅 전)
+    scene = bpy.context.scene
+    ensure_object_mode()
+    select_only(clean_obj)
+
+    # clean_obj의 액션 수집
+    actions = []
+    if clean_obj.animation_data:
+        if clean_obj.animation_data.action:
+            actions.append(clean_obj.animation_data.action)
+        for track in clean_obj.animation_data.nla_tracks:
+            for strip in track.strips:
+                if strip.action and strip.action not in actions:
+                    actions.append(strip.action)
+    # fallback: bpy.data.actions에서 이 아마추어 관련 액션 찾기
+    if not actions:
+        for action in bpy.data.actions:
+            if any(fc.data_path.startswith('pose.bones["') for fc in action.fcurves):
+                actions.append(action)
+
+    world_matrices = {}  # {action.name: {bone_name: {frame: Matrix}}}
+
+    if not clean_obj.animation_data:
+        clean_obj.animation_data_create()
+
+    for action in actions:
+        clean_obj.animation_data.action = action
+        f_start = int(action.frame_range[0])
+        f_end = int(action.frame_range[1])
+
+        action_mats = {}
+        for frame in range(f_start, f_end + 1):
+            scene.frame_set(frame)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            eval_obj = clean_obj.evaluated_get(depsgraph)
+            for bone_name in affected_bones:
+                pb = eval_obj.pose.bones.get(bone_name)
+                if pb:
+                    action_mats.setdefault(bone_name, {})[frame] = pb.matrix.copy()
+        world_matrices[action.name] = action_mats
+
+    # Step C: Edit Mode에서 리페어런팅 + 삭제
+    ensure_object_mode()
+    select_only(clean_obj)
+    bpy.context.view_layer.objects.active = clean_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    edit_bones = clean_obj.data.edit_bones
+
+    # 리페어런팅
+    for bone_name, new_parent_name in reparent_map.items():
+        eb = edit_bones.get(bone_name)
+        if not eb:
+            continue
+        if new_parent_name:
+            new_parent_eb = edit_bones.get(new_parent_name)
+            eb.parent = new_parent_eb
+        else:
+            eb.parent = None
+        eb.use_connect = False
+
+    # 삭제 (자식이 이미 리페어런팅된 후)
+    for del_name in delete_bones:
+        eb = edit_bones.get(del_name)
+        if eb:
+            edit_bones.remove(eb)
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    # Step D: 애니메이션 리베이크
+    if affected_bones and actions:
+        for action in actions:
+            mats = world_matrices.get(action.name, {})
+            if not mats:
+                continue
+            clean_obj.animation_data.action = action
+
+            # 기존 FCurve 삭제 (리페어런팅된 본만)
+            remove_fcs = []
+            for fc in action.fcurves:
+                for bone_name in affected_bones:
+                    if f'pose.bones["{bone_name}"]' in fc.data_path:
+                        remove_fcs.append(fc)
+                        break
+            for fc in remove_fcs:
+                action.fcurves.remove(fc)
+
+            # 새 키프레임 삽입
+            new_fcs = set()
+            for bone_name, frame_mats in mats.items():
+                pb = clean_obj.pose.bones.get(bone_name)
+                if not pb:
+                    continue
+
+                dp_loc = f'pose.bones["{bone_name}"].location'
+                dp_rot = f'pose.bones["{bone_name}"].rotation_quaternion'
+                dp_scl = f'pose.bones["{bone_name}"].scale'
+
+                for frame, world_mat in sorted(frame_mats.items()):
+                    scene.frame_set(frame)
+                    pb.matrix = world_mat
+
+                    for i in range(3):
+                        new_fcs.add(
+                            _norm_fc_insert(action, dp_loc, i, frame, pb.location[i], bone_name)
+                        )
+                        new_fcs.add(
+                            _norm_fc_insert(action, dp_scl, i, frame, pb.scale[i], bone_name)
+                        )
+                    for i in range(4):
+                        new_fcs.add(
+                            _norm_fc_insert(
+                                action,
+                                dp_rot,
+                                i,
+                                frame,
+                                pb.rotation_quaternion[i],
+                                bone_name,
+                            )
+                        )
+
+            for fc in new_fcs:
+                fc.update()
+
+    # 삭제 본의 FCurve도 정리
+    if delete_bones:
+        for action in actions:
+            remove_fcs = []
+            for fc in action.fcurves:
+                for del_name in delete_bones:
+                    if f'pose.bones["{del_name}"]' in fc.data_path:
+                        remove_fcs.append(fc)
+                        break
+            for fc in remove_fcs:
+                action.fcurves.remove(fc)
+
+    ensure_object_mode()
+    total_changes = len(reparent_map) + len(delete_bones)
+    log(f"하이어라키 정규화 완료: {total_changes}개 본 처리")
+    return total_changes
+
+
+def _norm_fc_insert(action, data_path, index, frame, value, group=""):
+    """정규화용 FCurve 키프레임 삽입."""
+    fc = action.fcurves.find(data_path, index=index)
+    if fc is None:
+        fc = action.fcurves.new(data_path, index=index, action_group=group)
+    fc.keyframe_points.insert(frame, value)
+    return fc
+
+
 def create_clean_source(source_obj):
     """
     소스 아마추어를 FBX로 익스포트 → 재임포트하여 clean armature를 생성.

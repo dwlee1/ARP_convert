@@ -388,11 +388,24 @@ def main():
                     break
 
         # Clean FBX source 생성
-        from arp_utils import cleanup_clean_source, create_clean_source
+        from arp_utils import (
+            cleanup_clean_source,
+            create_clean_source,
+            normalize_clean_hierarchy,
+        )
 
         clean_obj, fbx_path = create_clean_source(source_obj)
         log(f"Clean source 생성: '{clean_obj.name}'")
         result.add_step("clean_source_created")
+
+        # Clean armature 하이어라키 정규화
+        try:
+            reparented = normalize_clean_hierarchy(clean_obj, analysis.get("bone_data", {}))
+            if reparented:
+                log(f"Clean armature 정규화: {reparented}개 본 처리")
+                result.add_step("clean_hierarchy_normalized")
+        except Exception as e:
+            log(f"하이어라키 정규화 실패 (계속 진행): {e}", "WARN")
 
         ensure_retarget_context(clean_obj, arp_obj)
         run_arp_operator(bpy.ops.arp.auto_scale)
