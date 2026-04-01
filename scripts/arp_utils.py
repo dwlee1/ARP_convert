@@ -300,44 +300,52 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
 
     log(f"하이어라키 정규화: 유지 {len(keep_bones)}개, 삭제 {len(delete_bones)}개")
 
-    # Step B: 모든 유지 본의 월드(armature-space) 행렬 기록
+    # Step B: 모든 유지 본의 씬 월드 행렬 기록
+    # pb.matrix는 armature-space이므로, matrix_world를 곱해 씬 월드로 변환.
+    # rest pose 교정(Step C) 전후 armature-space 정의가 달라지므로
+    # 씬 월드 좌표를 기준점으로 사용해야 교정된 rest와 정합성 보장.
     scene = bpy.context.scene
     ensure_object_mode()
     select_only(clean_obj)
 
     actions = _collect_actions(clean_obj)
+    obj_world = clean_obj.matrix_world
 
     world_matrices = {}  # {action.name: {bone_name: {frame: Matrix}}}
 
     if not clean_obj.animation_data:
         clean_obj.animation_data_create()
 
-    # NLA 트랙 뮤트: action 단독 평가를 위해
+    # NLA 트랙 뮤트: action 단독 평가를 위해 (try/finally로 복원 보장)
     anim_data = clean_obj.animation_data
     nla_mute_states = []
     for track in anim_data.nla_tracks:
         nla_mute_states.append((track, track.mute))
         track.mute = True
 
-    for action in actions:
-        anim_data.action = action
-        f_start = int(action.frame_range[0])
-        f_end = int(action.frame_range[1])
+    try:
+        for action in actions:
+            anim_data.action = action
+            f_start = int(action.frame_range[0])
+            f_end = int(action.frame_range[1])
 
-        action_mats = {}
-        for frame in range(f_start, f_end + 1):
-            scene.frame_set(frame)
-            depsgraph = bpy.context.evaluated_depsgraph_get()
-            eval_obj = clean_obj.evaluated_get(depsgraph)
-            for bone_name in keep_bones:
-                pb = eval_obj.pose.bones.get(bone_name)
-                if pb:
-                    action_mats.setdefault(bone_name, {})[frame] = pb.matrix.copy()
-        world_matrices[action.name] = action_mats
-
-    # NLA 뮤트 복원
-    for track, was_muted in nla_mute_states:
-        track.mute = was_muted
+            action_mats = {}
+            for frame in range(f_start, f_end + 1):
+                scene.frame_set(frame)
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                eval_obj = clean_obj.evaluated_get(depsgraph)
+                for bone_name in keep_bones:
+                    pb = eval_obj.pose.bones.get(bone_name)
+                    if pb:
+                        # 씬 월드 행렬 = object_world * bone_armature_space
+                        action_mats.setdefault(bone_name, {})[frame] = (
+                            obj_world @ pb.matrix
+                        ).copy()
+            world_matrices[action.name] = action_mats
+    finally:
+        # NLA 뮤트 복원 (예외 발생해도 반드시 실행)
+        for track, was_muted in nla_mute_states:
+            track.mute = was_muted
 
     # Step C: Edit Mode — 플랫 + rest pose 교정 + 삭제
     ensure_object_mode()
@@ -379,7 +387,10 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
     log(f"Rest pose 교정: {rest_corrected}개 본")
 
     # Step D: 전체 본 애니메이션 리베이크
-    # rest pose가 교정되었으므로 새 rest 기준으로 전체 리베이크 필요
+    # world_matrices는 씬 월드 좌표 → armature-space로 변환 후 교정된 rest 기준 분해
+    # 변환 체인: 씬 월드 → armature-space → bone-local
+    obj_world_inv = clean_obj.matrix_world.inverted()
+
     if keep_bones and actions:
         for action in actions:
             mats = world_matrices.get(action.name, {})
@@ -405,15 +416,17 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
                 if not pb:
                     continue
 
-                # 교정된 rest bone의 역행렬
+                # 교정된 rest bone의 역행렬 (armature-space → bone-local)
                 rest_inv = pb.bone.matrix_local.inverted()
 
                 dp_loc = f'pose.bones["{bone_name}"].location'
                 dp_rot = f'pose.bones["{bone_name}"].rotation_quaternion'
                 dp_scl = f'pose.bones["{bone_name}"].scale'
 
-                for frame, world_mat in sorted(frame_mats.items()):
-                    local_mat = rest_inv @ world_mat
+                for frame, scene_world_mat in sorted(frame_mats.items()):
+                    # 씬 월드 → armature-space → bone-local
+                    armature_mat = obj_world_inv @ scene_world_mat
+                    local_mat = rest_inv @ armature_mat
                     loc = local_mat.to_translation()
                     rot = local_mat.to_quaternion()
                     scl = local_mat.to_scale()
