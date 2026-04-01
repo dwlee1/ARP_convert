@@ -215,11 +215,30 @@ def export_clean_fbx(source_obj, fbx_path=None):
     ensure_object_mode()
     select_only(source_obj)
 
-    # 포즈 리셋: 현재 포즈가 rest pose로 기록되는 것을 방지
+    # 포즈 리셋: constraints/drivers가 포즈를 강제하므로 일시 뮤트
     bpy.ops.object.mode_set(mode="POSE")
     bpy.ops.pose.select_all(action="SELECT")
     bpy.ops.pose.transforms_clear()
+
+    # 모든 constraint 일시 뮤트
+    muted_constraints = []
+    for pb in source_obj.pose.bones:
+        for con in pb.constraints:
+            if not con.mute:
+                con.mute = True
+                muted_constraints.append(con)
+
+    # 드라이버 일시 뮤트
+    muted_drivers = []
+    if source_obj.animation_data:
+        for drv in source_obj.animation_data.drivers:
+            if not drv.mute:
+                drv.mute = True
+                muted_drivers.append(drv)
+
+    # depsgraph 갱신하여 rest pose 확정
     bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.view_layer.update()
     select_only(source_obj)
 
     bpy.ops.export_scene.fbx(
@@ -233,6 +252,12 @@ def export_clean_fbx(source_obj, fbx_path=None):
         axis_up="Y",
         use_armature_deform_only=True,
     )
+    # 뮤트 복원
+    for con in muted_constraints:
+        con.mute = False
+    for drv in muted_drivers:
+        drv.mute = False
+
     log(f"FBX 익스포트 완료: {fbx_path}")
     return fbx_path
 
