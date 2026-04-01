@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-04-01 (F11 하이어라키 정규화 계획 추가)
+> 최종 수정: 2026-04-01 (F11 구현 완료, 다중 액션 미해결 — 인수인계: docs/F11_Handoff.md)
 
 ## 문서 목적
 
@@ -87,7 +87,7 @@ pipeline_runner.py: clean FBX source 생성 → auto_scale → build_bones_list 
 - [x] addon 경로를 clean FBX source 경로로 전환 (RemapSetup + Retarget)
 - [x] pipeline_runner 경로를 clean FBX source 경로로 전환
 - [x] batch 경로는 pipeline_runner 종속 (자동 전환)
-- [ ] **F11: clean armature 하이어라키 정규화** — 구현 예정
+- [~] **F11: clean armature 하이어라키 정규화** — 구현 완료, 다중 액션 리베이크 미해결
 - [ ] 여우 `.blend` 전체 흐름으로 F10+F11 실검증
 - [ ] F4: IK 모드 리타게팅 재검증
 - [ ] F8: 웨이트 전송 실제 검증
@@ -234,9 +234,13 @@ pipeline_runner.py: clean FBX source 생성 → auto_scale → build_bones_list 
 
 ### 체크리스트
 
-- [ ] `arp_utils.py`: `normalize_clean_hierarchy()` 구현
-- [ ] `arp_convert_addon.py`: RemapSetup에서 정규화 호출
-- [ ] `pipeline_runner.py`: pipeline에서 정규화 호출
+- [x] `arp_utils.py`: `normalize_clean_hierarchy()` 구현 (플랫 하이어라키 + rest pose 교정 + NLA strip 평가)
+- [x] `arp_convert_addon.py`: RemapSetup에서 정규화 호출
+- [x] `pipeline_runner.py`: pipeline에서 정규화 호출
+- [x] rest pose 교정 확인 (bone_data head/tail/roll 적용)
+- [x] 기본 액션 리베이크 정상 확인
+- [ ] **다중 액션 리베이크 미해결** — Blender 4.5 Action Slot 시스템 문제 (상세: `docs/F11_Handoff.md` 섹션 6)
+- [x] Step 2 부모 편집 UI (ARPCONV_OT_SetParent + prop_search)
 - [ ] Blender 수동 테스트: 사례 1, 2에서 정규화 후 retarget 품질 확인
 
 ## F9: Remap UI 통합
