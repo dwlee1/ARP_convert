@@ -316,18 +316,33 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
     if not clean_obj.animation_data:
         clean_obj.animation_data_create()
 
-    # NLA 트랙 뮤트: action 단독 평가를 위해 (try/finally로 복원 보장)
+    # NLA strip 기반 액션 평가: action slot 시스템에 의존하지 않음.
+    # 각 액션을 임시 NLA strip으로 재생하여 행렬 기록.
     anim_data = clean_obj.animation_data
+
+    # 기존 NLA 트랙 뮤트 + 직접 액션 해제
     nla_mute_states = []
     for track in anim_data.nla_tracks:
         nla_mute_states.append((track, track.mute))
         track.mute = True
+    orig_action = anim_data.action
+    anim_data.action = None
 
     try:
         for action in actions:
-            _assign_action_with_slot(anim_data, action, clean_obj)
             f_start = int(action.frame_range[0])
             f_end = int(action.frame_range[1])
+
+            # 임시 NLA 트랙 + 스트립 생성
+            temp_track = anim_data.nla_tracks.new()
+            temp_track.name = "__norm_eval__"
+            strip = temp_track.strips.new(action.name, f_start, action)
+            strip.frame_start = f_start
+            strip.frame_end = f_end
+            strip.action_frame_start = f_start
+            strip.action_frame_end = f_end
+            strip.blend_type = "REPLACE"
+            strip.extrapolation = "HOLD"
 
             action_mats = {}
             for frame in range(f_start, f_end + 1):
@@ -337,15 +352,18 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
                 for bone_name in keep_bones:
                     pb = eval_obj.pose.bones.get(bone_name)
                     if pb:
-                        # 씬 월드 행렬 = object_world * bone_armature_space
                         action_mats.setdefault(bone_name, {})[frame] = (
                             obj_world @ pb.matrix
                         ).copy()
             world_matrices[action.name] = action_mats
+
+            # 임시 트랙 제거
+            anim_data.nla_tracks.remove(temp_track)
     finally:
-        # NLA 뮤트 복원 (예외 발생해도 반드시 실행)
+        # NLA 뮤트 복원 + 원래 액션 복원
         for track, was_muted in nla_mute_states:
             track.mute = was_muted
+        anim_data.action = orig_action
 
     # Step C: Edit Mode — 플랫 + rest pose 교정 + 삭제
     ensure_object_mode()
@@ -396,7 +414,7 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
             mats = world_matrices.get(action.name, {})
             if not mats:
                 continue
-            _assign_action_with_slot(clean_obj.animation_data, action, clean_obj)
+            clean_obj.animation_data.action = action
 
             # 모든 유지 본의 기존 FCurve 삭제
             remove_fcs = []
@@ -473,41 +491,6 @@ def _collect_actions(armature_obj):
             if any(fc.data_path.startswith('pose.bones["') for fc in action.fcurves):
                 actions.append(action)
     return actions
-
-
-def _assign_action_with_slot(anim_data, action, armature_obj):
-    """
-    액션을 animation_data에 할당하고, Blender 4.5+ 슬롯도 설정.
-
-    FBX 임포트 시 첫 번째 액션만 슬롯이 연결되고 나머지는 비어있을 수 있다.
-    슬롯이 없으면 액션이 평가되지 않으므로 자동으로 할당/생성한다.
-    """
-    anim_data.action = action
-
-    # Blender 4.5+ action slot 시스템 대응
-    if not hasattr(anim_data, "action_slot"):
-        return  # 슬롯 시스템 미지원 버전
-
-    if anim_data.action_slot is not None:
-        return  # 이미 슬롯 할당됨
-
-    # 기존 슬롯에서 매칭 시도
-    if hasattr(action, "slots"):
-        for slot in action.slots:
-            try:
-                anim_data.action_slot = slot
-                if anim_data.action_slot is not None:
-                    return
-            except Exception:
-                continue
-
-        # 슬롯 생성
-        try:
-            slot = action.slots.new(for_id=armature_obj)
-            anim_data.action_slot = slot
-            log(f"액션 '{action.name}' 슬롯 생성")
-        except Exception as e:
-            log(f"액션 '{action.name}' 슬롯 생성 실패: {e}", "WARN")
 
 
 def _norm_fc_insert(action, data_path, index, frame, value, group=""):
