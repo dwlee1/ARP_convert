@@ -215,32 +215,8 @@ def export_clean_fbx(source_obj, fbx_path=None):
     ensure_object_mode()
     select_only(source_obj)
 
-    # 포즈 리셋: constraints/drivers가 포즈를 강제하므로 일시 뮤트
-    bpy.ops.object.mode_set(mode="POSE")
-    bpy.ops.pose.select_all(action="SELECT")
-    bpy.ops.pose.transforms_clear()
-
-    # 모든 constraint 일시 뮤트
-    muted_constraints = []
-    for pb in source_obj.pose.bones:
-        for con in pb.constraints:
-            if not con.mute:
-                con.mute = True
-                muted_constraints.append(con)
-
-    # 드라이버 일시 뮤트
-    muted_drivers = []
-    if source_obj.animation_data:
-        for drv in source_obj.animation_data.drivers:
-            if not drv.mute:
-                drv.mute = True
-                muted_drivers.append(drv)
-
-    # depsgraph 갱신하여 rest pose 확정
-    bpy.ops.object.mode_set(mode="OBJECT")
-    bpy.context.view_layer.update()
-    select_only(source_obj)
-
+    # NOTE: constraint/driver 뮤트 금지 — bake_anim이 뮤트 상태로 베이크하면
+    # 애니메이션 자체가 틀어짐. rest pose 교정은 임포트 후 normalize에서 처리.
     bpy.ops.export_scene.fbx(
         filepath=fbx_path,
         use_selection=True,
@@ -252,11 +228,6 @@ def export_clean_fbx(source_obj, fbx_path=None):
         axis_up="Y",
         use_armature_deform_only=True,
     )
-    # 뮤트 복원
-    for con in muted_constraints:
-        con.mute = False
-    for drv in muted_drivers:
-        drv.mute = False
 
     log(f"FBX 익스포트 완료: {fbx_path}")
     return fbx_path
@@ -294,43 +265,42 @@ def import_clean_fbx(fbx_path):
 
 def normalize_clean_hierarchy(clean_obj, bone_data):
     """
-    Clean armature를 플랫 하이어라키로 변환하여 부모 간섭을 제거.
+    Clean armature를 플랫 하이어라키로 변환 + rest pose를 원본 기준으로 교정.
 
-    모든 본의 부모를 제거(플랫)하고, 애니메이션을 월드 스페이스 기준으로
-    리베이크한다. 플랫 하이어라키에서는 각 본의 로컬 변환 = 월드 변환이므로
-    부모-자식 관계에 의한 변환 누적 오류가 발생하지 않는다.
-
-    - bone_data에 없는 본: 웨이트 0 deform 본 등 → 삭제
-    - 나머지 본: 부모 제거(플랫) + 월드 스페이스 애니메이션 리베이크
+    FBX 임포트 시 rest pose가 frame 1 포즈로 오염될 수 있다.
+    bone_data의 원본 head/tail/roll을 사용하여 rest pose를 교정하고,
+    모든 부모를 제거(플랫)한 뒤, 전체 본의 애니메이션을 리베이크한다.
 
     Args:
         clean_obj: FBX 임포트된 clean armature
-        bone_data: analyze_skeleton() 결과의 bone_data
+        bone_data: analyze_skeleton() 결과의 bone_data (head/tail/roll 포함)
 
     Returns:
         int: 변경된 본 수. 0이면 변경 없음.
     """
+    from mathutils import Vector
+
     if not bone_data or not clean_obj or clean_obj.type != "ARMATURE":
         return 0
 
     clean_bones = clean_obj.data.bones
 
-    # Step A: 삭제 대상 + 플랫 대상 식별
+    # Step A: 유지/삭제 본 식별
+    keep_bones = []  # bone_data에 있는 본
     delete_bones = []
-    flatten_bones = []  # 부모가 있는 본 (플랫으로 변환 대상)
 
     for bone in clean_bones:
-        if bone.name not in bone_data:
+        if bone.name in bone_data:
+            keep_bones.append(bone.name)
+        else:
             delete_bones.append(bone.name)
-        elif bone.parent is not None:
-            flatten_bones.append(bone.name)
 
-    if not flatten_bones and not delete_bones:
+    if not keep_bones:
         return 0
 
-    log(f"하이어라키 정규화: 플랫 변환 {len(flatten_bones)}개, 삭제 {len(delete_bones)}개")
+    log(f"하이어라키 정규화: 유지 {len(keep_bones)}개, 삭제 {len(delete_bones)}개")
 
-    # Step B: 월드 행렬 기록 (플랫 전, 부모가 있는 모든 본)
+    # Step B: 모든 유지 본의 월드(armature-space) 행렬 기록
     scene = bpy.context.scene
     ensure_object_mode()
     select_only(clean_obj)
@@ -352,61 +322,79 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
             scene.frame_set(frame)
             depsgraph = bpy.context.evaluated_depsgraph_get()
             eval_obj = clean_obj.evaluated_get(depsgraph)
-            for bone_name in flatten_bones:
+            for bone_name in keep_bones:
                 pb = eval_obj.pose.bones.get(bone_name)
                 if pb:
                     action_mats.setdefault(bone_name, {})[frame] = pb.matrix.copy()
         world_matrices[action.name] = action_mats
 
-    # Step C: Edit Mode — 플랫(모든 부모 제거) + 삭제
+    # Step C: Edit Mode — 플랫 + rest pose 교정 + 삭제
     ensure_object_mode()
     select_only(clean_obj)
     bpy.context.view_layer.objects.active = clean_obj
     bpy.ops.object.mode_set(mode="EDIT")
 
     edit_bones = clean_obj.data.edit_bones
+    clean_world_inv = clean_obj.matrix_world.inverted()
 
+    # 플랫: 모든 부모 제거
     for eb in edit_bones:
         if eb.parent is not None:
             eb.parent = None
             eb.use_connect = False
 
+    # rest pose 교정: bone_data의 head/tail/roll로 덮어쓰기
+    # bone_data의 좌표는 원본 armature의 world space → clean의 local space로 변환
+    rest_corrected = 0
+    for bone_name in keep_bones:
+        eb = edit_bones.get(bone_name)
+        bd = bone_data.get(bone_name)
+        if not eb or not bd:
+            continue
+        orig_head = clean_world_inv @ Vector(bd["head"])
+        orig_tail = clean_world_inv @ Vector(bd["tail"])
+        eb.head = orig_head
+        eb.tail = orig_tail
+        eb.roll = bd["roll"]
+        rest_corrected += 1
+
+    # 삭제
     for del_name in delete_bones:
         eb = edit_bones.get(del_name)
         if eb:
             edit_bones.remove(eb)
 
     bpy.ops.object.mode_set(mode="OBJECT")
+    log(f"Rest pose 교정: {rest_corrected}개 본")
 
-    # Step D: 애니메이션 리베이크 (플랫이므로 로컬 = 월드)
-    # 플랫 하이어라키에서 pb.matrix = world_mat 하면 부모가 없으므로
-    # 로컬 변환이 곧 월드 변환. 다른 본의 영향을 받지 않음.
-    if flatten_bones and actions:
+    # Step D: 전체 본 애니메이션 리베이크
+    # rest pose가 교정되었으므로 새 rest 기준으로 전체 리베이크 필요
+    if keep_bones and actions:
         for action in actions:
             mats = world_matrices.get(action.name, {})
             if not mats:
                 continue
             clean_obj.animation_data.action = action
 
-            # 기존 FCurve 삭제 (플랫 대상 본)
+            # 모든 유지 본의 기존 FCurve 삭제
             remove_fcs = []
+            bone_set = set(keep_bones)
             for fc in action.fcurves:
-                for bone_name in flatten_bones:
+                for bone_name in bone_set:
                     if f'pose.bones["{bone_name}"]' in fc.data_path:
                         remove_fcs.append(fc)
                         break
             for fc in remove_fcs:
                 action.fcurves.remove(fc)
 
-            # 새 키프레임 삽입 — 본 단위로 전 프레임 처리
-            # 플랫이므로 frame_set 불필요, 직접 행렬 분해
+            # 새 키프레임 삽입 — 플랫 + 교정된 rest 기준
             new_fcs = set()
             for bone_name, frame_mats in mats.items():
                 pb = clean_obj.pose.bones.get(bone_name)
                 if not pb:
                     continue
 
-                # rest bone의 역행렬 (armature space → bone local)
+                # 교정된 rest bone의 역행렬
                 rest_inv = pb.bone.matrix_local.inverted()
 
                 dp_loc = f'pose.bones["{bone_name}"].location'
@@ -414,7 +402,6 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
                 dp_scl = f'pose.bones["{bone_name}"].scale'
 
                 for frame, world_mat in sorted(frame_mats.items()):
-                    # 플랫: 로컬 = rest_inv @ world_mat
                     local_mat = rest_inv @ world_mat
                     loc = local_mat.to_translation()
                     rot = local_mat.to_quaternion()
@@ -442,8 +429,8 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
                 action.fcurves.remove(fc)
 
     ensure_object_mode()
-    total_changes = len(flatten_bones) + len(delete_bones)
-    log(f"하이어라키 정규화 완료: {total_changes}개 본 처리 (플랫 하이어라키)")
+    total_changes = len(keep_bones) + len(delete_bones)
+    log(f"하이어라키 정규화 완료: {total_changes}개 본 처리 (플랫 + rest pose 교정)")
     return total_changes
 
 
