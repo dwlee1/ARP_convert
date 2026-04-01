@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-03-31 (F10 + source_bone 편집 가능 UI 반영)
+> 최종 수정: 2026-04-01 (F11 하이어라키 정규화 계획 추가)
 
 ## 문서 목적
 
@@ -35,10 +35,11 @@ Addon 경로
 7. 전체 웨이트 전송 (deform + cc_ → ARP)
 8. Shape key 드라이버 리맵
 9. Remap 설정: 원본 FBX 익스포트 → 재임포트 → clean armature 생성
-10. clean armature를 source로 .bmap 생성 → build_bones_list → import_config
-11. UIList에서 source_bone을 clean armature 본 목록 드롭다운으로 편집 가능
-12. clean armature 기반 ARP 네이티브 retarget
-13. clean armature는 Retarget 후에도 UI용으로 유지 (다음 Remap Setup 시 정리)
+10. ★ clean armature 하이어라키 정규화 (분석 결과 기반 리페어런팅 + 웨이트 0 본 삭제 + 애니메이션 리베이크)
+11. clean armature를 source로 .bmap 생성 → build_bones_list → import_config
+12. UIList에서 source_bone을 clean armature 본 목록 드롭다운으로 편집 가능
+13. clean armature 기반 ARP 네이티브 retarget
+14. clean armature는 Retarget 후에도 UI용으로 유지 (다음 Remap Setup 시 정리)
 ```
 
 ```text
@@ -86,7 +87,8 @@ pipeline_runner.py: clean FBX source 생성 → auto_scale → build_bones_list 
 - [x] addon 경로를 clean FBX source 경로로 전환 (RemapSetup + Retarget)
 - [x] pipeline_runner 경로를 clean FBX source 경로로 전환
 - [x] batch 경로는 pipeline_runner 종속 (자동 전환)
-- [ ] 여우 `.blend` 전체 흐름으로 F10 실검증
+- [ ] **F11: clean armature 하이어라키 정규화** — 구현 예정
+- [ ] 여우 `.blend` 전체 흐름으로 F10+F11 실검증
 - [ ] F4: IK 모드 리타게팅 재검증
 - [ ] F8: 웨이트 전송 실제 검증
 - [ ] F9: Remap UI 후속 개선
@@ -201,6 +203,42 @@ pipeline_runner.py: clean FBX source 생성 → auto_scale → build_bones_list 
 - [ ] ARP 네이티브 retarget만 호출되는지 확인
 - [ ] 임시 FBX 파일 / 임포트 오브젝트 정리 확인
 
+## F11: Clean Armature 하이어라키 정규화
+
+### 문제
+
+비표준 하이어라키를 가진 원본 아마추어에서 FBX deform-only 익스포트 시:
+- non-deform 중간 본이 제거되면서 deform 본의 부모 관계가 끊어짐 (루트 레벨로 이동)
+- 웨이트 0 deform 본이 불필요하게 포함됨
+- 로컬 회전 좌표계가 원본과 달라져 ARP retarget 품질 저하
+
+실제 사례:
+- 사례 1: thigh_L/R, head가 루트 레벨 (non-deform 부모 본 제거됨)
+- 사례 2: FK 중복 체인 (spine01_fk → chest_fk → shoulder) 존재
+
+### 해결 방향
+
+`analyze_skeleton()` → `filter_deform_bones()` → `_reconstruct_spatial_hierarchy()`가 이미 올바른 deform 본 간 부모 관계를 계산함. 이 결과(`bone_data`)를 clean armature에 실제로 적용.
+
+### 구현 계획
+
+`arp_utils.py`에 `normalize_clean_hierarchy(clean_obj, bone_data)` 추가:
+
+1. clean armature 본과 bone_data 본의 부모 관계 비교 → 리페어런팅 대상 식별
+2. bone_data에 없는 clean 본 식별 → 삭제 대상 (웨이트 0 deform 본)
+3. 모든 액션의 모든 프레임에서 대상 본의 월드 행렬 기록
+4. Edit Mode에서 리페어런팅 + 불필요 본 삭제
+5. Pose Mode에서 기록한 월드 행렬 재적용 → FCurve 키프레임 삽입
+
+호출 위치: `create_clean_source()` 직후, `ensure_retarget_context()` 직전 (addon + pipeline_runner 공통)
+
+### 체크리스트
+
+- [ ] `arp_utils.py`: `normalize_clean_hierarchy()` 구현
+- [ ] `arp_convert_addon.py`: RemapSetup에서 정규화 호출
+- [ ] `pipeline_runner.py`: pipeline에서 정규화 호출
+- [ ] Blender 수동 테스트: 사례 1, 2에서 정규화 후 retarget 품질 확인
+
 ## F9: Remap UI 통합
 
 ### 현재 구현 기준
@@ -232,8 +270,8 @@ pipeline_runner.py: clean FBX source 생성 → auto_scale → build_bones_list 
 
 ## 우선순위
 
-1. **F10 전 경로 전환** — addon / pipeline_runner / batch를 같은 목표 경로로 수렴
-2. **F10 여우 실검증** — clean FBX source 기준 전체 흐름 확인
+1. **F11 하이어라키 정규화** — clean armature 리페어런팅 + 웨이트 0 본 삭제 + 애니메이션 리베이크
+2. **F10+F11 실검증** — 비표준 하이어라키 원본에서 retarget 품질 확인
 3. **F4 재검증** — F10 전환 후 IK 모드 확인
 4. **F8 실제 weight 검증** — 여우 리그 weight paint 검증
 5. **F9 후속 개선** — 가시성/통계/UI 보강
