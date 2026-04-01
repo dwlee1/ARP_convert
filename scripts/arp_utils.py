@@ -215,6 +215,13 @@ def export_clean_fbx(source_obj, fbx_path=None):
     ensure_object_mode()
     select_only(source_obj)
 
+    # 포즈 리셋: 현재 포즈가 rest pose로 기록되는 것을 방지
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.select_all(action="SELECT")
+    bpy.ops.pose.transforms_clear()
+    bpy.ops.object.mode_set(mode="OBJECT")
+    select_only(source_obj)
+
     bpy.ops.export_scene.fbx(
         filepath=fbx_path,
         use_selection=True,
