@@ -992,6 +992,11 @@ class ARPCONV_Props(PropertyGroup):
         description="소스 본 하이어라키 트리 표시",
         default=False,
     )
+    pending_parent: StringProperty(
+        name="Parent",
+        description="선택한 본의 새 부모 (빈 문자열 = 루트)",
+        default="",
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1427,6 +1432,88 @@ class ARPCONV_OT_SelectBone(Operator):
             preview_obj.data.bones.active = bone
         else:
             self.report({"INFO"}, f"{self.bone_name}: 제외된 본 (Preview에 없음)")
+        return {"FINISHED"}
+
+
+class ARPCONV_OT_SetParent(Operator):
+    """선택된 본의 부모를 변경"""
+
+    bl_idname = "arp_convert.set_parent"
+    bl_label = "부모 변경"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        props = context.scene.arp_convert_props
+        preview_obj = bpy.data.objects.get(props.preview_armature)
+        if not preview_obj:
+            self.report({"ERROR"}, "Preview armature 없음")
+            return {"CANCELLED"}
+
+        # 활성 본 확인
+        active_bone = preview_obj.data.bones.active
+        if not active_bone:
+            self.report({"WARNING"}, "본을 먼저 선택하세요")
+            return {"CANCELLED"}
+
+        bone_name = active_bone.name
+        new_parent_name = props.pending_parent.strip()
+
+        # 자기 자신을 부모로 설정 방지
+        if new_parent_name == bone_name:
+            self.report({"WARNING"}, "자기 자신을 부모로 설정할 수 없습니다")
+            return {"CANCELLED"}
+
+        # Edit Mode 진입
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        context.view_layer.objects.active = preview_obj
+        preview_obj.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+
+        edit_bones = preview_obj.data.edit_bones
+        eb = edit_bones.get(bone_name)
+        if not eb:
+            bpy.ops.object.mode_set(mode="OBJECT")
+            self.report({"ERROR"}, f"'{bone_name}' edit bone을 찾을 수 없습니다")
+            return {"CANCELLED"}
+
+        # 부모 변경
+        if new_parent_name:
+            new_parent_eb = edit_bones.get(new_parent_name)
+            if not new_parent_eb:
+                bpy.ops.object.mode_set(mode="OBJECT")
+                self.report({"ERROR"}, f"부모 '{new_parent_name}'를 찾을 수 없습니다")
+                return {"CANCELLED"}
+            eb.parent = new_parent_eb
+        else:
+            eb.parent = None
+        eb.use_connect = False
+
+        old_parent = active_bone.parent.name if active_bone.parent else "(없음)"
+        new_parent_display = new_parent_name if new_parent_name else "(없음)"
+
+        # Pose Mode 복귀
+        bpy.ops.object.mode_set(mode="POSE")
+
+        # 하이어라키 트리 갱신
+        _ensure_scripts_path()
+        from skeleton_analyzer import extract_bone_data
+
+        bone_data = extract_bone_data(preview_obj)
+        deform_bones = {name: bone_data[name] for name in bone_data if bone_data[name]["is_deform"]}
+        analysis_for_tree = {
+            "bone_data": deform_bones,
+            "excluded_zero_weight": [],
+        }
+        _populate_hierarchy_collection(context, analysis_for_tree)
+
+        # pending_parent 초기화
+        props.pending_parent = ""
+
+        self.report(
+            {"INFO"},
+            f"{bone_name}: 부모 {old_parent} → {new_parent_display}",
+        )
         return {"FINISHED"}
 
 
@@ -3283,6 +3370,26 @@ class ARPCONV_PT_MainPanel(Panel):
                     box.label(text=f"선택: {active_bone.name}", icon="BONE_DATA")
                     box.label(text=f"현재 역할: {current_role}")
 
+                    # 부모 표시 + 변경
+                    parent_name = active_bone.parent.name if active_bone.parent else "(없음)"
+                    box.label(text=f"부모: {parent_name}", icon="LINKED")
+                    preview_obj = bpy.data.objects.get(props.preview_armature)
+                    if preview_obj:
+                        row2 = box.row(align=True)
+                        row2.prop_search(
+                            props,
+                            "pending_parent",
+                            preview_obj.data,
+                            "bones",
+                            text="새 부모",
+                        )
+                        row3 = box.row()
+                        row3.operator(
+                            "arp_convert.set_parent",
+                            text="부모 변경",
+                            icon="FILE_PARENT",
+                        )
+
         layout.separator()
 
         # Step 3: 리그 생성
@@ -3403,6 +3510,7 @@ classes = [
     ARPCONV_Props,
     ARPCONV_OT_CreatePreview,
     ARPCONV_OT_SelectBone,
+    ARPCONV_OT_SetParent,
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
     ARPCONV_OT_RemapSetup,
