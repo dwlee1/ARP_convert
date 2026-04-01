@@ -17,6 +17,8 @@ from collections import defaultdict
 
 import bpy
 
+DEBUG = os.environ.get("BLENDER_RIG_DEBUG", "").lower() in ("1", "true")
+
 # ═══════════════════════════════════════════════════════════════
 # 상수
 # ═══════════════════════════════════════════════════════════════
@@ -328,7 +330,7 @@ def filter_deform_bones(all_bones, weighted_bones=None):
     excluded_info = []
     if weighted_bones is not None:
         excluded_names = deform_names - weighted_bones
-        if excluded_names:
+        if excluded_names and DEBUG:
             print(f"[DEBUG] 웨이트 0 deform 본 제외: {sorted(excluded_names)}")
         included = deform_names & weighted_bones
         for name in sorted(excluded_names):
@@ -452,7 +454,8 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
                 best_dist = dist
                 best_parent = other_name
         if best_parent:
-            print(f"  [RECON-1] {name}: tail→head match={best_parent}, dist={best_dist:.6f}")
+            if DEBUG:
+                print(f"  [RECON-1] {name}: tail→head match={best_parent}, dist={best_dist:.6f}")
             return _try_set_parent(name, best_parent, "tail→head")
         return False
 
@@ -469,7 +472,8 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
                     best_bridge_dist = dist
                     best_bridge = deform_anc
         if best_bridge:
-            print(f"  [RECON-2] {name}: bridge→{best_bridge}, dist={best_bridge_dist:.6f}")
+            if DEBUG:
+                print(f"  [RECON-2] {name}: bridge→{best_bridge}, dist={best_bridge_dist:.6f}")
             return _try_set_parent(name, best_bridge, "bridge")
         return False
 
@@ -490,7 +494,8 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         other_is_root = any(h in best_head.lower() for h in ROOT_NAME_HINTS)
         other_has_parent = deform_bones[best_head]["parent"] is not None
 
-        print(f"  [RECON-3] {name}: head≈head {best_head}, dist={best_head_dist:.6f}")
+        if DEBUG:
+            print(f"  [RECON-3] {name}: head≈head {best_head}, dist={best_head_dist:.6f}")
 
         if name_is_root and not other_is_root:
             if deform_bones[best_head]["parent"] is None:
@@ -513,7 +518,8 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         # 원본에서 고립 본(부모도 자식도 없음)은 RECON-4 제외 → unmapped로 유지
         orig = (original_hierarchy or {}).get(name)
         if orig and orig["parent"] is None and not orig["children"]:
-            print(f"  [RECON-4] {name}: 고립 본 → 스킵")
+            if DEBUG:
+                print(f"  [RECON-4] {name}: 고립 본 → 스킵")
             return False
         my_descendants = set()
         _collect = [name]
@@ -537,7 +543,8 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
                 best_near = other_name
 
         if best_near:
-            print(f"  [RECON-4] {name}: nearest={best_near}, dist={best_near_dist:.6f}")
+            if DEBUG:
+                print(f"  [RECON-4] {name}: nearest={best_near}, dist={best_near_dist:.6f}")
 
             # 방향 판단: ROOT_NAME_HINT 또는 후손 수가 많은 쪽이 부모
             name_is_root = any(h in name.lower() for h in ROOT_NAME_HINTS)
@@ -557,7 +564,8 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
             else:
                 return _try_set_parent(name, best_near, "nearest")
         else:
-            print(f"  [RECON-?] {name}: 연결 실패 (threshold={threshold_broad:.6f})")
+            if DEBUG:
+                print(f"  [RECON-?] {name}: 연결 실패 (threshold={threshold_broad:.6f})")
             return False
 
     # 반복: 각 패스에서 RECON-1→2→3→4 순서로 전체 실행
@@ -1272,18 +1280,22 @@ def analyze_skeleton(armature_obj):
 
     # 디버그: 재구성 전 상태
     parentless_before = sum(1 for b in deform_bones.values() if b["parent"] is None)
-    print(f"[DEBUG] deform 본 총 {len(deform_bones)}개, 재구성 전 parentless: {parentless_before}")
-    for name, b in deform_bones.items():
-        print(f"  [DEBUG] {name}: parent={b['parent']}, children={b['children']}")
+    if DEBUG:
+        print(
+            f"[DEBUG] deform 본 총 {len(deform_bones)}개, 재구성 전 parentless: {parentless_before}"
+        )
+        for name, b in deform_bones.items():
+            print(f"  [DEBUG] {name}: parent={b['parent']}, children={b['children']}")
 
     _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_deform_bones)
 
     # 디버그: 재구성 후 상태
     parentless_after = sum(1 for b in deform_bones.values() if b["parent"] is None)
-    print(f"[DEBUG] 재구성 후 parentless: {parentless_after}")
-    if parentless_after != parentless_before:
-        for name, b in deform_bones.items():
-            print(f"  [DEBUG-after] {name}: parent={b['parent']}, children={b['children']}")
+    if DEBUG:
+        print(f"[DEBUG] 재구성 후 parentless: {parentless_after}")
+        if parentless_after != parentless_before:
+            for name, b in deform_bones.items():
+                print(f"  [DEBUG-after] {name}: parent={b['parent']}, children={b['children']}")
 
     if not deform_bones:
         return {"error": "deform 본이 없습니다.", "chains": {}, "unmapped": [], "confidence": 0}

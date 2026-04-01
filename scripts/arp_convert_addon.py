@@ -103,14 +103,14 @@ def _populate_hierarchy_collection(context, analysis):
         item = coll.add()
         item.name = name
         item.depth = depth
-        # 이 본의 자식 중 제외 본 추가
+        # deform 자식 재귀
+        for child_name in bone_data[name].get("children", []):
+            _walk(child_name, depth + 1)
+        # 제외 본은 deform 자식 뒤에 추가
         for excl_name in excluded_by_parent.get(name, []):
             ei = coll.add()
             ei.name = excl_name
             ei.depth = depth + 1
-        # deform 자식 재귀
-        for child_name in bone_data[name].get("children", []):
-            _walk(child_name, depth + 1)
 
     for root in roots:
         _walk(root, 0)
@@ -2813,6 +2813,9 @@ class ARPCONV_OT_RemapSetup(Operator):
         except Exception as e:
             self.report({"ERROR"}, f"Remap 설정 실패: {e}")
             log(traceback.format_exc(), "ERROR")
+            cleanup_clean_source(clean_obj, fbx_path)
+            props.clean_source_armature = ""
+            props.clean_fbx_path = ""
             return {"CANCELLED"}
 
         # 4. 결과 보고
@@ -2838,9 +2841,12 @@ class ARPCONV_OT_RemapSetup(Operator):
 
 
 def _find_arp_armature_cached():
-    """ARP 아마추어를 캐시하여 UIList draw에서 반복 탐색 방지"""
+    """ARP 아마추어를 찾는다 (c_ 접두사 본 5개 이상). UIList draw에서 호출."""
     for obj in bpy.data.objects:
-        if obj.type == "ARMATURE" and obj.name.startswith("rig"):
+        if obj.type != "ARMATURE":
+            continue
+        c_count = sum(1 for b in obj.data.bones if b.name.startswith("c_"))
+        if c_count > 5:
             return obj
     return None
 
