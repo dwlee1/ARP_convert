@@ -312,8 +312,15 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
     if not clean_obj.animation_data:
         clean_obj.animation_data_create()
 
+    # NLA 트랙 뮤트: action 단독 평가를 위해
+    anim_data = clean_obj.animation_data
+    nla_mute_states = []
+    for track in anim_data.nla_tracks:
+        nla_mute_states.append((track, track.mute))
+        track.mute = True
+
     for action in actions:
-        clean_obj.animation_data.action = action
+        anim_data.action = action
         f_start = int(action.frame_range[0])
         f_end = int(action.frame_range[1])
 
@@ -327,6 +334,10 @@ def normalize_clean_hierarchy(clean_obj, bone_data):
                 if pb:
                     action_mats.setdefault(bone_name, {})[frame] = pb.matrix.copy()
         world_matrices[action.name] = action_mats
+
+    # NLA 뮤트 복원
+    for track, was_muted in nla_mute_states:
+        track.mute = was_muted
 
     # Step C: Edit Mode — 플랫 + rest pose 교정 + 삭제
     ensure_object_mode()
