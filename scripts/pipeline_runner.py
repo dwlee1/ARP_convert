@@ -24,7 +24,6 @@ import bpy
 # ═══════════════════════════════════════════════════════════════
 
 MAPPING_PROFILE = "custom_quadruped"
-BMAP_PRESET = "custom_quadruped"
 SAVE_BLEND = True  # 변환 완료 후 .blend 저장 여부
 
 
@@ -45,9 +44,6 @@ def parse_args():
     while i < len(custom_args):
         if custom_args[i] == "--profile" and i + 1 < len(custom_args):
             args["profile"] = custom_args[i + 1]
-            i += 2
-        elif custom_args[i] == "--bmap" and i + 1 < len(custom_args):
-            args["bmap"] = custom_args[i + 1]
             i += 2
         elif custom_args[i] == "--no-save":
             args["save"] = False
@@ -106,7 +102,6 @@ class ConversionResult:
         self.warnings = []
         self.pre_state = {}
         self.post_state = {}
-        self.retarget_stats = {}
         self.elapsed_sec = 0
 
     def add_step(self, step_name):
@@ -128,7 +123,6 @@ class ConversionResult:
             "warnings": self.warnings,
             "pre_state": self.pre_state,
             "post_state": self.post_state,
-            "retarget_stats": self.retarget_stats,
             "elapsed_sec": round(self.elapsed_sec, 1),
         }
         with open(path, "w", encoding="utf-8") as f:
@@ -184,7 +178,6 @@ def main():
     # 인자 파싱
     cli_args = parse_args()
     profile_name = cli_args.get("profile", MAPPING_PROFILE)
-    bmap_name = cli_args.get("bmap", BMAP_PRESET)
     save_blend = cli_args.get("save", SAVE_BLEND)
     auto_mode = cli_args.get("auto", False)
 
@@ -344,183 +337,6 @@ def main():
         result.save(output_dir)
         return
 
-    # Step 2: 애니메이션 리타게팅
-    print("\n--- Step 2: 애니메이션 리타게팅 ---")
-    try:
-        from arp_utils import ensure_retarget_context, install_bmap_preset
-
-        # auto 모드: 동적 .bmap 생성
-        if auto_mode:
-            from skeleton_analyzer import generate_bmap_content
-
-            bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj)
-            bmap_name = "auto_generated"
-
-            # ARP presets 폴더에 저장
-            blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
-            for presets_dir in [
-                os.path.join(
-                    os.environ.get("APPDATA", ""),
-                    "Blender Foundation",
-                    "Blender",
-                    blender_ver,
-                    "extensions",
-                    "user_default",
-                    "auto_rig_pro",
-                    "remap_presets",
-                ),
-                os.path.join(
-                    os.environ.get("APPDATA", ""),
-                    "Blender Foundation",
-                    "Blender",
-                    blender_ver,
-                    "config",
-                    "addons",
-                    "auto_rig_pro-master",
-                    "remap_presets",
-                ),
-            ]:
-                if os.path.isdir(presets_dir):
-                    bmap_path = os.path.join(presets_dir, f"{bmap_name}.bmap")
-                    with open(bmap_path, "w", encoding="utf-8") as f:
-                        f.write(bmap_content)
-                    log(f"동적 .bmap 생성: {bmap_path}")
-                    break
-
-        # Clean FBX source 생성
-        from arp_utils import (
-            cleanup_clean_source,
-            create_clean_source,
-            normalize_clean_hierarchy,
-        )
-
-        clean_obj, fbx_path = create_clean_source(source_obj)
-        log(f"Clean source 생성: '{clean_obj.name}'")
-        result.add_step("clean_source_created")
-
-        # Clean armature 하이어라키 정규화
-        try:
-            reparented = normalize_clean_hierarchy(clean_obj, analysis.get("bone_data", {}))
-            if reparented:
-                log(f"Clean armature 정규화: {reparented}개 본 처리")
-                result.add_step("clean_hierarchy_normalized")
-        except Exception as e:
-            log(f"하이어라키 정규화 실패 (계속 진행): {e}", "WARN")
-
-        ensure_retarget_context(clean_obj, arp_obj)
-        run_arp_operator(bpy.ops.arp.auto_scale)
-        log("auto_scale 완료")
-
-        ensure_object_mode()
-        run_arp_operator(bpy.ops.arp.build_bones_list)
-        log("build_bones_list 완료")
-
-        if bmap_name:
-            if not auto_mode:
-                install_bmap_preset(bmap_name)
-            try:
-                run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=bmap_name)
-                log(f".bmap 로드 성공: {bmap_name}")
-            except Exception as e:
-                result.add_warning(f".bmap 로드 실패: {e}")
-
-        run_arp_operator(bpy.ops.arp.redefine_rest_pose, preserve=True)
-        run_arp_operator(bpy.ops.arp.save_pose_rest)
-        ensure_object_mode()
-        log("레스트 포즈 조정 완료")
-        result.add_step("remap_configured")
-
-    except Exception as e:
-        result.add_error(f"리타게팅 설정 실패: {e}")
-        log(traceback.format_exc(), "ERROR")
-        result.elapsed_sec = time.time() - start_time
-        result.save(output_dir)
-        return
-
-    # Step 3: 액션별 리타게팅 (clean source 기반)
-    print("\n--- Step 3: 액션별 리타게팅 (Clean FBX source) ---")
-
-    # clean armature의 액션 수집
-    actions = []
-    if clean_obj.animation_data:
-        if clean_obj.animation_data.action:
-            act = clean_obj.animation_data.action
-            actions.append(
-                {
-                    "name": act.name,
-                    "frame_start": int(act.frame_range[0]),
-                    "frame_end": int(act.frame_range[1]),
-                }
-            )
-        if clean_obj.animation_data.nla_tracks:
-            seen = {a["name"] for a in actions}
-            for track in clean_obj.animation_data.nla_tracks:
-                for strip in track.strips:
-                    if strip.action and strip.action.name not in seen:
-                        actions.append(
-                            {
-                                "name": strip.action.name,
-                                "frame_start": int(strip.action.frame_range[0]),
-                                "frame_end": int(strip.action.frame_range[1]),
-                            }
-                        )
-                        seen.add(strip.action.name)
-
-    # clean에 액션이 없으면 원본 소스 액션 사용
-    if not actions:
-        for action in bpy.data.actions:
-            actions.append(
-                {
-                    "name": action.name,
-                    "frame_start": int(action.frame_range[0]),
-                    "frame_end": int(action.frame_range[1]),
-                }
-            )
-
-    success_count = 0
-    fail_count = 0
-
-    for i, act in enumerate(actions):
-        name = act["name"]
-        f_start = act["frame_start"]
-        f_end = act["frame_end"]
-        log(f"[{i + 1}/{len(actions)}] '{name}' ({f_start}~{f_end})")
-
-        try:
-            action = bpy.data.actions.get(name)
-            if action is None:
-                fail_count += 1
-                continue
-
-            if clean_obj.animation_data is None:
-                clean_obj.animation_data_create()
-            clean_obj.animation_data.action = action
-
-            ensure_object_mode()
-            select_only(arp_obj)
-            run_arp_operator(
-                bpy.ops.arp.retarget,
-                frame_start=f_start,
-                frame_end=f_end,
-                fake_user_action=True,
-                interpolation_type="LINEAR",
-            )
-            success_count += 1
-        except Exception as e:
-            fail_count += 1
-            result.add_warning(f"액션 '{name}' 리타게팅 실패: {e}")
-
-    # Clean source 정리
-    cleanup_clean_source(clean_obj, fbx_path)
-    result.add_step("clean_source_cleaned")
-
-    result.retarget_stats = {
-        "total": len(actions),
-        "success": success_count,
-        "fail": fail_count,
-    }
-    result.add_step("retarget_complete")
-
     # 저장
     if save_blend:
         bpy.ops.wm.save_mainfile()
@@ -528,14 +344,13 @@ def main():
 
     # 사후 상태 기록
     result.post_state = snapshot_state()
-    result.success = fail_count == 0
+    result.success = len(result.errors) == 0
     result.elapsed_sec = time.time() - start_time
 
     result_path = result.save(output_dir)
 
     print("=" * 60)
-    print(f"파이프라인 완료: {'성공' if result.success else '일부 실패'}")
-    print(f"  리타게팅: {success_count}/{len(actions)} 성공")
+    print(f"파이프라인 완료: {'성공' if result.success else '실패'}")
     print(f"  소요시간: {result.elapsed_sec:.1f}초")
     print(f"  결과 파일: {result_path}")
     print("=" * 60)

@@ -6,6 +6,7 @@ ARP Rig Convert 애드온
 설치:
   Edit > Preferences > Add-ons > Install > 이 파일 선택
   또는 Blender Scripting 탭에서 직접 실행 (Run Script)
+  또는 tools/install_blender_addon.py 로 Blender 4.5 add-ons 폴더에 자동 설치
 """
 
 bl_info = {
@@ -34,12 +35,17 @@ from bpy.props import (
     PointerProperty,
     StringProperty,
 )
-from bpy.types import Operator, Panel, PropertyGroup, UIList
+from bpy.types import Operator, Panel, PropertyGroup
 from mathutils import Vector
 
 # ═══════════════════════════════════════════════════════════════
 # scripts/ 경로 설정
 # ═══════════════════════════════════════════════════════════════
+
+_PROJECT_RESOURCE_DIRS = (
+    "mapping_profiles",
+    "regression_fixtures",
+)
 
 
 def _ensure_scripts_path():
@@ -957,8 +963,6 @@ class ARPCONV_Props(PropertyGroup):
 
     preview_armature: StringProperty(name="Preview Armature", default="")
     source_armature: StringProperty(name="소스 Armature", default="")
-    clean_source_armature: StringProperty(name="Clean Source", default="")
-    clean_fbx_path: StringProperty(name="Clean FBX Path", default="")
     is_analyzed: BoolProperty(name="분석 완료", default=False)
     confidence: FloatProperty(name="신뢰도", default=0.0)
     regression_fixture: StringProperty(
@@ -971,21 +975,12 @@ class ARPCONV_Props(PropertyGroup):
         default="",
         subtype="DIR_PATH",
     )
-    regression_run_retarget: BoolProperty(
-        name="Retarget 포함",
-        default=True,
-    )
     front_3bones_ik: FloatProperty(
         name="앞다리 3 Bones IK",
         description="앞다리 3 Bones IK 값. 0.0이면 shoulder 독립 회전, 1.0이면 foot IK에 반응",
         default=0.0,
         min=0.0,
         max=1.0,
-    )
-    retarget_ik_mode: BoolProperty(
-        name="IK 모드 리타게팅",
-        description="FK 리타게팅 후 발/손 IK 컨트롤러에 위치를 베이크하고 IK 모드로 전환",
-        default=False,
     )
     show_source_hierarchy: BoolProperty(
         name="Source Hierarchy",
@@ -1211,7 +1206,19 @@ def _create_foot_guides_for_role(context, preview_obj, foot_bone_names, role, ro
 
 def _resolve_project_root():
     script_dir = _ensure_scripts_path() or os.path.dirname(os.path.abspath(__file__))
-    return os.path.dirname(script_dir)
+    current = os.path.abspath(script_dir)
+
+    for _ in range(6):
+        if any(os.path.isdir(os.path.join(current, name)) for name in _PROJECT_RESOURCE_DIRS):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+
+    if os.path.basename(script_dir) == "scripts":
+        return os.path.dirname(script_dir)
+    return script_dir
 
 
 def _resolve_regression_path(raw_path):
@@ -2770,327 +2777,6 @@ def _bake_source_to_preview(source_obj, preview_obj, action, f_start, f_end, log
 
 
 # ═══════════════════════════════════════════════════════════════
-# 오퍼레이터: Step 3.5 — Remap 설정 (ARP bones_map_v2 직접 사용)
-# ═══════════════════════════════════════════════════════════════
-
-
-class ARPCONV_OT_RemapSetup(Operator):
-    """Remap 설정: .bmap 생성 → ARP bones_map_v2 로드"""
-
-    bl_idname = "arp_convert.remap_setup"
-    bl_label = "Remap Setup"
-    bl_description = ".bmap 생성 후 ARP 리타게팅 설정 (auto_scale → build_bones_list → import_config_preset → rest pose)"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        _ensure_scripts_path()
-        _reload_modules()
-
-        try:
-            from arp_utils import (
-                cleanup_clean_source,
-                create_clean_source,
-                ensure_object_mode,
-                ensure_retarget_context,
-                find_arp_armature,
-                log,
-                normalize_clean_hierarchy,
-                run_arp_operator,
-            )
-            from skeleton_analyzer import (
-                generate_bmap_content,
-                preview_to_analysis,
-            )
-        except ImportError as e:
-            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
-            return {"CANCELLED"}
-
-        props = context.scene.arp_convert_props
-        preview_obj = bpy.data.objects.get(props.preview_armature)
-        source_obj = bpy.data.objects.get(props.source_armature)
-        arp_obj = find_arp_armature()
-
-        if not all([preview_obj, source_obj, arp_obj]):
-            self.report({"ERROR"}, "소스/Preview/ARP 아마추어를 모두 찾을 수 없습니다.")
-            return {"CANCELLED"}
-
-        # 0. 기존 clean source 정리
-        old_clean = bpy.data.objects.get(props.clean_source_armature)
-        old_fbx = props.clean_fbx_path
-        if old_clean or old_fbx:
-            cleanup_clean_source(old_clean, old_fbx)
-            props.clean_source_armature = ""
-            props.clean_fbx_path = ""
-
-        # 1. .bmap 생성
-        ik_mode = props.retarget_ik_mode
-        analysis = preview_to_analysis(preview_obj)
-        bmap_content = generate_bmap_content(analysis, arp_obj=arp_obj, ik_legs=ik_mode)
-
-        bmap_name = "auto_generated"
-        blender_ver = f"{bpy.app.version[0]}.{bpy.app.version[1]}"
-        bmap_path = None
-
-        for presets_dir in [
-            os.path.join(
-                os.environ.get("APPDATA", ""),
-                "Blender Foundation",
-                "Blender",
-                blender_ver,
-                "extensions",
-                "user_default",
-                "auto_rig_pro",
-                "remap_presets",
-            ),
-            os.path.join(
-                os.environ.get("APPDATA", ""),
-                "Blender Foundation",
-                "Blender",
-                blender_ver,
-                "config",
-                "addons",
-                "auto_rig_pro-master",
-                "remap_presets",
-            ),
-        ]:
-            if os.path.isdir(presets_dir):
-                bmap_path = os.path.join(presets_dir, f"{bmap_name}.bmap")
-                with open(bmap_path, "w", encoding="utf-8") as f:
-                    f.write(bmap_content)
-                log(f".bmap 저장: {bmap_path}")
-                break
-
-        if not bmap_path:
-            self.report({"ERROR"}, "ARP remap_presets 경로를 찾을 수 없습니다.")
-            return {"CANCELLED"}
-
-        # 2. Clean FBX source 생성
-        try:
-            clean_obj, fbx_path = create_clean_source(source_obj)
-            props.clean_source_armature = clean_obj.name
-            props.clean_fbx_path = fbx_path
-        except Exception as e:
-            self.report({"ERROR"}, f"Clean source 생성 실패: {e}")
-            log(traceback.format_exc(), "ERROR")
-            return {"CANCELLED"}
-
-        # 2.5. Clean armature 하이어라키 정규화
-        try:
-            reparented = normalize_clean_hierarchy(clean_obj, analysis.get("bone_data", {}))
-            if reparented:
-                log(f"Clean armature 정규화: {reparented}개 본 처리")
-        except Exception as e:
-            log(f"하이어라키 정규화 실패 (계속 진행): {e}", "WARN")
-
-        # 3. ARP 리타게팅 설정 체인 (clean source 사용)
-        ensure_object_mode()
-        try:
-            ensure_retarget_context(clean_obj, arp_obj)
-
-            scn = context.scene
-            src_scale = clean_obj.scale[0] if clean_obj.scale[0] != 0 else 1.0
-            tgt_scale = arp_obj.scale[0] if arp_obj.scale[0] != 0 else 1.0
-            if hasattr(scn, "global_scale"):
-                scn.global_scale = src_scale / tgt_scale
-                log(f"global_scale 수동 설정: {scn.global_scale:.4f}")
-
-            ensure_object_mode()
-            run_arp_operator(bpy.ops.arp.build_bones_list)
-
-            try:
-                run_arp_operator(bpy.ops.arp.import_config_preset, preset_name=bmap_name)
-                log(f".bmap 로드 성공: {bmap_name}")
-            except Exception as e:
-                log(f".bmap 로드 실패: {e}", "WARN")
-
-            run_arp_operator(bpy.ops.arp.redefine_rest_pose, preserve=True)
-            run_arp_operator(bpy.ops.arp.save_pose_rest)
-            ensure_object_mode()
-        except Exception as e:
-            self.report({"ERROR"}, f"Remap 설정 실패: {e}")
-            log(traceback.format_exc(), "ERROR")
-            cleanup_clean_source(clean_obj, fbx_path)
-            props.clean_source_armature = ""
-            props.clean_fbx_path = ""
-            return {"CANCELLED"}
-
-        # 4. 결과 보고
-        scn = context.scene
-        if hasattr(scn, "bones_map_v2"):
-            count = len(scn.bones_map_v2)
-            self.report(
-                {"INFO"},
-                f"Remap Setup 완료: bones_map_v2에 {count}개 매핑 로드됨"
-                f" (clean source: {clean_obj.name})",
-            )
-        else:
-            self.report(
-                {"WARNING"}, "Remap Setup 완료: ARP bones_map_v2를 찾을 수 없습니다 (ARP 미설치?)"
-            )
-
-        return {"FINISHED"}
-
-
-# ═══════════════════════════════════════════════════════════════
-# UIList: ARP bones_map_v2 직접 표시
-# ═══════════════════════════════════════════════════════════════
-
-
-def _find_arp_armature_cached():
-    """ARP 아마추어를 찾는다 (c_ 접두사 본 5개 이상). UIList draw에서 호출."""
-    for obj in bpy.data.objects:
-        if obj.type != "ARMATURE":
-            continue
-        c_count = sum(1 for b in obj.data.bones if b.name.startswith("c_"))
-        if c_count > 5:
-            return obj
-    return None
-
-
-class ARPCONV_UL_BoneMap(UIList):
-    """ARP bones_map_v2 기반 소스↔타겟 본 매핑 리스트"""
-
-    bl_idname = "ARPCONV_UL_bone_map"
-
-    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index):
-        if self.layout_type in {"DEFAULT", "COMPACT"}:
-            split = layout.split(factor=0.4, align=True)
-
-            # 좌측: 소스 본 (clean armature 본 검색)
-            left = split.row(align=True)
-            props = context.scene.arp_convert_props
-            clean_obj = bpy.data.objects.get(props.clean_source_armature)
-            if clean_obj and clean_obj.data:
-                left.prop_search(item, "source_bone", clean_obj.data, "bones", text="")
-            else:
-                left.prop(item, "source_bone", text="")
-
-            # 우측: 타겟 본 (편집 가능 — ARP 본 검색)
-            right = split.row(align=True)
-            arp_obj = _find_arp_armature_cached()
-            if arp_obj and arp_obj.data:
-                right.prop_search(item, "name", arp_obj.data, "bones", text="")
-            else:
-                right.prop(item, "name", text="")
-
-            # IK 표시
-            if item.ik:
-                layout.label(text="", icon="CON_KINEMATIC")
-
-
-# ═══════════════════════════════════════════════════════════════
-# 오퍼레이터: Step 4 — 리타게팅
-# ═══════════════════════════════════════════════════════════════
-
-
-class ARPCONV_OT_Retarget(Operator):
-    """Clean FBX source 기반 ARP 네이티브 리타게팅 (Remap Setup 후 실행)"""
-
-    bl_idname = "arp_convert.retarget"
-    bl_label = "애니메이션 리타게팅"
-    bl_description = "Clean FBX source 기반 ARP 네이티브 리타게팅"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        _ensure_scripts_path()
-        _reload_modules()
-
-        try:
-            from arp_utils import (
-                ensure_object_mode,
-                find_arp_armature,
-                log,
-                run_arp_operator,
-                select_only,
-            )
-        except ImportError as e:
-            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
-            return {"CANCELLED"}
-
-        props = context.scene.arp_convert_props
-        clean_obj = bpy.data.objects.get(props.clean_source_armature)
-        arp_obj = find_arp_armature()
-
-        if not clean_obj:
-            self.report(
-                {"ERROR"}, "Clean source armature가 없습니다. Remap Setup을 먼저 실행하세요."
-            )
-            return {"CANCELLED"}
-        if not arp_obj:
-            self.report({"ERROR"}, "ARP 아마추어를 찾을 수 없습니다.")
-            return {"CANCELLED"}
-
-        # bones_map_v2 확인
-        scn = context.scene
-        if not hasattr(scn, "bones_map_v2") or len(scn.bones_map_v2) == 0:
-            self.report({"ERROR"}, "Remap Setup을 먼저 실행하세요 (bones_map_v2 비어있음).")
-            return {"CANCELLED"}
-
-        ensure_object_mode()
-
-        # Clean source의 액션으로 ARP 네이티브 retarget
-        # RemapSetup에서 이미 ensure_retarget_context(clean_obj, arp_obj) 완료
-        log(f"Clean FBX 기반 리타게팅 (bones_map_v2: {len(scn.bones_map_v2)}개 매핑)")
-
-        # clean armature의 액션 수집
-        actions = []
-        if clean_obj.animation_data:
-            # FBX 임포트 시 액션이 직접 연결되어 있음
-            if clean_obj.animation_data.action:
-                actions.append(clean_obj.animation_data.action)
-            # NLA 트랙에 있는 액션도 수집
-            if clean_obj.animation_data.nla_tracks:
-                for track in clean_obj.animation_data.nla_tracks:
-                    for strip in track.strips:
-                        if strip.action and strip.action not in actions:
-                            actions.append(strip.action)
-
-        # clean에 직접 연결된 액션이 없으면 원본 소스의 액션 사용
-        if not actions:
-            source_obj = bpy.data.objects.get(props.source_armature)
-            if source_obj:
-                for action in bpy.data.actions:
-                    actions.append(action)
-
-        if not actions:
-            self.report({"WARNING"}, "리타게팅할 액션이 없습니다.")
-            return {"FINISHED"}
-
-        success = 0
-        fail = 0
-
-        for i, action in enumerate(actions):
-            f_start = int(action.frame_range[0])
-            f_end = int(action.frame_range[1])
-            log(f"  [{i + 1}/{len(actions)}] '{action.name}' ({f_start}~{f_end})")
-
-            try:
-                # clean source에 액션 할당
-                if clean_obj.animation_data is None:
-                    clean_obj.animation_data_create()
-                clean_obj.animation_data.action = action
-
-                # ARP 네이티브 retarget
-                ensure_object_mode()
-                select_only(arp_obj)
-                run_arp_operator(
-                    bpy.ops.arp.retarget,
-                    frame_start=f_start,
-                    frame_end=f_end,
-                    fake_user_action=True,
-                    interpolation_type="LINEAR",
-                )
-                success += 1
-            except Exception as e:
-                fail += 1
-                log(f"    실패: {e}", "WARN")
-
-        mode_label = "IK" if props.retarget_ik_mode else "FK"
-        self.report({"INFO"}, f"리타게팅 완료 ({mode_label}): {success}/{len(actions)} 성공")
-        return {"FINISHED"}
-
-
-# ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: 회귀 테스트
 # ═══════════════════════════════════════════════════════════════
 
@@ -3100,7 +2786,7 @@ class ARPCONV_OT_RunRegression(Operator):
 
     bl_idname = "arp_convert.run_regression"
     bl_label = "회귀 테스트 실행"
-    bl_description = "Fixture JSON으로 역할을 적용하고 BuildRig/Retarget까지 자동 실행"
+    bl_description = "Fixture JSON으로 역할을 적용하고 BuildRig까지 자동 실행"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -3127,7 +2813,6 @@ class ARPCONV_OT_RunRegression(Operator):
             "source_armature": "",
             "preview_armature": "",
             "build_rig": False,
-            "retarget": False,
             "role_application": {},
             "warnings": [],
             "elapsed_sec": 0.0,
@@ -3171,17 +2856,6 @@ class ARPCONV_OT_RunRegression(Operator):
             if "FINISHED" not in result:
                 raise RuntimeError("BuildRig 실패")
             report["build_rig"] = True
-
-            should_run_retarget = props.regression_run_retarget and fixture_data["run_retarget"]
-            if should_run_retarget:
-                result = bpy.ops.arp_convert.remap_setup()
-                if "FINISHED" not in result:
-                    raise RuntimeError("Remap Setup 실패")
-
-                result = bpy.ops.arp_convert.retarget()
-                if "FINISHED" not in result:
-                    raise RuntimeError("Retarget 실패")
-                report["retarget"] = True
 
             report["success"] = True
             self.report({"INFO"}, "회귀 테스트 완료")
@@ -3402,100 +3076,10 @@ class ARPCONV_PT_MainPanel(Panel):
 
         layout.separator()
 
-        # Step 3.5: Remap 설정 (ARP bones_map_v2 직접 사용)
-        box = layout.box()
-        box.label(text="Step 3.5: Remap 설정", icon="UV_SYNC_SELECT")
-
-        box.prop(props, "retarget_ik_mode")
-        row = box.row()
-        row.scale_y = 1.3
-        row.operator("arp_convert.remap_setup", icon="FILE_REFRESH")
-
-        # ARP bones_map_v2 리스트
-        scn = context.scene
-        has_bones_map = hasattr(scn, "bones_map_v2") and len(scn.bones_map_v2) > 0
-        if has_bones_map:
-            box.template_list(
-                "ARPCONV_UL_bone_map",
-                "",
-                scn,
-                "bones_map_v2",
-                scn,
-                "bones_map_index",
-                rows=8,
-            )
-
-            # 매핑 통계
-            total = len(scn.bones_map_v2)
-            stat_row = box.row()
-            stat_row.label(text=f"매핑: {total}개")
-
-            # 선택된 항목 상세 편집
-            if scn.bones_map_index < total:
-                item = scn.bones_map_v2[scn.bones_map_index]
-                detail = box.box()
-
-                # Source → Target
-                row = detail.row(align=True)
-                props = context.scene.arp_convert_props
-                clean_obj = bpy.data.objects.get(props.clean_source_armature)
-                if clean_obj and clean_obj.data:
-                    row.prop_search(item, "source_bone", clean_obj.data, "bones", text="")
-                else:
-                    row.prop(item, "source_bone", text="")
-                arp_obj = _find_arp_armature_cached()
-                if arp_obj and arp_obj.data:
-                    row.prop_search(item, "name", arp_obj.data, "bones", text="")
-                else:
-                    row.prop(item, "name", text="")
-
-                # Root / Location
-                row = detail.row(align=True)
-                row.prop(item, "set_as_root", text="Set as Root")
-                sub = row.row()
-                sub.enabled = not item.ik and not item.set_as_root
-                sub.prop(item, "location", text="Location")
-
-                # IK 설정
-                row = detail.row(align=True)
-                split = row.split(factor=0.2)
-                if item.set_as_root:
-                    split.enabled = False
-                split.prop(item, "ik", text="IK")
-                if item.ik and arp_obj and arp_obj.data:
-                    split2 = split.split(factor=0.9, align=True)
-                    split2.prop_search(item, "ik_pole", arp_obj.data, "bones", text="Pole")
-
-                    row = detail.row(align=False)
-                    row.enabled = item.ik
-                    row.prop(item, "ik_world", text="IK World Space")
-
-                    row = detail.row(align=False)
-                    row.enabled = item.ik
-                    row.prop(item, "ik_auto_pole", text="")
-                    row.prop(item, "ik_create_constraints")
-
-                    row = detail.row(align=False)
-                    row.enabled = item.ik
-                    row.label(text="IK Axis Correc:")
-                    row.prop(item, "IK_axis_correc", text="")
-
-        layout.separator()
-
-        # Step 4: 리타게팅
-        box = layout.box()
-        box.label(text="Step 4: Retarget", icon="ACTION")
-        row = box.row()
-        row.scale_y = 1.3
-        row.operator("arp_convert.retarget", icon="PLAY")
-
-        layout.separator()
-
         box = layout.box()
         box.label(text="Regression", icon="FILE_TEXT")
         box.prop(props, "regression_fixture", text="Fixture")
         box.prop(props, "regression_report_dir", text="Report Dir")
-        box.prop(props, "regression_run_retarget")
         row = box.row()
         row.scale_y = 1.2
         row.operator("arp_convert.run_regression", icon="CHECKMARK")
@@ -3513,9 +3097,6 @@ classes = [
     ARPCONV_OT_SetParent,
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
-    ARPCONV_OT_RemapSetup,
-    ARPCONV_UL_BoneMap,
-    ARPCONV_OT_Retarget,
     ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,
 ]
