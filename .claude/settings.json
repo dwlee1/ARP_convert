@@ -1,4 +1,19 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; case \"$f\" in */scripts/*.py) python tools/sync_addon.py ;; esac; } 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Syncing addon..."
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(python -m ruff format scripts/ tests/)",
@@ -20,7 +35,21 @@
       "Bash(rm -f \"$ADDONS/arp_convert_addon.py\")",
       "Bash(ln scripts/arp_convert_addon.py \"$ADDONS/arp_convert_addon.py\")",
       "Bash(ruff check:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "WebFetch(domain:docs.blender.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:upbge.org)",
+      "WebFetch(domain:blakejarvis.design)",
+      "Bash(python -m pytest -xvs -k \"test_ik_bmap\" --no-header --co)",
+      "Bash(python -m pytest -xvs --no-header -c /dev/null -p no:cacheprovider -o \"testpaths=tests\" -o \"pythonpath=scripts\" -k \"x_never_match\")",
+      "WebFetch(domain:support.rokoko.com)",
+      "Bash(ln \"c:/Users/manag/Desktop/BlenderRigConvert/scripts/arp_utils.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_utils.py\")",
+      "Bash(ln \"c:/Users/manag/Desktop/BlenderRigConvert/scripts/arp_convert_addon.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_convert_addon.py\")",
+      "Bash(find 'C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5' -type d -name *auto_rig*)",
+      "Bash(find . -name *.bmap -type f)",
+      "Bash(grep -n \"def populate_bone_map\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
+      "Bash(find 'C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5\\extensions\\user_default\\auto_rig_pro\\src' -name *.py -type f)",
+      "Bash(find /c/Users/manag/Desktop/BlenderRigConvert -name *.bmap -type f)"
     ]
   }
 }

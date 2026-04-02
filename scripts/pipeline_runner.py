@@ -1,7 +1,7 @@
 """
 파이프라인 러너
 ===============
-단일 .blend 파일에 대해 01_create_arp_rig + 02_retarget_animation을 순차 실행.
+단일 .blend 파일에 대해 01_create_arp_rig을 실행하고 결과를 저장.
 결과를 conversion_result.json으로 저장.
 
 사용법 (Blender 커맨드라인):
@@ -166,6 +166,15 @@ def snapshot_state():
     }
 
 
+def _remove_temp_armature(obj):
+    if obj is None:
+        return
+    arm_data = obj.data
+    bpy.data.objects.remove(obj, do_unlink=True)
+    if arm_data.users == 0:
+        bpy.data.armatures.remove(arm_data, do_unlink=True)
+
+
 # ═══════════════════════════════════════════════════════════════
 # 메인
 # ═══════════════════════════════════════════════════════════════
@@ -199,6 +208,8 @@ def main():
     result.pre_state = snapshot_state()
     result.add_step("state_recorded")
 
+    analysis = None
+
     # Step 1: ARP 리그 생성
     print("\n--- Step 1: ARP 리그 생성 ---")
     try:
@@ -223,19 +234,22 @@ def main():
         log(f"소스 아마추어: '{source_obj.name}'")
         result.add_step("source_detected")
 
-        # 매핑 생성 (자동 분석 또는 프로필)
-        if auto_mode:
-            from skeleton_analyzer import (
-                analyze_skeleton,
-                generate_arp_mapping,
-                generate_verification_report,
-                save_auto_mapping,
-            )
+        if analysis is None:
+            from skeleton_analyzer import analyze_skeleton
 
             analysis = analyze_skeleton(source_obj)
             if "error" in analysis:
                 result.add_error(f"구조 분석 실패: {analysis['error']}")
                 raise RuntimeError(analysis["error"])
+            result.add_step("source_analyzed")
+
+        # 매핑 생성 (자동 분석 또는 프로필)
+        if auto_mode:
+            from skeleton_analyzer import (
+                generate_arp_mapping,
+                generate_verification_report,
+                save_auto_mapping,
+            )
 
             print(generate_verification_report(analysis))
             save_auto_mapping(analysis, output_dir)

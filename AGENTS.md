@@ -1,6 +1,7 @@
 # BlenderRigConvert
 
-동물 캐릭터 리그를 Auto-Rig Pro 기반으로 통일하고, 리그 생성과 애니메이션 리타게팅을 자동화한다.
+동물 캐릭터 리그를 Auto-Rig Pro 기반으로 통일하고, 리그 생성을 자동화한다.
+리타게팅은 2026-04-02 전면 삭제 후 재설계 예정.
 
 ## 환경
 
@@ -10,7 +11,6 @@
 ## 기준 문서
 
 - **`docs/ProjectPlan.md`** — 단일 기준 문서 (상태, 체크리스트, 남은 기능). 작업 전 반드시 읽을 것
-- `docs/FeaturePlan_v5.md` — F9 Remap UI 통합 설계
 - `docs/FoxTestChecklist.md` — 여우 파일 테스트 기록
 - `docs/RegressionRunner.md` — 대표 샘플 GUI 회귀 테스트 (대량 처리 전략 아님)
 
@@ -18,14 +18,13 @@
 
 | 파일 | 역할 |
 |------|------|
-| `scripts/skeleton_analyzer.py` | 구조 분석, Preview Armature 생성, ref 체인 탐색, `.bmap` 생성 |
-| `scripts/arp_convert_addon.py` | Preview UI, BuildRig, Retarget 오퍼레이터, 회귀 테스트 패널 |
+| `scripts/skeleton_analyzer.py` | 구조 분석, Preview Armature 생성, ref 체인 탐색 |
+| `scripts/arp_convert_addon.py` | Preview UI, BuildRig 오퍼레이터, 회귀 테스트 패널 |
 | `scripts/arp_utils.py` | Blender / ARP 공통 유틸 |
 | `scripts/weight_transfer_rules.py` | 웨이트 전송 (Blender 없이 테스트 가능) |
-| `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 |
+| `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 (Build Rig까지) |
 | `scripts/03_batch_convert.py` | 배치 실행 경로 |
 | `scripts/01_create_arp_rig.py` | [레거시] |
-| `scripts/02_retarget_animation.py` | [레거시] |
 | `scripts/rigify_to_arp.py` | [레거시] |
 
 레거시 파일은 현재 메인 경로와 실제 사용 여부를 확인한 뒤 수정한다.
@@ -60,19 +59,12 @@
 
 ## 현재 메인 구현 경로
 
-Preview 기반 addon 경로가 메인이다. 기준 파이프라인:
+정확한 상태값과 우선순위는 항상 `docs/ProjectPlan.md`를 기준으로 본다.
 
-1. 소스 deform 본 분석 → 2. Preview Armature 생성 → 3. 역할 수정
-4. ARP 리그 생성 (`append_arp`) → 5. 체인 개수 매칭 (`set_spine/neck/tail/ears`)
-6. ref 본 위치 설정 → 7. `match_to_rig` → 8. 앞다리 3 Bones IK 값 설정
-9. 커스텀 본 추가 (원본 이름 유지 + `custom_bone` 프로퍼티) → 10. 전체 웨이트 전송
-11. FBX 익스포트/임포트 (클린 아마추어) → 12. Remap 설정 (.bmap → ARP) → 13. ARP 네이티브 retarget
-
-### 리타게팅 방식 (F10)
-
-- Preview 베이크 방식은 rest pose 차이로 품질 문제 발생 → 폐기
-- **FBX 클린 아마추어 방식**: 원본을 FBX(Deform Only + Anim)로 익스포트 → 재임포트 → ARP 네이티브 retarget
-- 애드온이 FBX 익스포트/임포트를 자동 처리
+- Preview는 분석/역할 수정/UI용으로 유지한다
+- Build Rig까지 구현 완료 (분석 → Preview → 역할 수정 → ARP 리그 생성)
+- **리타게팅 코드는 2026-04-02 전면 삭제됨** — 깨끗한 상태에서 재설계 예정
+- 이전 리타게팅 구현(F10/F11)은 git history 참조 (`8d49a91` 커밋 이전)
 
 ## 검증
 

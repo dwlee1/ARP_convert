@@ -325,7 +325,6 @@ def main():
 
     log("=" * 50)
     log("ARP 리그 생성 완료!")
-    log("다음 단계: 02_retarget_animation.py 실행")
     log("=" * 50)
 
 

@@ -1,7 +1,7 @@
 """
 ARP 변환 공유 유틸리티
 =====================
-ARP 리그 생성 및 공통 유틸리티.
+ARP 리그 생성 공통 유틸리티.
 """
 
 import json
@@ -160,7 +160,6 @@ def load_mapping_profile(profile_name, project_root=None):
     with open(profile_path, encoding="utf-8") as f:
         raw = json.load(f)
 
-    # L→R 미러링
     mirror = raw.get("mirror_suffix", {})
     src_suffixes = mirror.get("source", ["_L", "_R"])
     arp_suffixes = mirror.get("arp", [".l", ".r"])
