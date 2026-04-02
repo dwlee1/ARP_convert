@@ -27,7 +27,7 @@ DEBUG = os.environ.get("BLENDER_RIG_DEBUG", "").lower() in ("1", "true")
 UPWARD_THRESHOLD = 0.3
 DOWNWARD_THRESHOLD = -0.3
 BACKWARD_THRESHOLD = -0.3
-CENTER_X_THRESHOLD = 0.05
+CENTER_X_RATIO = 0.5  # avg_bone_length에 곱하여 L/R 분류 임계값 계산
 LATERAL_THRESHOLD = 0.1
 MIN_LEG_CHAIN_LENGTH = 2
 MAX_EAR_CHAIN_LENGTH = 3
@@ -692,7 +692,23 @@ def trace_spine_chain(root_name, deform_bones):
                 spine_candidates.append(child_name)
 
         if not spine_candidates:
-            break
+            # look-through: face 본의 손자 중 non-face + 후손이 있으면 spine 후보로 복원
+            for child_name in children:
+                child = deform_bones[child_name]
+                for gc_name in child.get("children", []):
+                    if gc_name not in deform_bones:
+                        continue
+                    gc_is_face = any(kw in gc_name.lower() for kw in FACE_BONE_KEYWORDS)
+                    if not gc_is_face and count_descendants(gc_name, deform_bones) > 0:
+                        spine_candidates.append(child_name)
+                        break
+            if not spine_candidates:
+                if DEBUG:
+                    print(
+                        f"[DEBUG] trace_spine_chain: 모든 자식이 face 본 "
+                        f"(parent={current}, children={children}), spine 추적 중단"
+                    )
+                break
 
         # 스파인 후보 중 최선 자식 선택
         # 가중치: 후손 수(0.5) + +Z 방향(0.2) + 위치 Z 변화(0.15) + 중심 X(0.15)
@@ -835,6 +851,13 @@ def classify_legs(branches, spine_chain, deform_bones):
     if not branches:
         return {}
 
+    # 적응형 L/R 분류 임계값: 리그 스케일에 비례
+    if deform_bones:
+        avg_bone_length = sum(b["length"] for b in deform_bones.values()) / len(deform_bones)
+    else:
+        avg_bone_length = 0.1
+    center_x_threshold = avg_bone_length * CENTER_X_RATIO
+
     # 스파인 인덱스 매핑 (0=하단, len-1=상단)
     spine_index = {name: i for i, name in enumerate(spine_chain)}
 
@@ -869,8 +892,8 @@ def classify_legs(branches, spine_chain, deform_bones):
             "spine_idx": idx,
             "avg_x": avg_x,
             "side": "l"
-            if avg_x > CENTER_X_THRESHOLD
-            else ("r" if avg_x < -CENTER_X_THRESHOLD else "c"),
+            if avg_x > center_x_threshold
+            else ("r" if avg_x < -center_x_threshold else "c"),
         }
 
         if idx < spine_mid:
@@ -1481,13 +1504,10 @@ def match_chain_lengths(source_bones, target_refs):
             mapping[source_bones[i]] = target_refs[i]
 
     elif s_len > t_len:
-        # 소스가 더 많음: 양 끝점 고정, 중간 보간
-        mapping[source_bones[0]] = target_refs[0]
-        mapping[source_bones[-1]] = target_refs[-1]
-
-        for t_idx in range(1, t_len - 1):
-            # 보간된 소스 인덱스
-            s_idx = round(t_idx * (s_len - 1) / (t_len - 1))
+        # 소스가 더 많음: 모든 소스를 가장 가까운 타겟에 many-to-one 매핑
+        for s_idx in range(s_len):
+            t_float = s_idx * (t_len - 1) / (s_len - 1)
+            t_idx = round(t_float)
             mapping[source_bones[s_idx]] = target_refs[t_idx]
 
     else:
@@ -1537,6 +1557,7 @@ def generate_arp_mapping(analysis):
     """
     chains = analysis.get("chains", {})
     deform_to_ref = {}
+    skipped_roles = []
 
     for role, chain_info in chains.items():
         source_bones = chain_info["bones"]
@@ -1545,6 +1566,7 @@ def generate_arp_mapping(analysis):
         if not target_refs:
             target_refs = ARP_REF_MAP.get(role, [])
         if not target_refs:
+            skipped_roles.append(role)
             continue
 
         chain_mapping = map_role_chain(role, source_bones, target_refs)
@@ -1556,6 +1578,7 @@ def generate_arp_mapping(analysis):
         "arp_preset": "dog",
         "deform_to_ref": deform_to_ref,
         "ref_alignment": {"priority": {}, "avg_lr": {}},
+        "skipped_roles": skipped_roles,
     }
 
 

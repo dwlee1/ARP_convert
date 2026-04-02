@@ -635,3 +635,77 @@ class TestShapeKeyDriverParsing:
     def test_extract_bone_from_data_path_with_dots(self):
         result = sa._extract_bone_from_data_path('pose.bones["Ctrl.Jaw.001"]["value"]')
         assert result == "Ctrl.Jaw.001"
+
+
+# ═══════════════════════════════════════════════════════════════
+# match_chain_lengths 테스트
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestMatchChainLengths:
+    """match_chain_lengths() 체인 매칭 테스트."""
+
+    def test_equal_lengths(self):
+        result = sa.match_chain_lengths(["a", "b", "c"], ["X", "Y", "Z"])
+        assert result == {"a": "X", "b": "Y", "c": "Z"}
+
+    def test_source_longer_all_mapped(self):
+        """소스가 길 때 모든 소스 본이 매핑되어야 함."""
+        src = ["a", "b", "c", "d", "e"]
+        tgt = ["X", "Y", "Z"]
+        result = sa.match_chain_lengths(src, tgt)
+        assert set(result.keys()) == set(src), "모든 소스 본이 매핑에 포함되어야 함"
+        assert result["a"] == "X", "첫 소스 → 첫 타겟"
+        assert result["e"] == "Z", "마지막 소스 → 마지막 타겟"
+
+    def test_source_longer_two_to_one(self):
+        """소스 2개 → 타겟 1개: 모두 같은 타겟에 매핑."""
+        result = sa.match_chain_lengths(["a", "b"], ["X"])
+        assert result == {"a": "X", "b": "X"}
+
+    def test_source_shorter(self):
+        """소스가 짧으면 루트부터 순서대로."""
+        result = sa.match_chain_lengths(["a", "b"], ["X", "Y", "Z"])
+        assert result == {"a": "X", "b": "Y"}
+
+    def test_empty_source(self):
+        assert sa.match_chain_lengths([], ["X"]) == {}
+
+    def test_empty_target(self):
+        assert sa.match_chain_lengths(["a"], []) == {}
+
+    def test_single_to_single(self):
+        assert sa.match_chain_lengths(["a"], ["X"]) == {"a": "X"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# generate_arp_mapping 스킵 역할 보고 테스트
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestGenerateArpMappingSkippedRoles:
+    """generate_arp_mapping()이 매핑 불가 역할을 보고하는지."""
+
+    def test_skipped_roles_returned(self):
+        analysis = {
+            "chains": {
+                "root": {"bones": ["root_bone"]},
+                "unknown_xyz_role": {"bones": ["some_bone"]},
+            },
+            "confidence": 0.5,
+        }
+        result = sa.generate_arp_mapping(analysis)
+        assert "skipped_roles" in result
+        assert "unknown_xyz_role" in result["skipped_roles"]
+        assert "root" not in result["skipped_roles"]
+
+    def test_no_skipped_roles_when_all_mapped(self):
+        analysis = {
+            "chains": {
+                "root": {"bones": ["center"]},
+                "spine": {"bones": ["spine01", "spine02"]},
+            },
+            "confidence": 0.8,
+        }
+        result = sa.generate_arp_mapping(analysis)
+        assert result.get("skipped_roles", []) == []
