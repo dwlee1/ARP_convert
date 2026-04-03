@@ -191,3 +191,33 @@ def load_mapping_profile(profile_name, project_root=None):
         "deform_to_ref": deform_to_ref,
         "ref_alignment": raw.get("ref_alignment", {}),
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# F12: 애니메이션 베이크 유틸리티
+# ═══════════════════════════════════════════════════════════════
+
+BAKE_PAIRS_KEY = "arpconv_bone_pairs"
+BAKE_CONSTRAINT_NAME = "ARPCONV_CopyTF"
+
+
+def serialize_bone_pairs(pairs):
+    """bone_pairs 리스트를 JSON 문자열로 직렬화.
+
+    Args:
+        pairs: [(source_bone, arp_controller, is_custom), ...]
+
+    Returns:
+        str: JSON 문자열
+    """
+    return json.dumps([list(t) for t in pairs], ensure_ascii=False)
+
+
+def deserialize_bone_pairs(json_str):
+    """JSON 문자열에서 bone_pairs 리스트 복원.
+
+    Returns:
+        list[tuple]: [(source_bone, arp_controller, is_custom), ...]
+    """
+    raw = json.loads(json_str)
+    return [(r[0], r[1], r[2]) for r in raw]
