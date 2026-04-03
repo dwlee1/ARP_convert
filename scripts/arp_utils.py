@@ -417,6 +417,8 @@ def bake_all_actions(source_obj, arp_obj, bone_pairs):
 
         arp_action = bpy.data.actions.new(name=arp_action_name)
         arp_action.use_fake_user = True
+        # 이전 액션이 NLA에 auto-push되지 않도록 먼저 해제
+        arp_obj.animation_data.action = None
         arp_obj.animation_data.action = arp_action
 
         for track, _ in original_mute_states:
@@ -449,6 +451,13 @@ def bake_all_actions(source_obj, arp_obj, bone_pairs):
                 for con in list(pose_bone.constraints):
                     if con.name == BAKE_CONSTRAINT_NAME:
                         pose_bone.constraints.remove(con)
+
+    # ARP에 자동 생성된 NLA 트랙 정리 (액션은 fake_user로 보존)
+    arp_anim = arp_obj.animation_data
+    if arp_anim:
+        for track in list(arp_anim.nla_tracks):
+            arp_anim.nla_tracks.remove(track)
+        log("  ARP NLA 트랙 정리 완료")
 
     log(f"베이크 완료: {len(created_actions)}/{len(actions)} 액션 성공")
     return created_actions
