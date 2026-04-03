@@ -253,7 +253,8 @@ def _switch_to_fk(arp_obj):
     """
     original_values = []
     for pbone in arp_obj.pose.bones:
-        for prop_name in pbone:
+        # Blender 4.5: PoseBone 직접 순회 불가, keys() 사용
+        for prop_name in list(pbone.keys()):
             if prop_name.startswith("_"):
                 continue
             prop_lower = prop_name.lower()
