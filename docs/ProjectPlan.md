@@ -145,10 +145,13 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - addon UI "Step 4: Bake Animation" 버튼, pipeline_runner는 `--bake` 플래그 제어
 
 **구현 상태** (2026-04-03):
-- 기본 구현 완료 (17/17 액션 베이크 성공, IK→FK 전환 포함)
-- 남은 이슈 2개:
-  1. front_foot 매핑: `c_toes_dupli` → `c_foot_fk_dupli`로 패턴 수정 필요 (hand 본이 toe에 매핑됨)
-  2. `c_root_master.x` 180도 뒤집힘: rest pose 방향 차이로 인한 회전 오차. root Location만 복사 검토
+- 기본 FK 베이크 구현 완료 (17/17 성공)
+- 해결된 이슈: front_foot 매핑, back_foot toe 누락, root 180도 뒤집힘, IK→FK 전환, NLA auto-push, PoseBone 순회
+- FK→IK 전환 진행 중: FK Z축 잠금 → leg 0.186m 오차 → IK 모드로 전환 결정
+  - `_ensure_ik_mode()` 구현 완료 (ik_fk_switch = 0.0)
+  - bone_pairs IK 매핑 로직 구현 완료 (다리 중간 본 제거, foot→IK foot)
+  - 남은 이슈: `discover_arp_ctrl_map()`이 FK 컨트롤러만 반환하여 shoulder(c_thigh_b)를 못 잡음
+  - 해결 방향: bone_pairs 생성 시 leg 역할을 ctrl_map 의존 대신 직접 IK 이름 구성
 
 이전 경로 실패 이유 (참고용):
 - Preview bake 경로: 2026-03-30 실험에서 품질 불충분으로 폐기
