@@ -51,6 +51,9 @@ def parse_args():
         elif custom_args[i] == "--auto":
             args["auto"] = True
             i += 1
+        elif custom_args[i] == "--bake":
+            args["bake"] = True
+            i += 1
         else:
             i += 1
     return args
@@ -343,6 +346,33 @@ def main():
         run_arp_operator(bpy.ops.arp.match_to_rig)
         result.add_step("rig_generated")
         log("ARP 리그 생성 완료")
+
+        # F12: 애니메이션 베이크 (--bake 플래그 시)
+        if cli_args.get("bake"):
+            from arp_utils import (
+                BAKE_PAIRS_KEY,
+                bake_all_actions,
+                deserialize_bone_pairs,
+                preflight_check_transforms,
+            )
+
+            log("=" * 50)
+            log("F12: 애니메이션 베이크")
+            log("=" * 50)
+
+            error = preflight_check_transforms(source_obj, arp_obj)
+            if error:
+                log(f"Preflight 실패: {error}", "ERROR")
+                result.add_error(f"베이크 Preflight 실패: {error}")
+            else:
+                raw_pairs = arp_obj.get(BAKE_PAIRS_KEY)
+                if raw_pairs:
+                    bone_pairs = deserialize_bone_pairs(raw_pairs)
+                    created = bake_all_actions(source_obj, arp_obj, bone_pairs)
+                    result.add_step("animation_baked")
+                    log(f"베이크 완료: {len(created)}개 액션")
+                else:
+                    log("bone_pairs 없음 — 베이크 건너뜀", "WARN")
 
     except Exception as e:
         result.add_error(f"리그 생성 실패: {e}")
