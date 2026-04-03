@@ -323,10 +323,12 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
 
 
 def _collect_actions_for_armature(armature_obj):
-    """아마추어에 관련된 모든 액션을 수집."""
+    """아마추어에 관련된 모든 액션을 수집. _arp 접미사 액션은 제외."""
     actions = []
     armature_bone_names = {b.name for b in armature_obj.data.bones}
     for action in bpy.data.actions:
+        if action.name.endswith("_arp"):
+            continue
         for fc in action.fcurves:
             if fc.data_path.startswith("pose.bones["):
                 try:
