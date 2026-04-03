@@ -133,14 +133,16 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ### F12. 애니메이션 베이크 (COPY_TRANSFORMS 방식)
 
-2026-04-02 기존 리타게팅 코드 전면 삭제 후 재설계 완료. 상세 설계: `docs/F12_ExactMatch.md`.
+2026-04-02 재설계 완료, 2026-04-03 grill-me 세션으로 보강. 상세 설계: `docs/F12_ExactMatch.md`.
 
 **결정된 방식**: `COPY_TRANSFORMS (WORLD→WORLD)` + `nla.bake(visual_keying=True)`
 
-- Build Rig에서 생성된 매핑 데이터(`deform_to_ref` + `discover_arp_ctrl_map`)를 자동 활용
+- Build Rig 시 `arp_obj["arpconv_bone_pairs"]`에 매핑 저장 (역할 본 + cc_ 커스텀 본, `is_custom` 플래그 포함)
 - ARP FK 컨트롤러 본에 베이크 (IK/FK 전환 기능 유지)
-- 소스의 모든 액션 자동 순회
-- addon UI에 "Step 4: Bake Animation" 버튼으로 통합
+- 액션 순회: 임시 NLA strip + 기존 NLA mute (Action Slot 호환, 직접 할당 금지)
+- 오브젝트 transform preflight: hard check, 실패 시 중단
+- 역할 본은 Loc/Rot만 유지 (Scale FCurve 삭제), cc_ 본은 Scale 포함
+- addon UI "Step 4: Bake Animation" 버튼, pipeline_runner는 `--bake` 플래그 제어
 
 이전 경로 실패 이유 (참고용):
 - Preview bake 경로: 2026-03-30 실험에서 품질 불충분으로 폐기
