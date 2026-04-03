@@ -320,3 +320,96 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
             log(f"  Scale FCurve 삭제: {len(fcurves_to_remove)}개 (역할 본)")
 
     ensure_object_mode()
+
+
+def _collect_actions_for_armature(armature_obj):
+    """아마추어에 관련된 모든 액션을 수집."""
+    actions = []
+    armature_bone_names = {b.name for b in armature_obj.data.bones}
+    for action in bpy.data.actions:
+        for fc in action.fcurves:
+            if fc.data_path.startswith("pose.bones["):
+                try:
+                    bone_name = fc.data_path.split('"')[1]
+                except IndexError:
+                    continue
+                if bone_name in armature_bone_names:
+                    actions.append(action)
+                    break
+    return actions
+
+
+def bake_all_actions(source_obj, arp_obj, bone_pairs):
+    """소스 아마추어의 모든 액션을 순회하며 ARP 컨트롤러에 베이크.
+
+    Returns:
+        list[str]: 생성된 ARP 액션 이름 리스트
+    """
+    actions = _collect_actions_for_armature(source_obj)
+    if not actions:
+        log("  베이크할 액션이 없습니다.", "WARN")
+        return []
+
+    log(f"액션 {len(actions)}개 발견, 베이크 시작")
+
+    anim_data = source_obj.animation_data
+    if anim_data is None:
+        source_obj.animation_data_create()
+        anim_data = source_obj.animation_data
+
+    if arp_obj.animation_data is None:
+        arp_obj.animation_data_create()
+
+    original_mute_states = [(t, t.mute) for t in anim_data.nla_tracks]
+    created_actions = []
+
+    for action_idx, action in enumerate(actions):
+        action_name = action.name
+        frame_start = int(action.frame_range[0])
+        frame_end = int(action.frame_range[1])
+        arp_action_name = f"{action_name}_arp"
+
+        log(f"  [{action_idx + 1}/{len(actions)}] '{action_name}' ({frame_start}~{frame_end})")
+
+        existing_arp = bpy.data.actions.get(arp_action_name)
+        if existing_arp:
+            bpy.data.actions.remove(existing_arp)
+            log(f"    기존 '{arp_action_name}' 삭제")
+
+        arp_action = bpy.data.actions.new(name=arp_action_name)
+        arp_action.use_fake_user = True
+        arp_obj.animation_data.action = arp_action
+
+        for track, _ in original_mute_states:
+            track.mute = True
+
+        tmp_track = anim_data.nla_tracks.new()
+        tmp_track.name = "_arpconv_tmp"
+        tmp_strip = tmp_track.strips.new(action_name, int(action.frame_range[0]), action)
+        tmp_strip.action_frame_start = frame_start
+        tmp_strip.action_frame_end = frame_end
+
+        try:
+            bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, frame_end)
+            created_actions.append(arp_action_name)
+            log(f"    → '{arp_action_name}' 생성 완료")
+        except Exception as e:
+            log(f"    베이크 실패: {e}", "ERROR")
+            if arp_obj.animation_data and arp_obj.animation_data.action == arp_action:
+                arp_obj.animation_data.action = None
+            bpy.data.actions.remove(arp_action)
+        finally:
+            anim_data.nla_tracks.remove(tmp_track)
+            for track, was_muted in original_mute_states:
+                track.mute = was_muted
+            ensure_object_mode()
+            for _, ctrl_name, _ in bone_pairs:
+                pose_bone = arp_obj.pose.bones.get(ctrl_name)
+                if pose_bone is None:
+                    continue
+                for con in list(pose_bone.constraints):
+                    if con.name == BAKE_CONSTRAINT_NAME:
+                        pose_bone.constraints.remove(con)
+
+    log(f"베이크 완료: {len(created_actions)}/{len(actions)} 액션 성공")
+    return created_actions
