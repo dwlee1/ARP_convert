@@ -2491,6 +2491,34 @@ class ARPCONV_OT_BuildRig(Operator):
                 log(f"  드라이버 리맵 실패 (무시): {e}", "WARN")
                 log(traceback.format_exc(), "WARN")
 
+        # ── F12: bone_pairs 저장 ──
+        from arp_utils import BAKE_PAIRS_KEY, serialize_bone_pairs
+        from skeleton_analyzer import discover_arp_ctrl_map
+
+        bone_pairs = []
+        ctrl_map = discover_arp_ctrl_map(arp_obj)
+        ref_to_role_idx = {}
+        for role, refs in arp_chains.items():
+            for idx, ref_name in enumerate(refs):
+                ref_to_role_idx[ref_name] = (role, idx)
+
+        for src_name, ref_name in deform_to_ref.items():
+            role_idx = ref_to_role_idx.get(ref_name)
+            if role_idx and role_idx[0] in ctrl_map:
+                ctrls = ctrl_map[role_idx[0]]
+                if role_idx[1] < len(ctrls):
+                    bone_pairs.append((src_name, ctrls[role_idx[1]], False))
+
+        for cc_src in custom_bones:
+            cc_name = _make_cc_bone_name(cc_src)
+            if arp_obj.data.bones.get(cc_name):
+                bone_pairs.append((cc_src, cc_name, True))
+
+        arp_obj[BAKE_PAIRS_KEY] = serialize_bone_pairs(bone_pairs)
+        log(
+            f"  bone_pairs 저장: {len(bone_pairs)}쌍 (역할 {sum(1 for _, _, c in bone_pairs if not c)}, 커스텀 {sum(1 for _, _, c in bone_pairs if c)})"
+        )
+
         self.report({"INFO"}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
         return {"FINISHED"}
 
