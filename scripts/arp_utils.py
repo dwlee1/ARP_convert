@@ -245,8 +245,11 @@ def preflight_check_transforms(source_obj, arp_obj):
     return None
 
 
-def _switch_to_fk(arp_obj):
-    """ARP 리그의 모든 IK/FK 스위치를 FK 모드(1.0)로 전환.
+def _ensure_ik_mode(arp_obj):
+    """ARP 리그의 모든 IK/FK 스위치를 IK 모드(0.0)로 전환.
+
+    IK 모드에서 foot 위치를 직접 제어하고 IK solver가 다리 체인을 자동 계산.
+    FK 모드의 Z축 잠금 문제를 회피한다.
 
     Returns:
         list[tuple]: [(pose_bone, prop_name, old_value), ...] 복원용
@@ -261,11 +264,11 @@ def _switch_to_fk(arp_obj):
             if "ik" in prop_lower and "fk" in prop_lower:
                 old_val = pbone[prop_name]
                 try:
-                    pbone[prop_name] = 1.0
+                    pbone[prop_name] = 0.0
                     original_values.append((pbone, prop_name, old_val))
-                    log(f"  IK→FK: {pbone.name}['{prop_name}']: {old_val} → 1.0")
+                    log(f"  IK 모드: {pbone.name}['{prop_name}']: {old_val} → 0.0")
                 except Exception:
-                    log(f"  IK→FK: {pbone.name}['{prop_name}']: 변경 실패", "WARN")
+                    log(f"  IK 모드: {pbone.name}['{prop_name}']: 변경 실패", "WARN")
     return original_values
 
 
@@ -284,13 +287,13 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
     select_only(arp_obj)
     bpy.ops.object.mode_set(mode="POSE")
 
-    # ── [1/5] IK→FK 전환 ──
-    # 다리에 이 로그가 없으면 IK 모드라서 FK 키가 무시될 수 있음
-    ik_fk_originals = _switch_to_fk(arp_obj)
+    # ── [1/5] IK 모드 확인 ──
+    # IK 모드에서 foot 위치를 직접 제어, IK solver가 다리 체인 자동 계산
+    ik_fk_originals = _ensure_ik_mode(arp_obj)
     if ik_fk_originals:
-        log(f"  [1/5] IK→FK 전환 완료: {len(ik_fk_originals)}개 스위치")
+        log(f"  [1/5] IK 모드 전환 완료: {len(ik_fk_originals)}개 스위치")
     else:
-        log("  [1/5] IK/FK 스위치 프로퍼티 없음 (이미 FK이거나 미지원)")
+        log("  [1/5] IK/FK 스위치 프로퍼티 없음 (이미 IK이거나 미지원)")
 
     # ── [2/5] COPY_TRANSFORMS constraint 추가 ──
     # WARN이 나오면 해당 본의 애니메이션이 누락됨

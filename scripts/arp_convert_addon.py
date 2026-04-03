@@ -2493,7 +2493,7 @@ class ARPCONV_OT_BuildRig(Operator):
 
         # ── F12: bone_pairs 저장 ──
         from arp_utils import BAKE_PAIRS_KEY, serialize_bone_pairs
-        from skeleton_analyzer import discover_arp_ctrl_map
+        from skeleton_analyzer import _apply_ik_to_foot_ctrl, discover_arp_ctrl_map
 
         bone_pairs = []
         ctrl_map = discover_arp_ctrl_map(arp_obj)
@@ -2502,12 +2502,44 @@ class ARPCONV_OT_BuildRig(Operator):
             for idx, ref_name in enumerate(refs):
                 ref_to_role_idx[ref_name] = (role, idx)
 
+        # IK 모드 대상 역할 (다리 체인)
+        _IK_LEG_ROLES = {"back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"}
+        _IK_FOOT_ROLES = {"back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"}
+
         for src_name, ref_name in deform_to_ref.items():
             role_idx = ref_to_role_idx.get(ref_name)
-            if role_idx and role_idx[0] in ctrl_map:
-                ctrls = ctrl_map[role_idx[0]]
-                if role_idx[1] < len(ctrls):
-                    bone_pairs.append((src_name, ctrls[role_idx[1]], False))
+            if not role_idx or role_idx[0] not in ctrl_map:
+                continue
+            role = role_idx[0]
+            idx = role_idx[1]
+            ctrls = ctrl_map[role]
+            if idx >= len(ctrls):
+                continue
+
+            ctrl_name = ctrls[idx]
+
+            if role in _IK_LEG_ROLES:
+                # IK 다리: shoulder(첫 본)만 유지, 중간 본 제거, foot은 아래 foot 역할에서 처리
+                if idx == 0:
+                    # shoulder (c_thigh_b) — IK 체인 밖, 독립 제어
+                    bone_pairs.append((src_name, ctrl_name, False))
+                # idx > 0: 중간/마지막 FK 본 → IK solver가 처리, bone_pairs에서 제외
+            elif role in _IK_FOOT_ROLES:
+                # foot 역할: FK foot → IK foot으로 변환
+                ik_ctrl, _pole, is_ik = _apply_ik_to_foot_ctrl(ctrl_name, role)
+                if is_ik and arp_obj.data.bones.get(ik_ctrl):
+                    bone_pairs.append((src_name, ik_ctrl, False))
+                    log(f"  IK foot: {src_name} → {ik_ctrl}")
+                else:
+                    # IK 변환 실패 시 FK 유지
+                    bone_pairs.append((src_name, ctrl_name, False))
+            else:
+                # 비-다리 역할: 그대로 COPY_TRANSFORMS
+                bone_pairs.append((src_name, ctrl_name, False))
+
+        # back_leg의 마지막 본(foot)도 IK로 매핑 — deform_to_ref에서 foot 역할이
+        # back_foot으로 분리되어 있으므로 위 _IK_FOOT_ROLES에서 처리됨.
+        # front_leg의 마지막 본(hand)도 front_foot 역할에서 처리됨.
 
         for cc_src in custom_bones:
             cc_name = _make_cc_bone_name(cc_src)
