@@ -22,6 +22,7 @@
 | `scripts/arp_convert_addon.py` | Preview UI, BuildRig 오퍼레이터, 회귀 테스트 패널 |
 | `scripts/arp_utils.py` | Blender / ARP 공통 유틸 |
 | `scripts/weight_transfer_rules.py` | 웨이트 전송 (Blender 없이 테스트 가능) |
+| `scripts/mcp_bridge.py` | blender-mcp 브릿지 (AI → Blender 자동화) |
 | `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 (Build Rig까지) |
 | `scripts/03_batch_convert.py` | 배치 실행 경로 |
 | `scripts/01_create_arp_rig.py` | [레거시] |
@@ -73,6 +74,33 @@
 pytest tests/ -v
 ```
 `.blend` 기준 검증 항목이 있으면 커밋 메시지에 명시한다.
+
+## blender-mcp 연동
+
+Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에서 직접 Blender를 제어할 수 있다.
+
+- 설정: `.mcp.json` — `uvx blender-mcp` MCP 서버
+- 브릿지: `scripts/mcp_bridge.py` — 고수준 자동화 함수
+
+**사용 가능한 브릿지 함수:**
+
+| 함수 | 용도 |
+|------|------|
+| `mcp_scene_summary()` | 씬 아마추어/메시/액션 요약 |
+| `mcp_create_preview()` | Preview Armature 생성 |
+| `mcp_build_rig()` | ARP Build Rig 실행 |
+| `mcp_run_regression(fixture_path)` | 회귀 테스트 자동 실행 |
+| `mcp_get_bone_roles()` | 본 역할 매핑 조회 |
+| `mcp_set_bone_role(bone, role)` | 개별 본 역할 변경 |
+| `mcp_validate_weights()` | 웨이트 커버리지 검증 |
+| `mcp_bake_animation()` | F12 애니메이션 베이크 |
+
+**호출 패턴 (execute_blender_code):**
+```python
+import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
+from mcp_bridge import mcp_scene_summary
+mcp_scene_summary()
+```
 
 ## 작업 원칙
 

@@ -21,6 +21,7 @@ FILE_MAP = {
     "skeleton_analyzer.py": "skeleton_analyzer.py",
     "arp_utils.py": "arp_utils.py",
     "weight_transfer_rules.py": "weight_transfer_rules.py",
+    "mcp_bridge.py": "mcp_bridge.py",
 }
 
 

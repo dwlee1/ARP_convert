@@ -1,6 +1,35 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cp CLAUDE.md AGENTS.md",
+            "if": "Edit(**/CLAUDE.md)",
+            "statusMessage": "AGENTS.md 동기화"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cp CLAUDE.md AGENTS.md",
+            "if": "Write(**/CLAUDE.md)",
+            "statusMessage": "AGENTS.md 동기화"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
+      "Bash(*)",
+      "Edit(//c/Users/manag/Desktop/BlenderRigConvert/**)",
+      "Write(//c/Users/manag/Desktop/BlenderRigConvert/**)",
       "Read(//c/Users/manag/.claude/**)",
       "Bash(ls -la /c/Users/manag/.claude/skills/grill-me*)",
       "Bash(grep -rn \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\\\\|BUG\\\\|dead code\\\\|deprecated\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
@@ -48,7 +77,18 @@
       "Bash(rm -f \"$ADDONS/$f\")",
       "Bash(ln \"$PROJECT/$f\" \"$ADDONS/$f\")",
       "Bash(cat /c/Users/manag/Desktop/BlenderRigConvert/remap_presets/*.bmap)",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(ls -d \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/\"*/scripts/addons/)",
+      "Bash(pytest tests/test_bake_utils.py -v)",
+      "Bash(pytest tests/ -v)",
+      "Bash(grep -rn \"retarget\\\\|run_retarget\" scripts/*.py)",
+      "Bash('ADDONS=/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons' grep -n \"BakeAnimation\\\\|bake_animation\\\\|Step 4.*Bake\" $ADDONS/arp_convert_addon.py)",
+      "Bash(SRC=\"/c/Users/manag/Desktop/BlenderRigConvert/scripts\")",
+      "Bash(rm -f \"$ADDONS/arp_utils.py\")",
+      "Bash(ln \"$SRC/arp_utils.py\" \"$ADDONS/arp_utils.py\")",
+      "Bash(rm -f \"$ADDONS/arp_rig_convert/arp_utils.py\")",
+      "Bash(ln \"$SRC/arp_utils.py\" \"$ADDONS/arp_rig_convert/arp_utils.py\")",
+      "Bash(rm -rf \"$ADDONS/arp_rig_convert/__pycache__/\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5\\scripts\\addons"
