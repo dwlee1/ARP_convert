@@ -308,12 +308,22 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
             skipped += 1
             continue
 
-        con = pose_bone.constraints.new("COPY_TRANSFORMS")
-        con.name = BAKE_CONSTRAINT_NAME
-        con.target = source_obj
-        con.subtarget = src_name
-        con.target_space = "WORLD"
-        con.owner_space = "WORLD"
+        # c_root_master는 rest pose가 소스와 180도 반전 → COPY_LOCATION만 사용
+        if ctrl_name == "c_root_master.x":
+            con = pose_bone.constraints.new("COPY_LOCATION")
+            con.name = BAKE_CONSTRAINT_NAME
+            con.target = source_obj
+            con.subtarget = src_name
+            con.target_space = "WORLD"
+            con.owner_space = "WORLD"
+            log("  root: COPY_LOCATION (rest pose 반전 보정)")
+        else:
+            con = pose_bone.constraints.new("COPY_TRANSFORMS")
+            con.name = BAKE_CONSTRAINT_NAME
+            con.target = source_obj
+            con.subtarget = src_name
+            con.target_space = "WORLD"
+            con.owner_space = "WORLD"
         added_bones.append(ctrl_name)
 
     if not added_bones:
