@@ -144,6 +144,12 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - 역할 본은 Loc/Rot만 유지 (Scale FCurve 삭제), cc_ 본은 Scale 포함
 - addon UI "Step 4: Bake Animation" 버튼, pipeline_runner는 `--bake` 플래그 제어
 
+**구현 상태** (2026-04-03):
+- 기본 구현 완료 (17/17 액션 베이크 성공, IK→FK 전환 포함)
+- 남은 이슈 2개:
+  1. front_foot 매핑: `c_toes_dupli` → `c_foot_fk_dupli`로 패턴 수정 필요 (hand 본이 toe에 매핑됨)
+  2. `c_root_master.x` 180도 뒤집힘: rest pose 방향 차이로 인한 회전 오차. root Location만 복사 검토
+
 이전 경로 실패 이유 (참고용):
 - Preview bake 경로: 2026-03-30 실험에서 품질 불충분으로 폐기
 - FBX clean armature 경로: Blender 4.5 Action Slot 문제 등 복잡성이 높아 삭제
