@@ -1594,8 +1594,8 @@ _CTRL_SEARCH_PATTERNS = {
     "head": [r"^c_head\."],
     "back_leg_l": [r"^c_thigh_fk\.l", r"^c_leg_fk\.l", r"^c_foot_fk\.l"],
     "back_leg_r": [r"^c_thigh_fk\.r", r"^c_leg_fk\.r", r"^c_foot_fk\.r"],
-    "back_foot_l": [r"^c_toes\.l"],
-    "back_foot_r": [r"^c_toes\.r"],
+    "back_foot_l": [r"^c_toes(_fk)?\.l"],
+    "back_foot_r": [r"^c_toes(_fk)?\.r"],
     # dog 프리셋: 앞다리가 _dupli_001 복제 체인. humanoid 프리셋은 arm 계열.
     # 두 패턴을 모두 나열 — dog에서는 dupli만, humanoid에서는 arm만 매칭됨.
     "front_leg_l": [
