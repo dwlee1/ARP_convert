@@ -221,3 +221,25 @@ def deserialize_bone_pairs(json_str):
     """
     raw = json.loads(json_str)
     return [(r[0], r[1], r[2]) for r in raw]
+
+
+def preflight_check_transforms(source_obj, arp_obj):
+    """베이크 전 오브젝트 transform 검증. 실패 시 에러 메시지 반환.
+
+    Returns:
+        str or None: 에러 메시지 (None이면 통과)
+    """
+    from mathutils import Vector
+
+    tolerance = 1e-4
+    for obj, label in [(source_obj, "소스"), (arp_obj, "ARP")]:
+        loc = obj.location
+        rot = obj.rotation_euler
+        scale = obj.scale
+        if (loc - Vector((0, 0, 0))).length > tolerance:
+            return f"{label} 아마추어 위치가 원점이 아닙니다: {tuple(round(v, 4) for v in loc)}"
+        if (Vector(rot) - Vector((0, 0, 0))).length > tolerance:
+            return f"{label} 아마추어 회전이 0이 아닙니다: {tuple(round(v, 4) for v in rot)}"
+        if (scale - Vector((1, 1, 1))).length > tolerance:
+            return f"{label} 아마추어 스케일이 1이 아닙니다: {tuple(round(v, 4) for v in scale)}"
+    return None
