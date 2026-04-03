@@ -243,3 +243,80 @@ def preflight_check_transforms(source_obj, arp_obj):
         if (scale - Vector((1, 1, 1))).length > tolerance:
             return f"{label} 아마추어 스케일이 1이 아닙니다: {tuple(round(v, 4) for v in scale)}"
     return None
+
+
+def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, frame_end):
+    """bone_pairs 기반으로 COPY_TRANSFORMS → Bake → Constraint 제거."""
+    ensure_object_mode()
+    select_only(arp_obj)
+    bpy.ops.object.mode_set(mode="POSE")
+
+    added_bones = []
+    for src_name, ctrl_name, _is_custom in bone_pairs:
+        pose_bone = arp_obj.pose.bones.get(ctrl_name)
+        if pose_bone is None:
+            log(f"  [WARN] ARP 컨트롤러 '{ctrl_name}' 없음 — 스킵", "WARN")
+            continue
+        src_bone = source_obj.pose.bones.get(src_name)
+        if src_bone is None:
+            log(f"  [WARN] 소스 본 '{src_name}' 없음 — 스킵", "WARN")
+            continue
+
+        con = pose_bone.constraints.new("COPY_TRANSFORMS")
+        con.name = BAKE_CONSTRAINT_NAME
+        con.target = source_obj
+        con.subtarget = src_name
+        con.target_space = "WORLD"
+        con.owner_space = "WORLD"
+        added_bones.append(ctrl_name)
+
+    if not added_bones:
+        log("  [WARN] 추가된 constraint 없음 — 베이크 건너뜀", "WARN")
+        return
+
+    log(f"  COPY_TRANSFORMS 추가: {len(added_bones)}개")
+
+    for bone in arp_obj.data.bones:
+        bone.select = False
+    added_set = set(added_bones)
+    for bone in arp_obj.data.bones:
+        if bone.name in added_set:
+            bone.select = True
+
+    bpy.ops.nla.bake(
+        frame_start=frame_start,
+        frame_end=frame_end,
+        only_selected=True,
+        visual_keying=True,
+        clear_constraints=False,
+        use_current_action=True,
+        bake_types={"POSE"},
+    )
+    log(f"  nla.bake 완료: {frame_start}~{frame_end}")
+
+    for ctrl_name in added_bones:
+        pose_bone = arp_obj.pose.bones.get(ctrl_name)
+        if pose_bone is None:
+            continue
+        for con in list(pose_bone.constraints):
+            if con.name == BAKE_CONSTRAINT_NAME:
+                pose_bone.constraints.remove(con)
+
+    action = arp_obj.animation_data.action if arp_obj.animation_data else None
+    if action:
+        non_custom_ctrls = {ctrl for _, ctrl, is_custom in bone_pairs if not is_custom}
+        fcurves_to_remove = []
+        for fc in action.fcurves:
+            if fc.data_path.startswith("pose.bones["):
+                try:
+                    bone_name = fc.data_path.split('"')[1]
+                except IndexError:
+                    continue
+                if bone_name in non_custom_ctrls and ".scale" in fc.data_path:
+                    fcurves_to_remove.append(fc)
+        for fc in fcurves_to_remove:
+            action.fcurves.remove(fc)
+        if fcurves_to_remove:
+            log(f"  Scale FCurve 삭제: {len(fcurves_to_remove)}개 (역할 본)")
+
+    ensure_object_mode()
