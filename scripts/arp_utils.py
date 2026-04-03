@@ -283,20 +283,28 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
     select_only(arp_obj)
     bpy.ops.object.mode_set(mode="POSE")
 
-    # IK→FK 전환 (FK 컨트롤러에 베이크하므로 FK 모드 필수)
+    # ── [1/5] IK→FK 전환 ──
+    # 다리에 이 로그가 없으면 IK 모드라서 FK 키가 무시될 수 있음
     ik_fk_originals = _switch_to_fk(arp_obj)
     if ik_fk_originals:
-        log(f"  IK→FK 전환: {len(ik_fk_originals)}개 스위치")
+        log(f"  [1/5] IK→FK 전환 완료: {len(ik_fk_originals)}개 스위치")
+    else:
+        log("  [1/5] IK/FK 스위치 프로퍼티 없음 (이미 FK이거나 미지원)")
 
+    # ── [2/5] COPY_TRANSFORMS constraint 추가 ──
+    # WARN이 나오면 해당 본의 애니메이션이 누락됨
     added_bones = []
+    skipped = 0
     for src_name, ctrl_name, _is_custom in bone_pairs:
         pose_bone = arp_obj.pose.bones.get(ctrl_name)
         if pose_bone is None:
             log(f"  [WARN] ARP 컨트롤러 '{ctrl_name}' 없음 — 스킵", "WARN")
+            skipped += 1
             continue
         src_bone = source_obj.pose.bones.get(src_name)
         if src_bone is None:
             log(f"  [WARN] 소스 본 '{src_name}' 없음 — 스킵", "WARN")
+            skipped += 1
             continue
 
         con = pose_bone.constraints.new("COPY_TRANSFORMS")
@@ -308,11 +316,12 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
         added_bones.append(ctrl_name)
 
     if not added_bones:
-        log("  [WARN] 추가된 constraint 없음 — 베이크 건너뜀", "WARN")
+        log("  [ERROR] 추가된 constraint 없음 — 베이크 중단", "ERROR")
         return
 
-    log(f"  COPY_TRANSFORMS 추가: {len(added_bones)}개")
+    log(f"  [2/5] COPY_TRANSFORMS 추가: {len(added_bones)}개 (스킵: {skipped}개)")
 
+    # ── [3/5] nla.bake ──
     for bone in arp_obj.data.bones:
         bone.select = False
     added_set = set(added_bones)
@@ -329,8 +338,10 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
         use_current_action=True,
         bake_types={"POSE"},
     )
-    log(f"  nla.bake 완료: {frame_start}~{frame_end}")
+    log(f"  [3/5] nla.bake 완료: {frame_start}~{frame_end} ({frame_end - frame_start + 1}프레임)")
 
+    # ── [4/5] constraint 제거 ──
+    removed = 0
     for ctrl_name in added_bones:
         pose_bone = arp_obj.pose.bones.get(ctrl_name)
         if pose_bone is None:
@@ -338,7 +349,10 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
         for con in list(pose_bone.constraints):
             if con.name == BAKE_CONSTRAINT_NAME:
                 pose_bone.constraints.remove(con)
+                removed += 1
+    log(f"  [4/5] constraint 제거: {removed}개")
 
+    # ── [5/5] 역할 본 Scale FCurve 삭제 ──
     action = arp_obj.animation_data.action if arp_obj.animation_data else None
     if action:
         non_custom_ctrls = {ctrl for _, ctrl, is_custom in bone_pairs if not is_custom}
@@ -354,7 +368,9 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
         for fc in fcurves_to_remove:
             action.fcurves.remove(fc)
         if fcurves_to_remove:
-            log(f"  Scale FCurve 삭제: {len(fcurves_to_remove)}개 (역할 본)")
+            log(f"  [5/5] Scale FCurve 삭제: {len(fcurves_to_remove)}개 (역할 본)")
+        else:
+            log("  [5/5] Scale FCurve 삭제: 없음")
 
     ensure_object_mode()
 
@@ -386,10 +402,11 @@ def bake_all_actions(source_obj, arp_obj, bone_pairs):
     """
     actions = _collect_actions_for_armature(source_obj)
     if not actions:
-        log("  베이크할 액션이 없습니다.", "WARN")
+        log("  [ERROR] 베이크할 액션이 없습니다.", "WARN")
         return []
 
-    log(f"액션 {len(actions)}개 발견, 베이크 시작")
+    # ── 아래 숫자가 소스 액션 수와 같아야 정상 ──
+    log(f"소스 액션 {len(actions)}개 발견: {', '.join(a.name for a in actions)}")
 
     anim_data = source_obj.animation_data
     if anim_data is None:
@@ -408,7 +425,9 @@ def bake_all_actions(source_obj, arp_obj, bone_pairs):
         frame_end = int(action.frame_range[1])
         arp_action_name = f"{action_name}_arp"
 
-        log(f"  [{action_idx + 1}/{len(actions)}] '{action_name}' ({frame_start}~{frame_end})")
+        log(
+            f"  ── [{action_idx + 1}/{len(actions)}] '{action_name}' ({frame_start}~{frame_end}) ──"
+        )
 
         existing_arp = bpy.data.actions.get(arp_action_name)
         if existing_arp:
@@ -455,9 +474,19 @@ def bake_all_actions(source_obj, arp_obj, bone_pairs):
     # ARP에 자동 생성된 NLA 트랙 정리 (액션은 fake_user로 보존)
     arp_anim = arp_obj.animation_data
     if arp_anim:
+        nla_count = len(arp_anim.nla_tracks)
         for track in list(arp_anim.nla_tracks):
             arp_anim.nla_tracks.remove(track)
-        log("  ARP NLA 트랙 정리 완료")
+        if nla_count:
+            log(f"  ARP NLA 트랙 정리: {nla_count}개 제거")
 
-    log(f"베이크 완료: {len(created_actions)}/{len(actions)} 액션 성공")
+    # ── 최종 결과 (이 줄을 전달해주세요) ──
+    log("=" * 50)
+    if len(created_actions) == len(actions):
+        log(f"[결과] 베이크 성공: {len(created_actions)}/{len(actions)} 액션 완료")
+    else:
+        failed = len(actions) - len(created_actions)
+        log(f"[결과] 베이크 부분 실패: {len(created_actions)} 성공, {failed} 실패")
+    log(f"[결과] 생성된 액션: {', '.join(created_actions)}")
+    log("=" * 50)
     return created_actions
