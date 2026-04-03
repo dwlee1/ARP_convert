@@ -148,18 +148,4 @@ ear02_R
 False
 False
 
-c_eye.l%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%
-eye_L
-False
-False
-
-c_eye.r%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%
-eye_R
-False
-False
-
-c_jawbone.x%False%ABSOLUTE%0.0,0.0,0.0%0.0,0.0,0.0%1.0%False%False%
-jaw
-False
-False
 

@@ -13,7 +13,6 @@
     "chest":       "spine_03_ref.x",
     "neck":        "neck_ref.x",
     "head":        "head_ref.x",
-    "jaw":         "jaw_ref.x",
 
     "thigh_L":     "thigh_b_ref.l",
     "leg_L":       "thigh_ref.l",
@@ -31,8 +30,7 @@
     "tail04":      "tail_03_ref.x",
 
     "ear01_L":     "ear_01_ref.l",
-    "ear02_L":     "ear_02_ref.l",
-    "eye_L":       "c_eye_ref.l"
+    "ear02_L":     "ear_02_ref.l"
   },
 
   "mirror_suffix": {

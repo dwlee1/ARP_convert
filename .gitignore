@@ -1,6 +1,9 @@
 # 에셋 파일 (대용량 블렌더/FBX 파일)
 Asset/
 
+# 빌드 산출물
+dist/
+
 # Blender 자동 백업
 *.blend1
 *.blend2

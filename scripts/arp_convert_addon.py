@@ -1264,7 +1264,6 @@ def _load_regression_fixture(fixture_path):
         "description": data.get("description", ""),
         "apply_mode": apply_mode,
         "roles": normalized_roles,
-        "run_retarget": bool(data.get("run_retarget", True)),
     }
 
 

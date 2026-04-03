@@ -1,7 +1,6 @@
 {
   "description": "Example fixture for preview regression runner",
   "apply_mode": "replace",
-  "run_retarget": true,
   "roles": {
     "root": ["root"],
     "spine": ["spine01", "spine02", "chest"],
@@ -18,6 +17,6 @@
     "tail": ["tail_01", "tail02", "tail03", "tail04"],
     "ear_l": ["ear01_L", "ear02_L"],
     "ear_r": ["ear01_R", "ear02_R"],
-    "face": ["eye_L", "eye_R", "jaw"]
+    "unmapped": ["eye_L", "eye_R", "jaw"]
   }
 }
