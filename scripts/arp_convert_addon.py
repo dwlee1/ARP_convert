@@ -2524,6 +2524,65 @@ class ARPCONV_OT_BuildRig(Operator):
 
 
 # ═══════════════════════════════════════════════════════════════
+# 오퍼레이터: Step 4 — 애니메이션 베이크
+# ═══════════════════════════════════════════════════════════════
+
+
+class ARPCONV_OT_BakeAnimation(Operator):
+    """COPY_TRANSFORMS 기반 애니메이션 베이크"""
+
+    bl_idname = "arp_convert.bake_animation"
+    bl_label = "애니메이션 베이크"
+    bl_description = "소스 애니메이션을 ARP FK 컨트롤러에 COPY_TRANSFORMS로 베이크"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        from arp_utils import (
+            BAKE_PAIRS_KEY,
+            bake_all_actions,
+            deserialize_bone_pairs,
+            find_arp_armature,
+            find_source_armature,
+            log,
+            preflight_check_transforms,
+        )
+
+        source_obj = find_source_armature()
+        if source_obj is None:
+            self.report({"ERROR"}, "소스 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
+
+        arp_obj = find_arp_armature()
+        if arp_obj is None:
+            self.report({"ERROR"}, "ARP 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
+
+        raw_pairs = arp_obj.get(BAKE_PAIRS_KEY)
+        if not raw_pairs:
+            self.report({"ERROR"}, "bone_pairs가 없습니다. Build Rig를 먼저 실행하세요.")
+            return {"CANCELLED"}
+
+        bone_pairs = deserialize_bone_pairs(raw_pairs)
+        if not bone_pairs:
+            self.report({"ERROR"}, "bone_pairs가 비어있습니다.")
+            return {"CANCELLED"}
+
+        error = preflight_check_transforms(source_obj, arp_obj)
+        if error:
+            self.report({"ERROR"}, f"Preflight 실패: {error}")
+            return {"CANCELLED"}
+
+        log("=" * 50)
+        log("Step 4: 애니메이션 베이크 (COPY_TRANSFORMS)")
+        log("=" * 50)
+
+        created = bake_all_actions(source_obj, arp_obj, bone_pairs)
+
+        self.report({"INFO"}, f"베이크 완료: {len(created)}개 액션 생성")
+        return {"FINISHED"}
+
+
+# ═══════════════════════════════════════════════════════════════
 # 오퍼레이터: 회귀 테스트
 # ═══════════════════════════════════════════════════════════════
 
@@ -2823,6 +2882,15 @@ class ARPCONV_PT_MainPanel(Panel):
 
         layout.separator()
 
+        # Step 4: 애니메이션 베이크
+        box = layout.box()
+        box.label(text="Step 4: Bake Animation", icon="ACTION")
+        row = box.row()
+        row.scale_y = 1.3
+        row.operator("arp_convert.bake_animation", icon="ACTION")
+
+        layout.separator()
+
         box = layout.box()
         box.label(text="Regression", icon="FILE_TEXT")
         box.prop(props, "regression_fixture", text="Fixture")
@@ -2844,6 +2912,7 @@ classes = [
     ARPCONV_OT_SetParent,
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
+    ARPCONV_OT_BakeAnimation,
     ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,
 ]
