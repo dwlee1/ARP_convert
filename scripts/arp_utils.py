@@ -245,11 +245,48 @@ def preflight_check_transforms(source_obj, arp_obj):
     return None
 
 
+def _switch_to_fk(arp_obj):
+    """ARP 리그의 모든 IK/FK 스위치를 FK 모드(1.0)로 전환.
+
+    Returns:
+        list[tuple]: [(pose_bone, prop_name, old_value), ...] 복원용
+    """
+    original_values = []
+    for pbone in arp_obj.pose.bones:
+        for prop_name in pbone:
+            if prop_name.startswith("_"):
+                continue
+            prop_lower = prop_name.lower()
+            if "ik" in prop_lower and "fk" in prop_lower:
+                old_val = pbone[prop_name]
+                try:
+                    pbone[prop_name] = 1.0
+                    original_values.append((pbone, prop_name, old_val))
+                    log(f"  IK→FK: {pbone.name}['{prop_name}']: {old_val} → 1.0")
+                except Exception:
+                    log(f"  IK→FK: {pbone.name}['{prop_name}']: 변경 실패", "WARN")
+    return original_values
+
+
+def _restore_ik_fk(original_values):
+    """IK/FK 스위치를 원래 값으로 복원."""
+    for pbone, prop_name, old_val in original_values:
+        try:
+            pbone[prop_name] = old_val
+        except Exception:
+            pass
+
+
 def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, frame_end):
     """bone_pairs 기반으로 COPY_TRANSFORMS → Bake → Constraint 제거."""
     ensure_object_mode()
     select_only(arp_obj)
     bpy.ops.object.mode_set(mode="POSE")
+
+    # IK→FK 전환 (FK 컨트롤러에 베이크하므로 FK 모드 필수)
+    ik_fk_originals = _switch_to_fk(arp_obj)
+    if ik_fk_originals:
+        log(f"  IK→FK 전환: {len(ik_fk_originals)}개 스위치")
 
     added_bones = []
     for src_name, ctrl_name, _is_custom in bone_pairs:
