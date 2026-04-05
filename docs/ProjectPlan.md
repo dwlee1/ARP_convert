@@ -147,11 +147,13 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 **구현 상태** (2026-04-03):
 - 기본 FK 베이크 구현 완료 (17/17 성공)
 - 해결된 이슈: front_foot 매핑, back_foot toe 누락, root 180도 뒤집힘, IK→FK 전환, NLA auto-push, PoseBone 순회
-- FK→IK 전환 진행 중: FK Z축 잠금 → leg 0.186m 오차 → IK 모드로 전환 결정
-  - `_ensure_ik_mode()` 구현 완료 (ik_fk_switch = 0.0)
-  - bone_pairs IK 매핑 로직 구현 완료 (다리 중간 본 제거, foot→IK foot)
-  - 남은 이슈: `discover_arp_ctrl_map()`이 FK 컨트롤러만 반환하여 shoulder(c_thigh_b)를 못 잡음
-  - 해결 방향: bone_pairs 생성 시 leg 역할을 ctrl_map 의존 대신 직접 IK 이름 구성
+- FK→IK 전환 완료 (2026-04-05):
+  - `_ensure_ik_mode()` 구현 (ik_fk_switch = 0.0)
+  - bone_pairs IK 매핑 로직 구현 (다리 중간 본 제거, foot→IK foot)
+  - back_leg shoulder 매핑 블로커 해결: `_CTRL_SEARCH_PATTERNS["back_leg_l/r"]`와 `ARP_REF_MAP`이 불일치했던 근본 원인 수정. `c_foot_fk`가 `back_leg`에 잘못 들어가 있고 원래 있어야 할 `back_foot`에서 빠져 있던 이중 버그였음. 회귀 테스트 4개 추가(TestRoleMapConsistency).
+  - 여우 리그 MCP 검증 결과 (walk 액션): leg 최대 오차 0.186m → **0.00000m** (뒷다리), 전체 최대 오차 3.64mm (앞다리 dupli 잔여). **F12 블로커 완전 해결.**
+  - 관련 커밋: 2a07d78 (test), 8dce2a0 (fix patterns), 5d6b301 (fix toe name)
+  - 참고: 앞다리 dupli 3-4mm 잔여 오차는 별개 이슈 (rest pose 정렬)로 추정, 이 스펙 범위 밖.
 
 이전 경로 실패 이유 (참고용):
 - Preview bake 경로: 2026-03-30 실험에서 품질 불충분으로 폐기

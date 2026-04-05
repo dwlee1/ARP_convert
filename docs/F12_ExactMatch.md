@@ -64,8 +64,8 @@ Build Rig 결과물에서 자동으로 매핑을 구성한다:
   source "thigh_L"
     → deform_to_ref["thigh_L"] = "thigh_b_ref.l"     (Build Rig 결과)
     → role = "back_leg_l", chain_index = 0             (arp_chains 역산)
-    → controller = "c_thigh_fk.l"                      (_CTRL_SEARCH_PATTERNS)
-    → bone_pairs: ("thigh_L", "c_thigh_fk.l", False)
+    → controller = "c_thigh_b.l"                        (_CTRL_SEARCH_PATTERNS)  # 2026-04-05 수정: c_thigh_b.l이 맞음 (back_leg 첫 본, IK shoulder)
+    → bone_pairs: ("thigh_L", "c_thigh_b.l", False)
 
 cc_ 커스텀 본:
   source "eye_L"
@@ -80,7 +80,7 @@ Build Rig 완료 시 `arp_obj["arpconv_bone_pairs"]`에 JSON으로 저장:
 ```python
 # (source_bone, arp_controller, is_custom)
 [
-    ("thigh_L", "c_thigh_fk.l", false),
+    ("thigh_L", "c_thigh_b.l", false),
     ("leg_L", "c_leg_fk.l", false),
     ("eye_L", "eye_L", true),
     ("jaw", "jaw", true)
