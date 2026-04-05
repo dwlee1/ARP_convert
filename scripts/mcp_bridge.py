@@ -36,12 +36,18 @@ def _result(success, data=None, error=None):
 
 
 def _reload():
-    """개발 중 모듈 리로드."""
+    """개발 중 모듈 리로드.
+
+    주의: arp_utils는 reload 대상에서 제외한다. 이미 등록된 addon 모듈들이
+    모듈 로드 시점에 `from arp_utils import log`로 함수 참조를 캡처하므로,
+    arp_utils를 reload하면 `_LOG_LEVEL` 등 global 상태가 분리되어
+    `quiet_logs()` 효과가 addon 내부까지 전파되지 않는다. arp_utils 자체
+    수정 사항은 `mcp_reload_addon()`으로 전체 addon을 재등록해야 반영된다.
+    """
     import importlib
 
     for mod_name in [
         "skeleton_analyzer",
-        "arp_utils",
         "weight_transfer_rules",
         "mcp_verify",
     ]:

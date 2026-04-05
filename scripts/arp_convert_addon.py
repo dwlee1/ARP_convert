@@ -78,12 +78,16 @@ def _ensure_scripts_path():
 
 
 def _reload_modules():
-    """개발 중 모듈 리로드"""
+    """개발 중 모듈 리로드.
+
+    주의: arp_utils는 제외. import 시점에 `from arp_utils import log`로
+    캡처된 함수 참조가 reload로 끊기면 외부에서 설정한 `quiet_logs()` 효과가
+    reload 이후 사라진다. arp_utils 수정은 `mcp_reload_addon()`으로 처리.
+    """
     import importlib
 
     for mod_name in [
         "skeleton_analyzer",
-        "arp_utils",
         "weight_transfer_rules",
         "arp_weight_xfer",
         "arp_foot_guides",

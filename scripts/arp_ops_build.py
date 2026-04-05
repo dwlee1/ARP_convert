@@ -59,13 +59,19 @@ def _ensure_scripts_path():
 
 
 def _reload_modules():
-    """개발 중 모듈 리로드 (arp_convert_addon에서 재수출)"""
+    """개발 중 모듈 리로드 (arp_convert_addon에서 재수출).
+
+    주의: arp_utils는 reload 대상에서 제외한다. addon 모듈들이 import
+    시점에 `from arp_utils import log`로 함수 참조를 캡처하므로, arp_utils를
+    reload하면 `_LOG_LEVEL` 같은 global 상태가 새 모듈 객체로 분리되어
+    외부에서 설정한 `quiet_logs()` 효과가 reload 이후에 사라진다.
+    arp_utils 수정은 `mcp_reload_addon()`으로 전체 재등록해야 반영된다.
+    """
     import importlib
     import sys
 
     for mod_name in [
         "skeleton_analyzer",
-        "arp_utils",
         "weight_transfer_rules",
         "arp_weight_xfer",
         "arp_foot_guides",
