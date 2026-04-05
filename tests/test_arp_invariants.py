@@ -86,7 +86,7 @@ class TestRoleConsistency:
 
     def test_role_items_matches_canonical(self):
         role_items_ids = _extract_list_first_elements(
-            SCRIPTS_DIR / "arp_convert_addon.py", "ROLE_ITEMS"
+            SCRIPTS_DIR / "arp_ops_roles.py", "ROLE_ITEMS"
         )
         assert role_items_ids, "ROLE_ITEMS를 파싱할 수 없음"
         assert role_items_ids == CANONICAL_ROLES, (
