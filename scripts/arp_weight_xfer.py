@@ -3,16 +3,9 @@ arp_convert_addon에서 분리한 웨이트 전송 로직.
 
 소스 아마추어의 vertex group 웨이트를 ARP 리그로 전송하는 함수들.
 Build Rig의 Step 7(전체 웨이트 전송) 단계에서 사용된다.
-
-Note: _distance_sq는 Task 6에서 arp_build_helpers.py로 통합될 때까지
-이 모듈에 로컬 복사본으로 존재한다.
 """
 
 import bpy
-
-
-def _distance_sq(a, b):
-    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
 
 
 def _build_position_weight_map(
@@ -26,7 +19,7 @@ def _build_position_weight_map(
     log,
 ):
     """Preview role metadata를 반영해 source -> ARP deform weight map을 생성한다."""
-    from arp_convert_addon import (
+    from arp_build_helpers import (
         _build_arp_deform_metadata,
         _build_ref_metadata,
         _build_source_deform_metadata,
@@ -141,7 +134,7 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
 
 
 def _map_source_bone_to_target_bone(source_bone_name, custom_bone_names, deform_to_ref):
-    from arp_convert_addon import _make_cc_bone_name
+    from arp_cc_bones import _make_cc_bone_name
 
     if source_bone_name in custom_bone_names:
         return _make_cc_bone_name(source_bone_name)
