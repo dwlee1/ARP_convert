@@ -12,22 +12,9 @@ import bpy
 
 
 def _resolve_project_root():
-    from arp_convert_addon import _PROJECT_RESOURCE_DIRS, _ensure_scripts_path
+    from arp_utils import resolve_project_root
 
-    script_dir = _ensure_scripts_path() or os.path.dirname(os.path.abspath(__file__))
-    current = os.path.abspath(script_dir)
-
-    for _ in range(6):
-        if any(os.path.isdir(os.path.join(current, name)) for name in _PROJECT_RESOURCE_DIRS):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-
-    if os.path.basename(script_dir) == "scripts":
-        return os.path.dirname(script_dir)
-    return script_dir
+    return resolve_project_root(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _resolve_regression_path(raw_path):
@@ -43,7 +30,7 @@ def _default_regression_report_dir():
 
 
 def _load_regression_fixture(fixture_path):
-    from arp_convert_addon import ROLE_IDS
+    from arp_ops_roles import ROLE_IDS
 
     resolved_path = _resolve_regression_path(fixture_path)
     if not resolved_path or not os.path.exists(resolved_path):
