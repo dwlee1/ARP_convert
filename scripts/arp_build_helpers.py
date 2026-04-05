@@ -346,7 +346,7 @@ def _resolve_cc_parent_name(
     root_parent_name,
 ):
     from arp_cc_bones import _make_cc_bone_name
-    from arp_convert_addon import _iter_preview_ancestors
+    from arp_ops_preview import _iter_preview_ancestors
 
     for ancestor_name in _iter_preview_ancestors(source_bone_name, preview_hierarchy):
         if ancestor_name in custom_bone_names:

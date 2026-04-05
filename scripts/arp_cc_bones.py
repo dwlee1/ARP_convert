@@ -53,7 +53,7 @@ def _create_cc_bones_from_preview(
     custom 체인은 Preview 계층을 그대로 따르고, non-custom 조상은 ARP deform 본에 붙인다.
     """
     from arp_build_helpers import _build_cc_parent_targets, _resolve_cc_parent_name
-    from arp_convert_addon import _build_preview_hierarchy
+    from arp_ops_preview import _build_preview_hierarchy
 
     if not custom_bone_names:
         return 0, {}
