@@ -165,6 +165,20 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 이 함수들은 Sub-project ③(addon.py 분할) 실행 중 체크포인트 도구로 사용된다.
 
+### arp_convert_addon.py 분할 완료 (2026-04-05)
+
+2969줄 단일 파일을 12개 모듈로 분할 + 레거시 스크립트 5개 삭제.
+
+- 엔트리: `arp_convert_addon.py` (~148줄, bl_info + register/unregister만)
+- PropertyGroup: `arp_props.py`
+- UI: `arp_ui.py`
+- 오퍼레이터 5개: `arp_ops_preview.py`, `arp_ops_roles.py`, `arp_ops_build.py`, `arp_ops_bake_regression.py`
+- 헬퍼 5개: `arp_build_helpers.py`, `arp_cc_bones.py`, `arp_weight_xfer.py`, `arp_foot_guides.py`, `arp_fixture_io.py`
+- 삭제된 레거시: `01_create_arp_rig.py`, `rigify_to_arp.py`, `bone_mapping.py`, `diagnose_arp_operators.py`, `inspect_rig.py` (1501줄)
+- MCP 체크포인트: Phase별 11개 커밋 후 매번 bone_pairs + 프레임별 위치 비교 검증. F12 back_leg 오차 2.897e-07m 유지.
+
+3개 통합 개선(Workflow / MCP / 코드 건강) 전체 완료.
+
 이전 경로 실패 이유 (참고용):
 - Preview bake 경로: 2026-03-30 실험에서 품질 불충분으로 폐기
 - FBX clean armature 경로: Blender 4.5 Action Slot 문제 등 복잡성이 높아 삭제

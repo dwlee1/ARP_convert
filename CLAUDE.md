@@ -19,7 +19,18 @@
 | 파일 | 역할 |
 |------|------|
 | `scripts/skeleton_analyzer.py` | 구조 분석, Preview Armature 생성, ref 체인 탐색 |
-| `scripts/arp_convert_addon.py` | Preview UI, BuildRig 오퍼레이터, 회귀 테스트 패널 |
+| `scripts/arp_convert_addon.py` | Blender 애드온 엔트리 (bl_info, register/unregister) |
+| `scripts/arp_props.py` | PropertyGroup 정의 (Scene 레벨 addon state) |
+| `scripts/arp_ui.py` | N-panel UI (ARPCONV_PT_MainPanel) |
+| `scripts/arp_ops_preview.py` | CreatePreview 오퍼레이터 + hierarchy 헬퍼 |
+| `scripts/arp_ops_roles.py` | Role editing 오퍼레이터 (SelectBone/SetParent/SetRole) |
+| `scripts/arp_ops_build.py` | BuildRig 오퍼레이터 (가장 큰 execute 본문) |
+| `scripts/arp_ops_bake_regression.py` | BakeAnimation + RunRegression 오퍼레이터 |
+| `scripts/arp_build_helpers.py` | BuildRig 내부 헬퍼 (ref 메타데이터, deform 매핑) |
+| `scripts/arp_cc_bones.py` | cc bone 생성 + constraint 복사 |
+| `scripts/arp_weight_xfer.py` | 웨이트 전송 로직 |
+| `scripts/arp_foot_guides.py` | Foot guide 생성/감지/자동 배치 |
+| `scripts/arp_fixture_io.py` | Regression fixture 로딩/적용 |
 | `scripts/arp_utils.py` | Blender / ARP 공통 유틸 |
 | `scripts/weight_transfer_rules.py` | 웨이트 전송 (Blender 없이 테스트 가능) |
 | `scripts/mcp_bridge.py` | blender-mcp 브릿지 (AI → Blender 자동화) |
