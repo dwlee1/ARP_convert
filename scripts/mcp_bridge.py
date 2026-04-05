@@ -39,7 +39,12 @@ def _reload():
     """개발 중 모듈 리로드."""
     import importlib
 
-    for mod_name in ["skeleton_analyzer", "arp_utils", "weight_transfer_rules"]:
+    for mod_name in [
+        "skeleton_analyzer",
+        "arp_utils",
+        "weight_transfer_rules",
+        "mcp_verify",
+    ]:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
 
@@ -453,6 +458,63 @@ def mcp_bake_animation():
                 "total_pairs": len(bone_pairs),
                 "created_actions": created,
                 "created_count": len(created),
+            },
+        )
+    except Exception as e:
+        _result(False, error=f"{e}\n{traceback.format_exc()}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 9. mcp_inspect_bone_pairs — bone_pairs 조회
+# ═══════════════════════════════════════════════════════════════
+
+
+def mcp_inspect_bone_pairs(role_filter=None):
+    """ARP 리그의 arpconv_bone_pairs를 디코드하고 역할 정보를 첨부해 반환.
+
+    Args:
+        role_filter: None | str | list — 역할 필터 (mcp_verify.filter_pairs_by_role 참조).
+
+    사용 예: F12 bake 이후 특정 역할(예: back_leg_l)이 어느 컨트롤러에 매핑됐는지 확인.
+    """
+    try:
+        _reload()
+        from arp_utils import BAKE_PAIRS_KEY, deserialize_bone_pairs, find_arp_armature
+        from mcp_verify import filter_pairs_by_role
+        from skeleton_analyzer import discover_arp_ctrl_map
+
+        arp_obj = find_arp_armature()
+        if arp_obj is None:
+            _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
+            return
+
+        pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
+        if not pairs_json:
+            _result(
+                False,
+                error=f"'{arp_obj.name}'에 bone_pairs 데이터가 없습니다. BuildRig를 먼저 실행하세요.",
+            )
+            return
+
+        bone_pairs = deserialize_bone_pairs(pairs_json)
+
+        # discover_arp_ctrl_map: {role: [ctrl_names...]} → target_to_role 구성
+        ctrl_map = discover_arp_ctrl_map(arp_obj)
+        target_to_role = {}
+        for role, ctrls in ctrl_map.items():
+            for c in ctrls:
+                target_to_role[c] = role
+
+        filtered = filter_pairs_by_role(bone_pairs, target_to_role, role_filter)
+
+        _result(
+            True,
+            {
+                "arp_armature": arp_obj.name,
+                "total_pairs": len(bone_pairs),
+                "filtered_count": len(filtered),
+                "role_filter": role_filter,
+                "pairs": filtered,
             },
         )
     except Exception as e:
