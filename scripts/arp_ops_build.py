@@ -1050,5 +1050,33 @@ class ARPCONV_OT_BuildRig(Operator):
             f"  bone_pairs 저장: {len(bone_pairs)}쌍 (역할 {sum(1 for _, _, c in bone_pairs if not c)}, 커스텀 {sum(1 for _, _, c in bone_pairs if c)})"
         )
 
+        # ARP match_to_rig가 pose_position을 REST로 남기는 경우가 있어 강제 POSE 복원.
+        # REST 상태로 남으면 제약/애니메이션이 전혀 평가되지 않아 "180도 꼬임"이나
+        # "IK 변환 안 됨"처럼 보이는 부작용이 생긴다.
+        if arp_obj.data.pose_position != "POSE":
+            log(
+                f"  pose_position 복원: {arp_obj.data.pose_position} → POSE"
+            )
+            arp_obj.data.pose_position = "POSE"
+
+        # IK pole이 다리 IK 컨트롤러를 따라가도록 pole_parent=1 기본 활성화.
+        # ARP는 driver로 Child Of_local(pole_parent=1) ↔ Child Of_global(pole_parent=0)을
+        # 스위칭한다. 리그 생성 직후 기본값을 1로 설정해서 사용자가 매번 수동 전환할
+        # 필요를 없앤다.
+        _POLE_BONES = (
+            "c_leg_pole.l",
+            "c_leg_pole.r",
+            "c_leg_pole_dupli_001.l",
+            "c_leg_pole_dupli_001.r",
+        )
+        pole_set = 0
+        for pole_name in _POLE_BONES:
+            pole_pb = arp_obj.pose.bones.get(pole_name)
+            if pole_pb is not None and "pole_parent" in pole_pb:
+                pole_pb["pole_parent"] = 1
+                pole_set += 1
+        if pole_set:
+            log(f"  pole_parent=1 활성화: {pole_set}개 다리 pole")
+
         self.report({"INFO"}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
         return {"FINISHED"}

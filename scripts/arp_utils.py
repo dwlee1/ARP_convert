@@ -287,6 +287,18 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
     select_only(arp_obj)
     bpy.ops.object.mode_set(mode="POSE")
 
+    # ARP 리그가 REST 상태로 남아 있으면 제약/애니메이션이 전혀 평가되지 않아
+    # bake 결과가 rest에 고정된다(회전 180° 꼬임, root 위치 이상 등 증상).
+    # Build Rig의 match_to_rig가 REST로 남길 수 있으므로 방어적으로 복원.
+    if arp_obj.data.pose_position != "POSE":
+        log(f"  pose_position 복원: {arp_obj.data.pose_position} → POSE")
+        arp_obj.data.pose_position = "POSE"
+    if source_obj.data.pose_position != "POSE":
+        log(
+            f"  source pose_position 복원: {source_obj.data.pose_position} → POSE"
+        )
+        source_obj.data.pose_position = "POSE"
+
     # ── [1/5] IK 모드 확인 ──
     # IK 모드에서 foot 위치를 직접 제어, IK solver가 다리 체인 자동 계산
     ik_fk_originals = _ensure_ik_mode(arp_obj)
