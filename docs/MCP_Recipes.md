@@ -42,8 +42,38 @@ for m in ["skeleton_analyzer", "arp_utils", "weight_transfer_rules", "mcp_verify
 | `mcp_validate_weights()` | 웨이트 커버리지 검증 | 없음 |
 | `mcp_bake_animation()` | F12 COPY_TRANSFORMS 베이크 | 없음 |
 | `mcp_inspect_bone_pairs(role_filter)` | bone_pairs 디코드 + 역할 필터 | `None` / str / list |
-| `mcp_compare_frames(pairs, frames, action_name)` | 소스-ARP 월드 위치 비교 | 본 쌍, 프레임, 액션명 |
+| `mcp_compare_frames(pairs, frames, action_name, detailed=False)` | 소스-ARP 월드 위치 비교 | 본 쌍, 프레임, 액션명, 상세 플래그 |
 | `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 | 프리셋명, 정규식 |
+
+## 로그 레벨 / 토큰 최적화
+
+MCP 브릿지 함수는 내부적으로 `arp_utils.quiet_logs()` 컨텍스트를 사용해
+Blender 연산 중 발생하는 INFO/DEBUG 레벨 로그를 자동 억제한다.
+WARN / ERROR 만 출력되므로 Claude 컨텍스트 소비가 대폭 줄어든다.
+(Blender GUI 버튼 경로는 `set_log_level`을 호출하지 않으므로 시스템 콘솔
+출력은 변함없음.)
+
+디버깅이 필요할 때 임계값을 DEBUG로 낮춰 호출한다:
+
+```python
+import arp_utils
+arp_utils.set_log_level("DEBUG")     # 모든 로그 복원
+from mcp_bridge import mcp_build_rig
+mcp_build_rig()
+arp_utils.set_log_level("INFO")      # 기본값 복원
+```
+
+`mcp_compare_frames`의 `detailed` 파라미터:
+
+```python
+# 기본 (compact): per_frame 배열과 report 문자열 생략
+mcp_compare_frames(pairs, frames, action_name="walk")
+
+# 전체 데이터 (per-frame 배열 + 포맷 보고서)
+mcp_compare_frames(pairs, frames, action_name="walk", detailed=True)
+```
+
+7쌍 × 7프레임 호출 기준 compact 모드는 full 모드 대비 약 85% 토큰 절약.
 
 ## 단일 함수 예시 (신규 함수 3개)
 

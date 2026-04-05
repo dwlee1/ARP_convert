@@ -4,6 +4,7 @@ ARP 변환 공유 유틸리티
 ARP 리그 생성 공통 유틸리티.
 """
 
+import contextlib
 import json
 import os
 from datetime import datetime
@@ -15,9 +16,41 @@ _PROJECT_RESOURCE_DIRS = (
     "regression_fixtures",
 )
 
+# ── 로그 레벨 (MCP quiet 모드 지원) ──
+# 기본 INFO. MCP 함수 내부에서 quiet_logs() 컨텍스트가 WARN으로 올려
+# 호출 중 발생하는 INFO 로그를 억제한다. GUI 경로는 set_log_level을 호출하지
+# 않으므로 Blender 시스템 콘솔 출력은 변함없음.
+_LOG_LEVELS = {"DEBUG": 0, "INFO": 1, "WARN": 2, "WARNING": 2, "ERROR": 3}
+_LOG_LEVEL = 1  # INFO
+
+
+def set_log_level(level):
+    """모듈 레벨 로그 임계값 변경. level: DEBUG/INFO/WARN/ERROR."""
+    global _LOG_LEVEL
+    _LOG_LEVEL = _LOG_LEVELS.get(level.upper(), 1)
+
+
+def get_log_level():
+    """현재 로그 레벨(정수) 반환."""
+    return _LOG_LEVEL
+
+
+@contextlib.contextmanager
+def quiet_logs(level="WARN"):
+    """컨텍스트 동안 로그 임계값을 올려 INFO/DEBUG 출력을 억제한다."""
+    global _LOG_LEVEL
+    prev = _LOG_LEVEL
+    set_log_level(level)
+    try:
+        yield
+    finally:
+        _LOG_LEVEL = prev
+
 
 def log(msg, level="INFO"):
-    """로그 출력"""
+    """로그 출력. 임계값보다 낮은 레벨은 건너뜀."""
+    if _LOG_LEVELS.get(level.upper(), 1) < _LOG_LEVEL:
+        return
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"[{timestamp}] [{level}] {msg}")
 
@@ -266,7 +299,7 @@ def _ensure_ik_mode(arp_obj):
                 try:
                     pbone[prop_name] = 0.0
                     original_values.append((pbone, prop_name, old_val))
-                    log(f"  IK 모드: {pbone.name}['{prop_name}']: {old_val} → 0.0")
+                    log(f"  IK 모드: {pbone.name}['{prop_name}']: {old_val} → 0.0", "DEBUG")
                 except Exception:
                     log(f"  IK 모드: {pbone.name}['{prop_name}']: 변경 실패", "WARN")
     return original_values

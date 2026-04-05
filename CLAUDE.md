@@ -102,9 +102,11 @@ Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에
 | `mcp_validate_weights()` | 웨이트 커버리지 검증 |
 | `mcp_bake_animation()` | F12 애니메이션 베이크 |
 | `mcp_inspect_bone_pairs(role_filter)` | bone_pairs 디코드 + 역할 필터 |
-| `mcp_compare_frames(pairs, frames, action_name)` | 소스-ARP 월드 위치 비교 |
+| `mcp_compare_frames(pairs, frames, action_name, detailed=False)` | 소스-ARP 월드 위치 비교 (compact 기본) |
 | `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 |
 | `mcp_reload_addon()` | 레포 `scripts/arp_*.py` → Blender addons sync + 애드온 재등록 |
+
+**토큰 최적화**: MCP 함수는 내부에서 `quiet_logs()` 컨텍스트로 INFO/DEBUG 로그를 억제(WARN/ERROR만 출력). `mcp_compare_frames`는 `detailed=False` 기본으로 `per_frame` 배열과 `report` 문자열 생략. 디버깅 시 `arp_utils.set_log_level("DEBUG")` 또는 `detailed=True` 사용.
 
 상세 사용 레시피: `docs/MCP_Recipes.md`
 

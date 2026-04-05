@@ -335,10 +335,10 @@ class ARPCONV_OT_BuildRig(Operator):
             if ear_cands:
                 arp_chains[f"ear_{side_key}"] = ear_cands
 
-        # 검색 결과 로그
-        log("  --- ARP ref 체인 ---")
+        # 검색 결과 로그 (DEBUG: 상세 체인 테이블)
+        log("  --- ARP ref 체인 ---", "DEBUG")
         for role, bones in arp_chains.items():
-            log(f"  {role:20s}: {' → '.join(bones)}")
+            log(f"  {role:20s}: {' → '.join(bones)}", "DEBUG")
 
         # --- 체인 개수 매칭 (ARP 네이티브 함수로 조정) ---
         chain_adjusted = _adjust_chain_counts(arp_obj, roles, arp_chains, log)
@@ -440,9 +440,9 @@ class ARPCONV_OT_BuildRig(Operator):
                 if ear_cands:
                     arp_chains[f"ear_{side_key}"] = ear_cands
 
-            log("  --- ARP ref 체인 (조정 후) ---")
+            log("  --- ARP ref 체인 (조정 후) ---", "DEBUG")
             for role, bones in arp_chains.items():
-                log(f"  {role:20s}: {' → '.join(bones)}")
+                log(f"  {role:20s}: {' → '.join(bones)}", "DEBUG")
 
         # --- 매핑 생성 ---
         deform_to_ref = {}
@@ -465,7 +465,7 @@ class ARPCONV_OT_BuildRig(Operator):
 
         log(f"  매핑 결과: {len(deform_to_ref)}개")
         for src, ref in deform_to_ref.items():
-            log(f"  {src:25s} → {ref}")
+            log(f"  {src:25s} → {ref}", "DEBUG")
 
         if not deform_to_ref:
             bpy.ops.object.mode_set(mode="OBJECT")
@@ -702,7 +702,8 @@ class ARPCONV_OT_BuildRig(Operator):
                         helper_tail = current_head.lerp(next_head, factor)
                         helper_eb.tail = helper_tail
                         log(
-                            f"  {helper_eb.name}: helper tail 설정 ({next_resolved_child.name}.head/{segment_count}분할)"
+                            f"  {helper_eb.name}: helper tail 설정 ({next_resolved_child.name}.head/{segment_count}분할)",
+                            "DEBUG",
                         )
             elif helper_chain and ref_name.startswith("foot"):
                 # 소스 발 본만 있고 toe 본이 없는 경우:
@@ -718,7 +719,8 @@ class ARPCONV_OT_BuildRig(Operator):
                     helper_tail = current_head.lerp(source_end, factor)
                     helper_eb.tail = helper_tail
                     log(
-                        f"  {helper_eb.name}: virtual toe tail 설정 (프리뷰.tail/{segment_count}분할)"
+                        f"  {helper_eb.name}: virtual toe tail 설정 (프리뷰.tail/{segment_count}분할)",
+                        "DEBUG",
                     )
 
             # root_ref: spine 방향, tail을 원래 pelvis.head에 맞춰 head를 뒤로 이동
@@ -755,18 +757,21 @@ class ARPCONV_OT_BuildRig(Operator):
             if ebone.use_connect and ebone.parent:
                 # connected 본: head가 부모.tail에 고정 → tail만 설정
                 ebone.tail = local_tail
-                log(f"  {ref_name}: tail만 설정 ({tail_source}, connected to {ebone.parent.name})")
+                log(
+                    f"  {ref_name}: tail만 설정 ({tail_source}, connected to {ebone.parent.name})",
+                    "DEBUG",
+                )
             else:
                 # disconnected 본: head + tail 모두 설정
                 ebone.head = local_head
                 ebone.tail = local_tail
-                log(f"  {ref_name}: head+tail 설정 ({tail_source})")
+                log(f"  {ref_name}: head+tail 설정 ({tail_source})", "DEBUG")
 
             ebone.roll = roll
             aligned += 1
 
-        # 진단: 최종 ref 본 상태 로그
-        log("=== ref 본 최종 상태 ===")
+        # 진단: 최종 ref 본 상태 로그 (DEBUG: 대량 좌표 덤프)
+        log("=== ref 본 최종 상태 ===", "DEBUG")
         for ref_name in sorted_refs:
             eb = edit_bones.get(ref_name)
             if eb:
@@ -776,7 +781,8 @@ class ARPCONV_OT_BuildRig(Operator):
                 log(
                     f"  {ref_name}: head=({h.x:.4f},{h.y:.4f},{h.z:.4f}) "
                     f"tail=({t.x:.4f},{t.y:.4f},{t.z:.4f}) "
-                    f"connected={eb.use_connect} parent={parent_name}"
+                    f"connected={eb.use_connect} parent={parent_name}",
+                    "DEBUG",
                 )
 
         bpy.ops.object.mode_set(mode="OBJECT")

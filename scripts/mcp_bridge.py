@@ -121,31 +121,31 @@ def mcp_create_preview():
     """소스 아마추어를 분석하고 Preview Armature를 생성."""
     try:
         _reload()
-        from arp_utils import ensure_object_mode, get_3d_viewport_context
+        from arp_utils import ensure_object_mode, get_3d_viewport_context, quiet_logs
 
-        ensure_object_mode()
-        ctx = get_3d_viewport_context()
-        if ctx is None:
-            _result(False, error="3D Viewport를 찾을 수 없습니다.")
-            return
+        with quiet_logs():
+            ensure_object_mode()
+            ctx = get_3d_viewport_context()
+            if ctx is None:
+                _result(False, error="3D Viewport를 찾을 수 없습니다.")
+                return
 
-        with bpy.context.temp_override(**ctx):
-            result = bpy.ops.arp_convert.create_preview()
+            with bpy.context.temp_override(**ctx):
+                result = bpy.ops.arp_convert.create_preview()
 
-        if "FINISHED" not in result:
-            _result(False, error="Preview 생성 실패 (operator가 FINISHED를 반환하지 않음)")
-            return
+            if "FINISHED" not in result:
+                _result(False, error="Preview 생성 실패 (operator가 FINISHED를 반환하지 않음)")
+                return
 
-        props = bpy.context.scene.arp_convert_props
-        _result(
-            True,
-            {
+            props = bpy.context.scene.arp_convert_props
+            data = {
                 "source_armature": props.source_armature,
                 "preview_armature": props.preview_armature,
                 "confidence": round(props.confidence, 4),
                 "is_analyzed": props.is_analyzed,
-            },
-        )
+            }
+
+        _result(True, data)
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
 
@@ -159,22 +159,29 @@ def mcp_build_rig():
     """ARP Build Rig를 실행하고 결과를 반환."""
     try:
         _reload()
-        from arp_utils import ensure_object_mode, find_arp_armature, get_3d_viewport_context
+        from arp_utils import (
+            ensure_object_mode,
+            find_arp_armature,
+            get_3d_viewport_context,
+            quiet_logs,
+        )
 
-        ensure_object_mode()
-        ctx = get_3d_viewport_context()
-        if ctx is None:
-            _result(False, error="3D Viewport를 찾을 수 없습니다.")
-            return
+        with quiet_logs():
+            ensure_object_mode()
+            ctx = get_3d_viewport_context()
+            if ctx is None:
+                _result(False, error="3D Viewport를 찾을 수 없습니다.")
+                return
 
-        with bpy.context.temp_override(**ctx):
-            result = bpy.ops.arp_convert.build_rig()
+            with bpy.context.temp_override(**ctx):
+                result = bpy.ops.arp_convert.build_rig()
 
-        if "FINISHED" not in result:
-            _result(False, error="BuildRig 실패 (operator가 FINISHED를 반환하지 않음)")
-            return
+            if "FINISHED" not in result:
+                _result(False, error="BuildRig 실패 (operator가 FINISHED를 반환하지 않음)")
+                return
 
-        arp_obj = find_arp_armature()
+            arp_obj = find_arp_armature()
+
         data = {"build_rig": True}
         if arp_obj:
             data["arp_armature"] = arp_obj.name
@@ -194,23 +201,24 @@ def mcp_run_regression(fixture_path):
     """Fixture JSON 기반 회귀 테스트: Preview → 역할 적용 → BuildRig."""
     try:
         _reload()
-        from arp_utils import ensure_object_mode, get_3d_viewport_context
+        from arp_utils import ensure_object_mode, get_3d_viewport_context, quiet_logs
 
-        ensure_object_mode()
-        ctx = get_3d_viewport_context()
-        if ctx is None:
-            _result(False, error="3D Viewport를 찾을 수 없습니다.")
-            return
+        with quiet_logs():
+            ensure_object_mode()
+            ctx = get_3d_viewport_context()
+            if ctx is None:
+                _result(False, error="3D Viewport를 찾을 수 없습니다.")
+                return
 
-        props = bpy.context.scene.arp_convert_props
-        props.regression_fixture = fixture_path
+            props = bpy.context.scene.arp_convert_props
+            props.regression_fixture = fixture_path
 
-        with bpy.context.temp_override(**ctx):
-            result = bpy.ops.arp_convert.run_regression()
+            with bpy.context.temp_override(**ctx):
+                result = bpy.ops.arp_convert.run_regression()
 
-        if "FINISHED" not in result:
-            _result(False, error="회귀 테스트 실패")
-            return
+            if "FINISHED" not in result:
+                _result(False, error="회귀 테스트 실패")
+                return
 
         # 가장 최근 리포트 파일 읽기
         report_dir = None
@@ -344,17 +352,18 @@ def mcp_validate_weights():
     """ARP 리그에 바인딩된 메시의 웨이트 커버리지를 검증."""
     try:
         _reload()
-        from arp_utils import find_arp_armature, find_mesh_objects
+        from arp_utils import find_arp_armature, find_mesh_objects, quiet_logs
 
-        arp_obj = find_arp_armature()
-        if arp_obj is None:
-            _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
-            return
+        with quiet_logs():
+            arp_obj = find_arp_armature()
+            if arp_obj is None:
+                _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
+                return
 
-        meshes = find_mesh_objects(arp_obj)
-        if not meshes:
-            _result(False, error=f"'{arp_obj.name}'에 바인딩된 메시가 없습니다.")
-            return
+            meshes = find_mesh_objects(arp_obj)
+            if not meshes:
+                _result(False, error=f"'{arp_obj.name}'에 바인딩된 메시가 없습니다.")
+                return
 
         results = []
         for mesh_obj in meshes:
@@ -425,30 +434,32 @@ def mcp_bake_animation():
             ensure_object_mode,
             find_arp_armature,
             find_source_armature,
+            quiet_logs,
         )
 
-        ensure_object_mode()
-        source_obj = find_source_armature()
-        if source_obj is None:
-            _result(False, error="소스 아마추어를 찾을 수 없습니다.")
-            return
+        with quiet_logs():
+            ensure_object_mode()
+            source_obj = find_source_armature()
+            if source_obj is None:
+                _result(False, error="소스 아마추어를 찾을 수 없습니다.")
+                return
 
-        arp_obj = find_arp_armature()
-        if arp_obj is None:
-            _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
-            return
+            arp_obj = find_arp_armature()
+            if arp_obj is None:
+                _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
+                return
 
-        # bone_pairs는 BuildRig 후 ARP 아마추어에 저장됨
-        pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
-        if not pairs_json:
-            _result(
-                False,
-                error=f"'{arp_obj.name}'에 bone_pairs 데이터가 없습니다. BuildRig를 먼저 실행하세요.",
-            )
-            return
+            # bone_pairs는 BuildRig 후 ARP 아마추어에 저장됨
+            pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
+            if not pairs_json:
+                _result(
+                    False,
+                    error=f"'{arp_obj.name}'에 bone_pairs 데이터가 없습니다. BuildRig를 먼저 실행하세요.",
+                )
+                return
 
-        bone_pairs = deserialize_bone_pairs(pairs_json)
-        created = bake_all_actions(source_obj, arp_obj, bone_pairs)
+            bone_pairs = deserialize_bone_pairs(pairs_json)
+            created = bake_all_actions(source_obj, arp_obj, bone_pairs)
 
         _result(
             True,
@@ -479,33 +490,39 @@ def mcp_inspect_bone_pairs(role_filter=None):
     """
     try:
         _reload()
-        from arp_utils import BAKE_PAIRS_KEY, deserialize_bone_pairs, find_arp_armature
+        from arp_utils import (
+            BAKE_PAIRS_KEY,
+            deserialize_bone_pairs,
+            find_arp_armature,
+            quiet_logs,
+        )
         from mcp_verify import filter_pairs_by_role
         from skeleton_analyzer import discover_arp_ctrl_map
 
-        arp_obj = find_arp_armature()
-        if arp_obj is None:
-            _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
-            return
+        with quiet_logs():
+            arp_obj = find_arp_armature()
+            if arp_obj is None:
+                _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
+                return
 
-        pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
-        if not pairs_json:
-            _result(
-                False,
-                error=f"'{arp_obj.name}'에 bone_pairs 데이터가 없습니다. BuildRig를 먼저 실행하세요.",
-            )
-            return
+            pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
+            if not pairs_json:
+                _result(
+                    False,
+                    error=f"'{arp_obj.name}'에 bone_pairs 데이터가 없습니다. BuildRig를 먼저 실행하세요.",
+                )
+                return
 
-        bone_pairs = deserialize_bone_pairs(pairs_json)
+            bone_pairs = deserialize_bone_pairs(pairs_json)
 
-        # discover_arp_ctrl_map: {role: [ctrl_names...]} → target_to_role 구성
-        ctrl_map = discover_arp_ctrl_map(arp_obj)
-        target_to_role = {}
-        for role, ctrls in ctrl_map.items():
-            for c in ctrls:
-                target_to_role[c] = role
+            # discover_arp_ctrl_map: {role: [ctrl_names...]} → target_to_role 구성
+            ctrl_map = discover_arp_ctrl_map(arp_obj)
+            target_to_role = {}
+            for role, ctrls in ctrl_map.items():
+                for c in ctrls:
+                    target_to_role[c] = role
 
-        filtered = filter_pairs_by_role(bone_pairs, target_to_role, role_filter)
+            filtered = filter_pairs_by_role(bone_pairs, target_to_role, role_filter)
 
         _result(
             True,
@@ -526,7 +543,7 @@ def mcp_inspect_bone_pairs(role_filter=None):
 # ═══════════════════════════════════════════════════════════════
 
 
-def mcp_compare_frames(pairs, frames, action_name=None):
+def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
     """소스와 ARP 본의 월드 위치를 지정 프레임에서 비교.
 
     Args:
@@ -534,16 +551,19 @@ def mcp_compare_frames(pairs, frames, action_name=None):
         frames: [int, ...] — 샘플 프레임 리스트.
         action_name: None이면 현재 액션 유지. 문자열이면 소스에 '<name>',
                      ARP에 '<name>_arp'를 자동 할당.
+        detailed: False(기본)면 per_frame 배열과 report 문자열을 빈 값으로
+                  돌려 토큰을 줄인다. True면 전체 데이터 반환.
 
     사용 예: F12 Task 6에서 walk 액션 8프레임 샘플로 leg 오차 0.186m → 0.00000m 검증.
     """
     try:
         _reload()
-        from arp_utils import find_arp_armature, find_source_armature
+        from arp_utils import find_arp_armature, find_source_armature, quiet_logs
         from mcp_verify import compute_position_stats, format_comparison_report
 
-        src_obj = find_source_armature()
-        arp_obj = find_arp_armature()
+        with quiet_logs():
+            src_obj = find_source_armature()
+            arp_obj = find_arp_armature()
         if src_obj is None:
             _result(False, error="소스 아마추어를 찾을 수 없습니다.")
             return
@@ -607,7 +627,12 @@ def mcp_compare_frames(pairs, frames, action_name=None):
             )
 
         overall = compute_position_stats(all_distances)
-        report = format_comparison_report(pair_results)
+        report = format_comparison_report(pair_results) if detailed else ""
+
+        # detailed=False: per_frame 배열을 빈 [] 로 치환(키 유지로 호출부 호환)
+        if not detailed:
+            for r in pair_results:
+                r["per_frame"] = []
 
         current_action_name = None
         if src_obj.animation_data and src_obj.animation_data.action:

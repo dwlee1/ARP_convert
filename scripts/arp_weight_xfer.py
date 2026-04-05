@@ -47,13 +47,13 @@ def _build_position_weight_map(
 
     for src_name, mappings in weight_map.items():
         if src_name in cc_bone_map:
-            log(f"  cc_ 매핑: {src_name} -> {mappings[0][0]}")
+            log(f"  cc_ 매핑: {src_name} -> {mappings[0][0]}", "DEBUG")
             continue
         if len(mappings) == 1:
-            log(f"  weight 매핑: {src_name} -> {mappings[0][0]}")
+            log(f"  weight 매핑: {src_name} -> {mappings[0][0]}", "DEBUG")
             continue
         split_str = " + ".join(f"{arp_name}({ratio:.0%})" for arp_name, ratio in mappings)
-        log(f"  weight 분할: {src_name} -> {split_str}")
+        log(f"  weight 분할: {src_name} -> {split_str}", "DEBUG")
 
     return weight_map
 
