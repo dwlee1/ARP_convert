@@ -94,10 +94,15 @@ Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에
 | `mcp_set_bone_role(bone, role)` | 개별 본 역할 변경 |
 | `mcp_validate_weights()` | 웨이트 커버리지 검증 |
 | `mcp_bake_animation()` | F12 애니메이션 베이크 |
+| `mcp_inspect_bone_pairs(role_filter)` | bone_pairs 디코드 + 역할 필터 |
+| `mcp_compare_frames(pairs, frames, action_name)` | 소스-ARP 월드 위치 비교 |
+| `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 |
+
+상세 사용 레시피: `docs/MCP_Recipes.md`
 
 **호출 패턴 (execute_blender_code):**
 ```python
-import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
+import sys; sys.path.insert(0, r'C:\Users\DWLEE\ARP_convert\scripts')
 from mcp_bridge import mcp_scene_summary
 mcp_scene_summary()
 ```
