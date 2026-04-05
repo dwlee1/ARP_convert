@@ -709,3 +709,43 @@ class TestGenerateArpMappingSkippedRoles:
         }
         result = sa.generate_arp_mapping(analysis)
         assert result.get("skipped_roles", []) == []
+
+
+class TestRoleMapConsistency:
+    """ARP_REF_MAP과 _CTRL_SEARCH_PATTERNS의 역할별 일관성을 보장한다.
+
+    단일 본 역할(non-multi)에 대해 ref 맵과 ctrl 검색 패턴이 서로
+    동기화되어 있는지 Python 레벨에서 검증한다. F12 베이크에서 발생한
+    back_leg shoulder 누락 같은 불일치 버그를 조기에 잡기 위한 회귀 테스트.
+    """
+
+    def test_ref_map_and_ctrl_patterns_cover_same_roles(self):
+        """단일 본 역할은 ref_map과 ctrl_patterns에 모두 등장해야 한다."""
+        single_roles = set(sa.ARP_REF_MAP) - sa._MULTI_BONE_ROLES
+        for role in single_roles:
+            assert role in sa._CTRL_SEARCH_PATTERNS, (
+                f"{role} missing in _CTRL_SEARCH_PATTERNS"
+            )
+
+    def test_single_bone_ctrl_patterns_cover_all_refs(self):
+        """단일 본 역할에서 ctrl 패턴 수는 ref 수 이상이어야 한다.
+
+        humanoid fallback 패턴이 함께 나열되는 경우가 있으므로 >=로 검사.
+        """
+        for role, refs in sa.ARP_REF_MAP.items():
+            if role in sa._MULTI_BONE_ROLES:
+                continue
+            patterns = sa._CTRL_SEARCH_PATTERNS.get(role, [])
+            assert len(patterns) >= len(refs), (
+                f"{role}: refs={len(refs)} > ctrl_patterns={len(patterns)}"
+            )
+
+    def test_back_leg_patterns_start_with_thigh_b(self):
+        """dog 3-bone 뒷다리의 shoulder(c_thigh_b)는 첫 패턴이어야 한다."""
+        assert sa._CTRL_SEARCH_PATTERNS["back_leg_l"][0] == r"^c_thigh_b\.l"
+        assert sa._CTRL_SEARCH_PATTERNS["back_leg_r"][0] == r"^c_thigh_b\.r"
+
+    def test_front_leg_patterns_start_with_thigh_b_dupli(self):
+        """dog 3-bone 앞다리의 shoulder(c_thigh_b_dupli)는 첫 패턴이어야 한다."""
+        assert sa._CTRL_SEARCH_PATTERNS["front_leg_l"][0] == r"^c_thigh_b_dupli_\d+\.l"
+        assert sa._CTRL_SEARCH_PATTERNS["front_leg_r"][0] == r"^c_thigh_b_dupli_\d+\.r"
