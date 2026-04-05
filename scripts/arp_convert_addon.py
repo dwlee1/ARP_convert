@@ -84,6 +84,7 @@ def _reload_modules():
         "arp_fixture_io",
         "arp_cc_bones",
         "arp_build_helpers",
+        "arp_props",
     ]:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
@@ -101,6 +102,7 @@ from arp_cc_bones import (
     _make_cc_bone_name,
     _should_connect_cc_bone,
 )
+from arp_props import ARPCONV_HierarchyBoneItem, ARPCONV_Props
 from arp_weight_xfer import (
     _build_position_weight_map,
     _map_source_bone_to_target_bone,
@@ -216,53 +218,6 @@ ROLE_ITEMS = [
     ("unmapped", "Unmapped", "미매핑 (cc_ 커스텀 본)"),
 ]
 ROLE_IDS = {item[0] for item in ROLE_ITEMS}
-
-
-# ═══════════════════════════════════════════════════════════════
-# 프로퍼티
-# ═══════════════════════════════════════════════════════════════
-
-
-class ARPCONV_HierarchyBoneItem(PropertyGroup):
-    """하이어라키 트리 아이템 (name은 PropertyGroup에서 상속)"""
-
-    depth: IntProperty(default=0)
-
-
-class ARPCONV_Props(PropertyGroup):
-    """전역 프로퍼티"""
-
-    preview_armature: StringProperty(name="Preview Armature", default="")
-    source_armature: StringProperty(name="소스 Armature", default="")
-    is_analyzed: BoolProperty(name="분석 완료", default=False)
-    confidence: FloatProperty(name="신뢰도", default=0.0)
-    regression_fixture: StringProperty(
-        name="Fixture JSON",
-        default="",
-        subtype="FILE_PATH",
-    )
-    regression_report_dir: StringProperty(
-        name="Report Dir",
-        default="",
-        subtype="DIR_PATH",
-    )
-    front_3bones_ik: FloatProperty(
-        name="앞다리 3 Bones IK",
-        description="앞다리 3 Bones IK 값. 0.0이면 shoulder 독립 회전, 1.0이면 foot IK에 반응",
-        default=0.0,
-        min=0.0,
-        max=1.0,
-    )
-    show_source_hierarchy: BoolProperty(
-        name="Source Hierarchy",
-        description="소스 본 하이어라키 트리 표시",
-        default=False,
-    )
-    pending_parent: StringProperty(
-        name="Parent",
-        description="선택한 본의 새 부모 (빈 문자열 = 루트)",
-        default="",
-    )
 
 
 # ═══════════════════════════════════════════════════════════════
