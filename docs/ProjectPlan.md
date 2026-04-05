@@ -155,6 +155,18 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - 관련 커밋: 2a07d78 (test), 8dce2a0 (fix patterns), 5d6b301 (fix toe name)
   - 참고: 앞다리 dupli 3-4mm 잔여 오차는 별개 이슈 (rest pose 정렬)로 추정, 이 스펙 범위 밖.
 
+### MCP 피드백 루프 확장 완료 (2026-04-05)
+
+`scripts/mcp_bridge.py`에 3개 함수 추가 + 순수 헬퍼 모듈 + 사용 레시피.
+
+- 신규 브릿지 함수: `mcp_inspect_bone_pairs`, `mcp_compare_frames`, `mcp_inspect_preset_bones`
+- 순수 로직 모듈: `scripts/mcp_verify.py` (pytest 17개 커버)
+- 레시피 문서: `docs/MCP_Recipes.md` — 11개 함수 인덱스 + 3개 조합 레시피 + F12 사례 요약
+- 총 테스트 수: 103 → 120 (신규 +17)
+- MCP 스모크 검증: 여우 walk 액션 기준 back_leg 오차 2.9e-07 m 재현 (F12 해결 상태 유지)
+
+이 함수들은 Sub-project ③(addon.py 분할) 실행 중 체크포인트 도구로 사용된다.
+
 이전 경로 실패 이유 (참고용):
 - Preview bake 경로: 2026-03-30 실험에서 품질 불충분으로 폐기
 - FBX clean armature 경로: Blender 4.5 Action Slot 문제 등 복잡성이 높아 삭제
