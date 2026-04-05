@@ -119,8 +119,6 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 | `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 (Build Rig까지) |
 | `scripts/03_batch_convert.py` | 배치 실행 경로 |
 
-레거시 파일 (`01_create_arp_rig.py`, `rigify_to_arp.py`)은 현재 메인 경로와 실제 사용 여부를 확인한 뒤 수정한다.
-
 ## 참고 문서
 
 | 문서 | 역할 |

@@ -1,7 +1,7 @@
 """
 파이프라인 러너
 ===============
-단일 .blend 파일에 대해 01_create_arp_rig을 실행하고 결과를 저장.
+단일 .blend 파일에 대해 ARP Convert Build Rig 경로를 실행하고 결과를 저장.
 결과를 conversion_result.json으로 저장.
 
 사용법 (Blender 커맨드라인):

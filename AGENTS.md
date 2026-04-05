@@ -25,10 +25,6 @@
 | `scripts/mcp_bridge.py` | blender-mcp 브릿지 (AI → Blender 자동화) |
 | `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 (Build Rig까지) |
 | `scripts/03_batch_convert.py` | 배치 실행 경로 |
-| `scripts/01_create_arp_rig.py` | [레거시] |
-| `scripts/rigify_to_arp.py` | [레거시] |
-
-레거시 파일은 현재 메인 경로와 실제 사용 여부를 확인한 뒤 수정한다.
 
 ## 위반 금지 규칙 (HARD RULES)
 
