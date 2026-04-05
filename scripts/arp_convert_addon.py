@@ -56,8 +56,14 @@ def _ensure_scripts_path():
             sys.path.insert(0, script_dir)
         return script_dir
 
-    if bpy.data.filepath:
-        d = os.path.dirname(bpy.data.filepath)
+    # bpy.data가 restricted context (애드온 등록 중)면 filepath 접근 불가 → 조용히 skip
+    try:
+        blend_filepath = bpy.data.filepath
+    except AttributeError:
+        blend_filepath = ""
+
+    if blend_filepath:
+        d = os.path.dirname(blend_filepath)
         for _ in range(10):
             candidate = os.path.join(d, "scripts")
             if os.path.exists(os.path.join(candidate, "skeleton_analyzer.py")):

@@ -738,28 +738,51 @@ def mcp_reload_addon():
             _result(False, error=f"Blender addons 디렉토리 없음: {blender_addons}")
             return
 
-        # 1) 기존 arp_*.py 삭제
+        # 애드온이 runtime에 의존하는 프로젝트 모듈 allowlist.
+        # arp_* 와 addon 엔트리 외에도 skeleton_analyzer / weight_transfer_rules는
+        # 애드온 오퍼레이터 내부에서 import되므로 반드시 같이 sync해야 한다.
+        _ADDON_DEPS_EXTRA = {
+            "skeleton_analyzer.py",
+            "weight_transfer_rules.py",
+        }
+
+        def _should_sync(name: str) -> bool:
+            if not name.endswith(".py"):
+                return False
+            if name.startswith("arp_"):
+                return True
+            if name == "arp_convert_addon.py":
+                return True
+            return name in _ADDON_DEPS_EXTRA
+
+        # 1) 기존 arp_*.py + 의존 모듈 삭제
         removed = []
         for old in glob.glob(os.path.join(blender_addons, "arp_*.py")):
             os.remove(old)
             removed.append(os.path.basename(old))
+        for dep in _ADDON_DEPS_EXTRA:
+            dep_path = os.path.join(blender_addons, dep)
+            if os.path.exists(dep_path):
+                os.remove(dep_path)
+                removed.append(dep)
 
-        # 2) repo의 arp_*.py + arp_convert_addon.py 복사
+        # 2) repo의 arp_*.py + arp_convert_addon.py + 의존 모듈 복사
         copied = []
         for name in sorted(os.listdir(repo_scripts)):
-            if not name.endswith(".py"):
-                continue
-            if name.startswith("arp_") or name == "arp_convert_addon.py":
+            if _should_sync(name):
                 shutil.copy2(
                     os.path.join(repo_scripts, name),
                     os.path.join(blender_addons, name),
                 )
                 copied.append(name)
 
-        # 3) sys.modules 캐시 제거 (arp_utils 제외)
+        # 3) sys.modules 캐시 제거 — 애드온 의존 모듈 전부 (arp_utils 포함 이번엔)
         purged = []
         for m in list(sys.modules.keys()):
-            if m.startswith("arp_") and m != "arp_utils":
+            if (
+                m.startswith("arp_")
+                or m in ("skeleton_analyzer", "weight_transfer_rules")
+            ):
                 del sys.modules[m]
                 purged.append(m)
 
