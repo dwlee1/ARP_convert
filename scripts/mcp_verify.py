@@ -12,11 +12,14 @@ def filter_pairs_by_role(bone_pairs, target_to_role, role_filter=None):
 
     Args:
         bone_pairs: [(src, tgt, is_custom), ...] 리스트 (3-tuple 또는 list).
-        target_to_role: {target_bone_name: role_or_None} 매핑 (호출부에서 구성).
+        target_to_role: {target_bone_name: role_or_None} flat 매핑.
+            호출부가 discover_arp_ctrl_map() 결과({role: [ctrls,...]})를
+            {ctrl: role} 형태로 뒤집어서 전달해야 한다.
         role_filter: None이면 전체. 문자열이면 정확 매칭. list/set이면 포함 매칭.
 
     Returns:
         [{"source": str, "target": str, "is_custom": bool, "role": str|None}, ...]
+        target이 target_to_role에 없으면 role=None으로 반환.
     """
     if role_filter is None:
         filter_set = None
@@ -62,14 +65,22 @@ def format_comparison_report(pair_results):
     """
     if not pair_results:
         return "no pairs compared"
-    lines = [f"{'src_bone':<25} -> {'arp_bone':<30} | {'max_err':>9} | {'mean_err':>9}"]
-    lines.append("-" * 85)
+    header = f"{'src_bone':<25} -> {'arp_bone':<30} | {'max_err':>9} | {'mean_err':>9}"
+    lines = [header, "-" * len(header)]
     for r in pair_results:
         src = str(r.get("src", ""))
         arp = str(r.get("arp", ""))
-        max_err = float(r.get("max_err", 0.0))
-        mean_err = float(r.get("mean_err", 0.0))
-        lines.append(f"{src:<25} -> {arp:<30} | {max_err:>9.5f} | {mean_err:>9.5f}")
+        try:
+            max_err_val = float(r.get("max_err", 0.0))
+            max_err_str = f"{max_err_val:>9.5f}"
+        except (TypeError, ValueError):
+            max_err_str = f"{'N/A':>9}"
+        try:
+            mean_err_val = float(r.get("mean_err", 0.0))
+            mean_err_str = f"{mean_err_val:>9.5f}"
+        except (TypeError, ValueError):
+            mean_err_str = f"{'N/A':>9}"
+        lines.append(f"{src:<25} -> {arp:<30} | {max_err_str} | {mean_err_str}")
     return "\n".join(lines)
 
 
