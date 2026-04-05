@@ -627,3 +627,73 @@ def mcp_compare_frames(pairs, frames, action_name=None):
         )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 11. mcp_inspect_preset_bones — ARP 프리셋 본 이름 조회
+# ═══════════════════════════════════════════════════════════════
+
+
+def mcp_inspect_preset_bones(preset="dog", pattern=None):
+    """ARP 애드온의 armature_presets/<preset>.blend를 libraries.load로 읽고 본 이름을 반환.
+
+    Args:
+        preset: 프리셋 이름 (기본 'dog').
+        pattern: 정규식 문자열. None이면 전체 반환.
+
+    사용 예: F12에서 c_toes vs c_toes_fk 확정, c_thigh_b.l 실존 확인.
+
+    Note: _append_arp는 MCP 컨텍스트에서 'overlay' 에러를 일으키므로
+    libraries.load로 직접 armature data를 읽는다. 임시 데이터는 함수 종료 시 cleanup.
+    """
+    try:
+        _reload()
+        from mcp_verify import match_bone_names
+
+        # ARP 애드온 경로 탐색
+        try:
+            from bl_ext.user_default.auto_rig_pro.src import auto_rig
+        except ImportError as ie:
+            _result(False, error=f"Auto-Rig Pro 애드온을 찾을 수 없습니다: {ie}")
+            return
+
+        src_dir = os.path.dirname(os.path.abspath(auto_rig.__file__))
+        addon_dir = os.path.dirname(src_dir)
+        preset_path = os.path.join(addon_dir, "armature_presets", f"{preset}.blend")
+        if not os.path.exists(preset_path):
+            _result(False, error=f"프리셋 파일 없음: {preset_path}")
+            return
+
+        # libraries.load로 armature data만 로드
+        with bpy.data.libraries.load(preset_path, link=False) as (data_from, data_to):
+            data_to.armatures = list(data_from.armatures)
+
+        loaded_armatures = list(data_to.armatures)
+        if not loaded_armatures:
+            _result(False, error=f"프리셋 '{preset}'에 armature 데이터가 없습니다.")
+            return
+
+        arm_data = loaded_armatures[0]
+        bone_names = [b.name for b in arm_data.bones]
+        matched = match_bone_names(bone_names, pattern)
+
+        # Cleanup: 로드된 armature data를 제거해 고아 데이터 방지
+        for ad in loaded_armatures:
+            try:
+                bpy.data.armatures.remove(ad)
+            except Exception:
+                pass
+
+        _result(
+            True,
+            {
+                "preset": preset,
+                "preset_path": preset_path,
+                "total_bones": len(bone_names),
+                "pattern": pattern,
+                "matched_count": len(matched),
+                "matched_bones": matched,
+            },
+        )
+    except Exception as e:
+        _result(False, error=f"{e}\n{traceback.format_exc()}")
