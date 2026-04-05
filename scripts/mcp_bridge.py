@@ -697,3 +697,102 @@ def mcp_inspect_preset_bones(preset="dog", pattern=None):
         )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 12. mcp_reload_addon — ARP Convert 애드온 파일 sync + 재등록
+# ═══════════════════════════════════════════════════════════════
+
+
+def mcp_reload_addon():
+    """repo의 scripts/arp_*.py를 Blender addons 디렉토리로 sync하고 애드온을 재등록.
+
+    Sub-project ③(addon.py 분할) 리팩터링 사이클에서 매 커밋 후 호출한다.
+    repo에서 파일을 수정해도 Blender가 로드한 캐시는 구버전이므로, 이 함수가:
+    1) BLENDER_ADDONS/arp_*.py를 모두 삭제 (구버전 잔재 방지)
+    2) repo의 최신 arp_*.py + arp_convert_addon.py를 복사
+    3) sys.modules에서 arp_* 캐시 제거 (arp_utils 제외 — 의존 없음)
+    4) bpy.ops.preferences.addon_disable → addon_enable로 재등록
+
+    반환: 복사된 파일 목록과 재등록 상태.
+    """
+    try:
+        import glob
+        import shutil
+
+        repo_scripts = os.path.dirname(os.path.abspath(__file__))
+        blender_user = os.environ.get("APPDATA", "")
+        if not blender_user:
+            _result(False, error="APPDATA 환경변수 없음 (Windows 전용 경로)")
+            return
+
+        blender_addons = os.path.join(
+            blender_user,
+            "Blender Foundation",
+            "Blender",
+            "4.5",
+            "scripts",
+            "addons",
+        )
+        if not os.path.isdir(blender_addons):
+            _result(False, error=f"Blender addons 디렉토리 없음: {blender_addons}")
+            return
+
+        # 1) 기존 arp_*.py 삭제
+        removed = []
+        for old in glob.glob(os.path.join(blender_addons, "arp_*.py")):
+            os.remove(old)
+            removed.append(os.path.basename(old))
+
+        # 2) repo의 arp_*.py + arp_convert_addon.py 복사
+        copied = []
+        for name in sorted(os.listdir(repo_scripts)):
+            if not name.endswith(".py"):
+                continue
+            if name.startswith("arp_") or name == "arp_convert_addon.py":
+                shutil.copy2(
+                    os.path.join(repo_scripts, name),
+                    os.path.join(blender_addons, name),
+                )
+                copied.append(name)
+
+        # 3) sys.modules 캐시 제거 (arp_utils 제외)
+        purged = []
+        for m in list(sys.modules.keys()):
+            if m.startswith("arp_") and m != "arp_utils":
+                del sys.modules[m]
+                purged.append(m)
+
+        # 4) 애드온 재등록
+        addon_name = "arp_convert_addon"
+        disable_ok = True
+        try:
+            bpy.ops.preferences.addon_disable(module=addon_name)
+        except Exception:
+            disable_ok = False  # 이미 비활성이면 OK
+
+        enable_ok = True
+        enable_error = None
+        try:
+            bpy.ops.preferences.addon_enable(module=addon_name)
+        except Exception as ee:
+            enable_ok = False
+            enable_error = str(ee)
+
+        _result(
+            True,
+            {
+                "blender_addons_dir": blender_addons,
+                "removed_count": len(removed),
+                "removed": removed,
+                "copied_count": len(copied),
+                "copied": copied,
+                "purged_modules_count": len(purged),
+                "purged_modules": purged,
+                "disable_ok": disable_ok,
+                "enable_ok": enable_ok,
+                "enable_error": enable_error,
+            },
+        )
+    except Exception as e:
+        _result(False, error=f"{e}\n{traceback.format_exc()}")

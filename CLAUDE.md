@@ -104,6 +104,7 @@ Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에
 | `mcp_inspect_bone_pairs(role_filter)` | bone_pairs 디코드 + 역할 필터 |
 | `mcp_compare_frames(pairs, frames, action_name)` | 소스-ARP 월드 위치 비교 |
 | `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 |
+| `mcp_reload_addon()` | 레포 `scripts/arp_*.py` → Blender addons sync + 애드온 재등록 |
 
 상세 사용 레시피: `docs/MCP_Recipes.md`
 
