@@ -749,3 +749,69 @@ class TestRoleMapConsistency:
         """dog 3-bone 앞다리의 shoulder(c_thigh_b_dupli)는 첫 패턴이어야 한다."""
         assert sa._CTRL_SEARCH_PATTERNS["front_leg_l"][0] == r"^c_thigh_b_dupli_\d+\.l"
         assert sa._CTRL_SEARCH_PATTERNS["front_leg_r"][0] == r"^c_thigh_b_dupli_\d+\.r"
+
+
+class TestApplyIkToFootCtrl:
+    """F12 bake 시 FK foot 컨트롤러를 IK foot effector로 변환하는 헬퍼 검증.
+
+    이 헬퍼는 back_foot/front_foot 역할의 소스 본이 IK 모드 애니메이션에서
+    올바르게 c_foot_ik 계열 컨트롤러로 매핑되도록 보장한다. 정규식이 c_toes
+    계열만 다뤘던 과거 구현은 back_foot 패턴이 c_foot_fk를 첫 매칭으로 돌려
+    주기 시작한 뒤 fall-through 버그를 일으켰음 (2026-04-05 F12 부작용).
+    """
+
+    def test_c_toes_l_converts_to_c_foot_ik_l(self):
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_toes.l", "back_foot_l")
+        assert ik == "c_foot_ik.l"
+        assert pole == "c_leg_pole.l"
+        assert is_ik is True
+
+    def test_c_toes_fk_r_converts_to_c_foot_ik_r(self):
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_toes_fk.r", "back_foot_r")
+        assert ik == "c_foot_ik.r"
+        assert pole == "c_leg_pole.r"
+        assert is_ik is True
+
+    def test_c_toes_fk_dupli_converts_to_c_foot_ik_dupli(self):
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl(
+            "c_toes_fk_dupli_001.l", "front_foot_l"
+        )
+        assert ik == "c_foot_ik_dupli_001.l"
+        assert pole == "c_leg_pole_dupli_001.l"
+        assert is_ik is True
+
+    def test_c_foot_fk_l_converts_to_c_foot_ik_l(self):
+        """c_foot_fk 계열도 c_foot_ik로 변환되어야 한다 (back_foot 패턴
+        수정 이후 doubled 매칭 fall-through 방지)."""
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_foot_fk.l", "back_foot_l")
+        assert ik == "c_foot_ik.l"
+        assert pole == "c_leg_pole.l"
+        assert is_ik is True
+
+    def test_c_foot_fk_r_converts_to_c_foot_ik_r(self):
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_foot_fk.r", "back_foot_r")
+        assert ik == "c_foot_ik.r"
+        assert pole == "c_leg_pole.r"
+        assert is_ik is True
+
+    def test_c_foot_fk_dupli_converts_to_c_foot_ik_dupli(self):
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl(
+            "c_foot_fk_dupli_001.l", "front_foot_l"
+        )
+        assert ik == "c_foot_ik_dupli_001.l"
+        assert pole == "c_leg_pole_dupli_001.l"
+        assert is_ik is True
+
+    def test_c_hand_fk_humanoid_front_foot(self):
+        """humanoid 프리셋 대비 기존 c_hand_fk 분기 유지."""
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_hand_fk.l", "front_foot_l")
+        assert ik == "c_hand_ik.l"
+        assert pole == "c_arm_pole.l"
+        assert is_ik is True
+
+    def test_unknown_ctrl_returns_is_ik_false(self):
+        """매칭되지 않는 컨트롤러는 (입력, '', False)를 그대로 돌려준다."""
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_random_ctrl.l", "back_foot_l")
+        assert ik == "c_random_ctrl.l"
+        assert pole == ""
+        assert is_ik is False

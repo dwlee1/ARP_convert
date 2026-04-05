@@ -1749,6 +1749,14 @@ def _apply_ik_to_foot_ctrl(ctrl_name, role):
         dupli = m.group(1) or ""
         side = m.group(2)
         return f"c_foot_ik{dupli}{side}", f"c_leg_pole{dupli}{side}", True
+    # c_foot_fk 계열 → c_foot_ik 계열 (2026-04-05 F12 back_foot 패턴 수정 이후
+    # discover_arp_ctrl_map이 c_foot_fk를 첫 매칭으로 반환하므로 이 분기가 필요).
+    # 매칭 대상: c_foot_fk.l, c_foot_fk_dupli_001.r
+    m2 = re.match(r"^c_foot_fk(_dupli_\d+)?(\.[lr])$", ctrl_name)
+    if m2:
+        dupli = m2.group(1) or ""
+        side = m2.group(2)
+        return f"c_foot_ik{dupli}{side}", f"c_leg_pole{dupli}{side}", True
     # humanoid: c_hand_fk → c_hand_ik
     if role.startswith("front_foot") and ctrl_name.startswith("c_hand_fk"):
         suffix = ctrl_name[len("c_hand_fk") :]
