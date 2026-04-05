@@ -109,3 +109,65 @@ mcp_scene_summary()
 - ARP 내부 동작 확인이 꼭 필요한 항목만 최소 범위 실험으로 검증한다
 - 실행 경로가 여러 갈래이므로 한 경로만 고치고 끝내지 않는다
 - fixture/회귀 도구를 늘리는 것보다 자동 역할 추론 정확도 개선을 우선한다
+
+## Workflow
+
+개발 작업을 일관되게 진행하기 위한 규칙. 2026-04-05 F12 작업에서 superpowers 스킬 풀 사이클을 첫 적용한 경험을 토대로 합의됨.
+
+### 브랜치 전략
+
+- 새 기능/버그 수정은 `feat/<name>` 또는 `fix/<name>` 브랜치에서 작업한다
+- `master`는 fast-forward 머지만 허용 (`git merge --ff-only`)
+- 브랜치명 예시: `feat/f8-weight-verify`, `fix/f12-back-leg-shoulder`
+- 예외: 오탈자/주석 등 1-3줄 문서 단독 수정은 master에 직행해도 된다
+
+### 커밋 메시지 컨벤션
+
+Conventional Commits 형식: `type(scope): subject`
+
+- **type**: `feat` | `fix` | `docs` | `test` | `refactor` | `chore`
+- **scope**: 기능 ID(`F12`, `F8`) 또는 하위 영역(`addon`, `mcp`, `analyzer`)
+- **subject**: 한국어/영어 자유, 무엇을/왜 간결하게
+
+좋은 예: `fix(F12): 뒷다리 shoulder 매핑 복구 — c_thigh_b 누락`
+나쁜 예: `남은 파일 다 추가`, `WIP`, `fix`
+
+본문(선택)에는 **왜** 바꿨는지와 참고할 커밋 SHA, 스펙 경로를 남긴다.
+
+### 브레인스토밍 / 스펙이 필수인 작업
+
+다음 중 **하나라도** 해당하면 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` 풀 사이클로 진행한다:
+
+- 3개 이상의 파일에 걸친 변경
+- 아키텍처 결정이 필요한 작업 (라이브러리 선택, 파일 분할, 인터페이스 설계)
+- 동작 변경이 기존 사용자에게 영향을 주는 작업
+- 요구사항이 불명확하거나 여러 해석이 가능한 작업
+
+**바로 구현해도 되는 작업**:
+
+- 오탈자, 1-3줄 명확한 버그 수정
+- 문서 업데이트
+- 기존 패턴을 그대로 따르는 작은 추가 (함수 하나 추가, 테스트 하나 추가)
+
+애매하면 브레인스토밍 쪽으로 기운다. 오버슛이 언더슛보다 싸다.
+
+### ProjectPlan.md 업데이트
+
+- 작업 완료 시점에 해당 머지/PR 흐름 안에서 함께 갱신한다
+- 별도 "docs 업데이트" 커밋으로 미루지 않는다 (상태가 표류함)
+- 우선순위 목록은 머지 직후 재정렬을 검토한다
+
+### Spec / Plan 파일 위치
+
+- Spec: `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+- Plan: `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
+- 브랜치 단위로 쌍(스펙-플랜-구현)이 맞물린다. 이름의 topic은 브랜치명과 정렬시킨다
+
+### 완료 기준
+
+구현 작업은 다음을 모두 만족해야 "완료"로 본다:
+
+- `pytest tests/ -v` 전부 통과
+- `ruff check scripts/ tests/` 통과
+- 관련 문서(ProjectPlan.md + 해당 feature 문서) 갱신됨
+- 피처 브랜치가 master에 fast-forward 머지됨 (또는 명시적으로 "keep" 상태)
