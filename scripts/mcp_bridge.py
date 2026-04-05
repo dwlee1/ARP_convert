@@ -519,3 +519,111 @@ def mcp_inspect_bone_pairs(role_filter=None):
         )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 10. mcp_compare_frames — 프레임별 월드 위치 비교
+# ═══════════════════════════════════════════════════════════════
+
+
+def mcp_compare_frames(pairs, frames, action_name=None):
+    """소스와 ARP 본의 월드 위치를 지정 프레임에서 비교.
+
+    Args:
+        pairs: [(src_bone_name, arp_bone_name), ...] — 비교할 본 쌍.
+        frames: [int, ...] — 샘플 프레임 리스트.
+        action_name: None이면 현재 액션 유지. 문자열이면 소스에 '<name>',
+                     ARP에 '<name>_arp'를 자동 할당.
+
+    사용 예: F12 Task 6에서 walk 액션 8프레임 샘플로 leg 오차 0.186m → 0.00000m 검증.
+    """
+    try:
+        _reload()
+        from arp_utils import find_arp_armature, find_source_armature
+        from mcp_verify import compute_position_stats, format_comparison_report
+
+        src_obj = find_source_armature()
+        arp_obj = find_arp_armature()
+        if src_obj is None:
+            _result(False, error="소스 아마추어를 찾을 수 없습니다.")
+            return
+        if arp_obj is None:
+            _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
+            return
+
+        # 액션 세팅 (옵션)
+        if action_name:
+            src_action = bpy.data.actions.get(action_name)
+            arp_action = bpy.data.actions.get(f"{action_name}_arp")
+            if src_action is None or arp_action is None:
+                _result(
+                    False,
+                    error=f"액션 '{action_name}' 또는 '{action_name}_arp'를 찾을 수 없습니다.",
+                )
+                return
+            if src_obj.animation_data is None:
+                src_obj.animation_data_create()
+            if arp_obj.animation_data is None:
+                arp_obj.animation_data_create()
+            src_obj.animation_data.action = src_action
+            arp_obj.animation_data.action = arp_action
+
+        pair_results = []
+        all_distances = []
+        for src_name, arp_name in pairs:
+            src_pb = src_obj.pose.bones.get(src_name)
+            arp_pb = arp_obj.pose.bones.get(arp_name)
+            if src_pb is None or arp_pb is None:
+                pair_results.append(
+                    {
+                        "src": src_name,
+                        "arp": arp_name,
+                        "error": "bone not found",
+                        "max_err": 0.0,
+                        "mean_err": 0.0,
+                        "per_frame": [],
+                    }
+                )
+                continue
+
+            per_frame = []
+            for f in frames:
+                bpy.context.scene.frame_set(f)
+                s_pos = src_obj.matrix_world @ src_obj.pose.bones[src_name].head
+                a_pos = arp_obj.matrix_world @ arp_obj.pose.bones[arp_name].head
+                d = (a_pos - s_pos).length
+                per_frame.append(d)
+                all_distances.append(d)
+
+            stats = compute_position_stats(per_frame)
+            pair_results.append(
+                {
+                    "src": src_name,
+                    "arp": arp_name,
+                    "max_err": stats["max"],
+                    "mean_err": stats["mean"],
+                    "per_frame": per_frame,
+                }
+            )
+
+        overall = compute_position_stats(all_distances)
+        report = format_comparison_report(pair_results)
+
+        current_action_name = None
+        if src_obj.animation_data and src_obj.animation_data.action:
+            current_action_name = src_obj.animation_data.action.name
+
+        _result(
+            True,
+            {
+                "action": action_name or current_action_name,
+                "frame_count": len(frames),
+                "pair_count": len(pairs),
+                "results": pair_results,
+                "overall_max_err": overall["max"],
+                "overall_mean_err": overall["mean"],
+                "report": report,
+            },
+        )
+    except Exception as e:
+        _result(False, error=f"{e}\n{traceback.format_exc()}")
