@@ -18,7 +18,25 @@ def filter_pairs_by_role(bone_pairs, target_to_role, role_filter=None):
     Returns:
         [{"source": str, "target": str, "is_custom": bool, "role": str|None}, ...]
     """
-    raise NotImplementedError
+    if role_filter is None:
+        filter_set = None
+    elif isinstance(role_filter, str):
+        filter_set = {role_filter}
+    else:
+        filter_set = set(role_filter)
+
+    result = []
+    for pair in bone_pairs:
+        src = pair[0]
+        tgt = pair[1]
+        is_custom = bool(pair[2]) if len(pair) > 2 else False
+        role = target_to_role.get(tgt)
+        if filter_set is not None and role not in filter_set:
+            continue
+        result.append(
+            {"source": src, "target": tgt, "is_custom": is_custom, "role": role}
+        )
+    return result
 
 
 def compute_position_stats(distances):
@@ -26,7 +44,14 @@ def compute_position_stats(distances):
 
     빈 리스트는 {'min': 0.0, 'max': 0.0, 'mean': 0.0, 'count': 0}을 반환한다.
     """
-    raise NotImplementedError
+    if not distances:
+        return {"min": 0.0, "max": 0.0, "mean": 0.0, "count": 0}
+    return {
+        "min": min(distances),
+        "max": max(distances),
+        "mean": sum(distances) / len(distances),
+        "count": len(distances),
+    }
 
 
 def format_comparison_report(pair_results):
@@ -35,7 +60,17 @@ def format_comparison_report(pair_results):
     입력: [{"src": str, "arp": str, "max_err": float, "mean_err": float, ...}, ...]
     빈 입력은 "no pairs compared"를 반환한다.
     """
-    raise NotImplementedError
+    if not pair_results:
+        return "no pairs compared"
+    lines = [f"{'src_bone':<25} -> {'arp_bone':<30} | {'max_err':>9} | {'mean_err':>9}"]
+    lines.append("-" * 85)
+    for r in pair_results:
+        src = str(r.get("src", ""))
+        arp = str(r.get("arp", ""))
+        max_err = float(r.get("max_err", 0.0))
+        mean_err = float(r.get("mean_err", 0.0))
+        lines.append(f"{src:<25} -> {arp:<30} | {max_err:>9.5f} | {mean_err:>9.5f}")
+    return "\n".join(lines)
 
 
 def match_bone_names(bone_names, pattern):
@@ -43,4 +78,10 @@ def match_bone_names(bone_names, pattern):
 
     pattern이 None이면 전체를 정렬 반환한다. 잘못된 정규식은 re.error 전파.
     """
-    raise NotImplementedError
+    import re
+
+    names = sorted(bone_names)
+    if pattern is None:
+        return names
+    regex = re.compile(pattern)
+    return [n for n in names if regex.search(n)]
