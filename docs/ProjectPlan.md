@@ -70,7 +70,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] F1+: Step 2에 Source Hierarchy 트리 UI 추가
 - [x] F2: IK pole vector 위치 매칭 (완료)
 - [x] F3: Shape key 드라이버 보존 (완료)
-- [ ] F12: rest-delta offset 기반 애니메이션 베이크 검증 (`docs/F12_ExactMatch.md`)
+- [ ] F12: ARP 네이티브 리타겟 위임 방식으로 재설계 (`docs/F12_ARP_NativeRetarget.md`) — Setup Retarget + Cleanup 오퍼레이터 구현 필요
 - [ ] F8: 웨이트 전송 실제 검증
 
 ### 자동화 전략

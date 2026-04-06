@@ -1,5 +1,8 @@
 # F12: COPY_TRANSFORMS 기반 애니메이션 베이크
 
+> **⛔ 폐기됨 (2026-04-06)**: 이 문서의 rest-delta offset bake 방식은 IK 컨트롤러 180° 뒤집힘
+> 문제로 폐기되었다. 새 설계는 `F12_ARP_NativeRetarget.md` 참조.
+
 > 설계 확정: 2026-04-02
 > 최종 보강: 2026-04-03 (grill-me 세션 반영)
 
