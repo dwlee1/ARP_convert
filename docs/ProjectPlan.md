@@ -35,7 +35,7 @@ Addon 경로
 6. cc_ 커스텀 본 추가 (shape key 드라이버 컨트롤러 포함)
 7. 전체 웨이트 전송 (deform + cc_ → ARP)
 8. Shape key 드라이버 리맵
-9. 애니메이션 베이크 (F12, 별도 버튼 — COPY_TRANSFORMS → nla.bake)
+9. 애니메이션 베이크 (F12, 별도 버튼 — rest-delta offset bake)
 ```
 
 ```text
@@ -70,7 +70,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] F1+: Step 2에 Source Hierarchy 트리 UI 추가
 - [x] F2: IK pole vector 위치 매칭 (완료)
 - [x] F3: Shape key 드라이버 보존 (완료)
-- [ ] F12: COPY_TRANSFORMS 기반 애니메이션 베이크 (설계 완료, 구현 예정 — `docs/F12_ExactMatch.md`)
+- [ ] F12: rest-delta offset 기반 애니메이션 베이크 검증 (`docs/F12_ExactMatch.md`)
 - [ ] F8: 웨이트 전송 실제 검증
 
 ### 자동화 전략
@@ -125,26 +125,26 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 |------|------|
 | `docs/FoxTestChecklist.md` | 여우 파일 Build Rig 검증 계획 + Preview bake 실험 기록 |
 | `docs/RegressionRunner.md` | 대표 샘플 GUI 회귀 테스트 운영 |
-| `docs/F12_ExactMatch.md` | COPY_TRANSFORMS 기반 애니메이션 베이크 설계 (F12) |
+| `docs/F12_ExactMatch.md` | rest-delta offset 기반 애니메이션 베이크 설계 (F12) |
 
 ## 후속 기능
 
-### F12. 애니메이션 베이크 (COPY_TRANSFORMS 방식)
+### F12. 애니메이션 베이크 (rest-delta offset 방식)
 
 2026-04-02 재설계 완료, 2026-04-03 grill-me 세션으로 보강. 상세 설계: `docs/F12_ExactMatch.md`.
 
-**결정된 방식**: `COPY_TRANSFORMS (WORLD→WORLD)` + `nla.bake(visual_keying=True)`
+**현재 방식**: `delta = source_rest^-1 * source_pose`, `target_pose = controller_rest * delta`
 
 - Build Rig 시 `arp_obj["arpconv_bone_pairs"]`에 매핑 저장 (역할 본 + cc_ 커스텀 본, `is_custom` 플래그 포함)
-- ARP FK 컨트롤러 본에 베이크 (IK/FK 전환 기능 유지)
+- ARP 컨트롤러 본에 직접 keyframe insert (rotation mode 유지, Euler 연속성 보정)
 - 액션 순회: 임시 NLA strip + 기존 NLA mute (Action Slot 호환, 직접 할당 금지)
 - 오브젝트 transform preflight: hard check, 실패 시 중단
 - 역할 본은 Loc/Rot만 유지 (Scale FCurve 삭제), cc_ 본은 Scale 포함
+- MCP 비교는 위치 + 회전 오차를 함께 집계
 - addon UI "Step 4: Bake Animation" 버튼, pipeline_runner는 `--bake` 플래그 제어
 
-**구현 상태** (2026-04-03):
-- 기본 FK 베이크 구현 완료 (17/17 성공)
-- 해결된 이슈: front_foot 매핑, back_foot toe 누락, root 180도 뒤집힘, IK→FK 전환, NLA auto-push, PoseBone 순회
+**구현 상태**:
+- 초기 COPY_TRANSFORMS 기반 베이크는 front_foot 매핑, back_foot toe 누락, root 180도 뒤집힘, IK→FK 전환, NLA auto-push, PoseBone 순회 문제를 해결했음
 - FK→IK 전환 완료 (2026-04-05):
   - `_ensure_ik_mode()` 구현 (ik_fk_switch = 0.0)
   - bone_pairs IK 매핑 로직 구현 (다리 중간 본 제거, foot→IK foot)
@@ -152,6 +152,10 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - 여우 리그 MCP 검증 결과 (walk 액션): leg 최대 오차 0.186m → **0.00000m** (뒷다리), 전체 최대 오차 3.64mm (앞다리 dupli 잔여). **F12 블로커 완전 해결.**
   - 관련 커밋: 2a07d78 (test), 8dce2a0 (fix patterns), 5d6b301 (fix toe name)
   - 참고: 앞다리 dupli 3-4mm 잔여 오차는 별개 이슈 (rest pose 정렬)로 추정, 이 스펙 범위 밖.
+- 후속 수정 (2026-04-06):
+  - `c_foot_ik` 계열의 rest 축 차이 때문에 source 회전을 그대로 복사하면 Y축 180° 뒤집힘이 발생하는 문제 확인
+  - 베이크 엔진을 COPY_TRANSFORMS에서 **rest-delta offset bake**로 전환해 source/controller 축 차이를 bake 시점에 반영
+  - `mcp_compare_frames()`에 회전 오차(deg) 집계 추가
 
 ### MCP 피드백 루프 확장 완료 (2026-04-05)
 
@@ -193,6 +197,6 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ## 우선순위
 
-1. **F12 애니메이션 베이크 구현** — 설계 완료, `docs/F12_ExactMatch.md` 참조
+1. **F12 애니메이션 베이크 검증** — rest-delta offset bake 기준으로 재검증, `docs/F12_ExactMatch.md` 참조
 2. **F8 실제 weight 검증** — 여우 리그 weight paint 검증
 3. **자동 역할 추론 정확도 개선** — 새 동물 리그 대응

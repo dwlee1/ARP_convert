@@ -2,8 +2,6 @@
 mcp_verify 순수 헬퍼 pytest.
 """
 
-import pytest
-
 import mcp_verify as mv
 
 # ─────────────────────────────────────────────────────────────
@@ -49,9 +47,7 @@ class TestFilterPairsByRole:
     def test_list_filter_multi_role(self):
         pairs = self._sample_pairs()
         mapping = self._sample_target_to_role()
-        result = mv.filter_pairs_by_role(
-            pairs, mapping, role_filter=["back_leg_l", "back_foot_l"]
-        )
+        result = mv.filter_pairs_by_role(pairs, mapping, role_filter=["back_leg_l", "back_foot_l"])
         assert len(result) == 2
         targets = {r["target"] for r in result}
         assert targets == {"c_thigh_b.l", "c_foot_fk.l"}
@@ -101,6 +97,15 @@ class TestComputePositionStats:
         assert result["count"] == 1
 
 
+class TestComputeRotationStats:
+    def test_rotation_stats_alias(self):
+        result = mv.compute_rotation_stats([10.0, 20.0, 30.0])
+        assert result["min"] == 10.0
+        assert result["max"] == 30.0
+        assert result["mean"] == 20.0
+        assert result["count"] == 3
+
+
 # ─────────────────────────────────────────────────────────────
 # TestFormatComparisonReport
 # ─────────────────────────────────────────────────────────────
@@ -108,23 +113,81 @@ class TestComputePositionStats:
 
 class TestFormatComparisonReport:
     def test_report_contains_pair_names(self):
-        data = [
-            {"src": "DEF-thigh_L", "arp": "c_thigh_b.l", "max_err": 0.0, "mean_err": 0.0}
-        ]
+        data = [{"src": "DEF-thigh_L", "arp": "c_thigh_b.l", "max_err": 0.0, "mean_err": 0.0}]
         result = mv.format_comparison_report(data)
         assert "DEF-thigh_L" in result
         assert "c_thigh_b.l" in result
 
     def test_report_shows_max_error(self):
-        data = [
-            {"src": "A", "arp": "B", "max_err": 0.00364, "mean_err": 0.00200}
-        ]
+        data = [{"src": "A", "arp": "B", "max_err": 0.00364, "mean_err": 0.00200}]
         result = mv.format_comparison_report(data)
         assert "0.00364" in result
+
+    def test_report_includes_rotation_columns_when_present(self):
+        data = [
+            {
+                "src": "A",
+                "arp": "B",
+                "max_err": 0.00364,
+                "mean_err": 0.00200,
+                "rot_max_deg": 180.0,
+                "rot_mean_deg": 179.5,
+            }
+        ]
+        result = mv.format_comparison_report(data)
+        assert "rot_max" in result
+        assert "180.000" in result
 
     def test_empty_results_returns_fallback_text(self):
         result = mv.format_comparison_report([])
         assert result == "no pairs compared"
+
+
+class TestSummarizePairResults:
+    def test_top_offenders_include_rotation_metrics(self):
+        data = [
+            {
+                "src": "foot_L",
+                "arp": "c_foot_ik.l",
+                "max_err": 0.0002,
+                "mean_err": 0.0001,
+                "rot_max_deg": 180.0,
+                "rot_mean_deg": 179.0,
+            },
+            {
+                "src": "thigh_L",
+                "arp": "c_thigh_b.l",
+                "max_err": 0.002,
+                "mean_err": 0.001,
+                "rot_max_deg": 1.5,
+                "rot_mean_deg": 1.0,
+            },
+        ]
+        result = mv.summarize_pair_results(data, top_n=2)
+        assert result["top_offenders"][0]["src"] == "thigh_L"
+        assert result["top_offenders"][1]["rot_max_deg"] == 180.0
+
+    def test_pass_count_requires_position_and_rotation(self):
+        data = [
+            {
+                "src": "ok",
+                "arp": "ok",
+                "max_err": 0.0001,
+                "mean_err": 0.0,
+                "rot_max_deg": 0.5,
+                "rot_mean_deg": 0.2,
+            },
+            {
+                "src": "flip",
+                "arp": "flip",
+                "max_err": 0.0001,
+                "mean_err": 0.0,
+                "rot_max_deg": 180.0,
+                "rot_mean_deg": 180.0,
+            },
+        ]
+        result = mv.summarize_pair_results(data)
+        assert result["pass_count"] == 1
 
 
 # ─────────────────────────────────────────────────────────────

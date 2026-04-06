@@ -1,8 +1,13 @@
 """F12 베이크 유틸리티 단위 테스트 (Blender 불필요)."""
 
 import json
+import math
 
-from arp_utils import deserialize_bone_pairs, serialize_bone_pairs
+from arp_utils import (
+    _make_compatible_euler_angles,
+    deserialize_bone_pairs,
+    serialize_bone_pairs,
+)
 
 
 class TestBonePairsSerialization:
@@ -30,3 +35,21 @@ class TestBonePairsSerialization:
         raw = json.dumps([["a", "b", True]])
         result = deserialize_bone_pairs(raw)
         assert result == [("a", "b", True)]
+
+
+class TestCompatibleEulerAngles:
+    def test_returns_current_values_without_previous(self):
+        result = _make_compatible_euler_angles((0.1, -0.2, 0.3), None)
+        assert result == (0.1, -0.2, 0.3)
+
+    def test_wraps_positive_pi_boundary(self):
+        previous = (0.0, math.radians(179.0), 0.0)
+        current = (0.0, math.radians(-179.0), 0.0)
+        result = _make_compatible_euler_angles(current, previous)
+        assert abs(result[1] - math.radians(181.0)) < 1e-6
+
+    def test_wraps_negative_pi_boundary(self):
+        previous = (0.0, math.radians(-179.0), 0.0)
+        current = (0.0, math.radians(179.0), 0.0)
+        result = _make_compatible_euler_angles(current, previous)
+        assert abs(result[1] - math.radians(-181.0)) < 1e-6

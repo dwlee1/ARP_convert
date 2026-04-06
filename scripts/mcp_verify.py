@@ -36,9 +36,7 @@ def filter_pairs_by_role(bone_pairs, target_to_role, role_filter=None):
         role = target_to_role.get(tgt)
         if filter_set is not None and role not in filter_set:
             continue
-        result.append(
-            {"source": src, "target": tgt, "is_custom": is_custom, "role": role}
-        )
+        result.append({"source": src, "target": tgt, "is_custom": is_custom, "role": role})
     return result
 
 
@@ -57,6 +55,50 @@ def compute_position_stats(distances):
     }
 
 
+def compute_rotation_stats(angles_deg):
+    """회전 오차(deg) 리스트에서 min/max/mean/count를 집계한다."""
+    return compute_position_stats(angles_deg)
+
+
+def summarize_pair_results(
+    pair_results,
+    *,
+    top_n=5,
+    position_threshold=0.001,
+    rotation_threshold_deg=1.0,
+):
+    """pair 결과를 정렬/요약해 요약 모드 응답에 맞는 dict로 반환한다."""
+    sorted_pairs = sorted(
+        pair_results,
+        key=lambda r: (
+            float(r.get("max_err", 0.0)),
+            float(r.get("rot_max_deg", 0.0)),
+        ),
+        reverse=True,
+    )
+    top_offenders = [
+        {
+            "src": r.get("src"),
+            "arp": r.get("arp"),
+            "max_err": float(r.get("max_err", 0.0)),
+            "mean_err": float(r.get("mean_err", 0.0)),
+            "rot_max_deg": float(r.get("rot_max_deg", 0.0)),
+            "rot_mean_deg": float(r.get("rot_mean_deg", 0.0)),
+        }
+        for r in sorted_pairs[:top_n]
+    ]
+    pass_count = sum(
+        1
+        for r in pair_results
+        if float(r.get("max_err", 0.0)) < position_threshold
+        and float(r.get("rot_max_deg", 0.0)) < rotation_threshold_deg
+    )
+    return {
+        "top_offenders": top_offenders,
+        "pass_count": pass_count,
+    }
+
+
 def format_comparison_report(pair_results):
     """프레임 비교 결과 리스트를 읽기 쉬운 멀티라인 문자열로 변환한다.
 
@@ -65,7 +107,10 @@ def format_comparison_report(pair_results):
     """
     if not pair_results:
         return "no pairs compared"
+    include_rotation = any("rot_max_deg" in row or "rot_mean_deg" in row for row in pair_results)
     header = f"{'src_bone':<25} -> {'arp_bone':<30} | {'max_err':>9} | {'mean_err':>9}"
+    if include_rotation:
+        header += f" | {'rot_max':>9} | {'rot_mean':>9}"
     lines = [header, "-" * len(header)]
     for r in pair_results:
         src = str(r.get("src", ""))
@@ -80,7 +125,20 @@ def format_comparison_report(pair_results):
             mean_err_str = f"{mean_err_val:>9.5f}"
         except (TypeError, ValueError):
             mean_err_str = f"{'N/A':>9}"
-        lines.append(f"{src:<25} -> {arp:<30} | {max_err_str} | {mean_err_str}")
+        line = f"{src:<25} -> {arp:<30} | {max_err_str} | {mean_err_str}"
+        if include_rotation:
+            try:
+                rot_max_val = float(r.get("rot_max_deg", 0.0))
+                rot_max_str = f"{rot_max_val:>9.3f}"
+            except (TypeError, ValueError):
+                rot_max_str = f"{'N/A':>9}"
+            try:
+                rot_mean_val = float(r.get("rot_mean_deg", 0.0))
+                rot_mean_str = f"{rot_mean_val:>9.3f}"
+            except (TypeError, ValueError):
+                rot_mean_str = f"{'N/A':>9}"
+            line += f" | {rot_max_str} | {rot_mean_str}"
+        lines.append(line)
     return "\n".join(lines)
 
 

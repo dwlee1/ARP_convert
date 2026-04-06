@@ -6,6 +6,7 @@ ARP 리그 생성 공통 유틸리티.
 
 import contextlib
 import json
+import math
 import os
 from datetime import datetime
 
@@ -314,8 +315,107 @@ def _restore_ik_fk(original_values):
             pass
 
 
+def _wrap_angle_near(value, previous):
+    """value를 previous 근처의 동치 각도로 정규화."""
+    while value - previous > math.pi:
+        value -= math.tau
+    while value - previous < -math.pi:
+        value += math.tau
+    return value
+
+
+def _make_compatible_euler_angles(current, previous):
+    """Euler 각도를 이전 프레임 근처로 보정해 180도 점프를 줄인다."""
+    if previous is None:
+        return tuple(float(v) for v in current)
+    return tuple(_wrap_angle_near(float(cur), float(prev)) for cur, prev in zip(current, previous))
+
+
+def _is_euler_rotation_mode(rotation_mode):
+    return rotation_mode not in {"QUATERNION", "AXIS_ANGLE"}
+
+
+def _iter_bake_pose_pairs(source_obj, arp_obj, bone_pairs):
+    """베이크 가능한 bone_pairs만 추려 rest matrix 캐시와 함께 반환."""
+    valid_pairs = []
+    skipped = 0
+    for src_name, ctrl_name, is_custom in bone_pairs:
+        ctrl_pbone = arp_obj.pose.bones.get(ctrl_name)
+        if ctrl_pbone is None:
+            log(f"  [WARN] ARP 컨트롤러 '{ctrl_name}' 없음 — 스킵", "WARN")
+            skipped += 1
+            continue
+
+        src_pbone = source_obj.pose.bones.get(src_name)
+        if src_pbone is None:
+            log(f"  [WARN] 소스 본 '{src_name}' 없음 — 스킵", "WARN")
+            skipped += 1
+            continue
+
+        valid_pairs.append(
+            {
+                "src_name": src_name,
+                "ctrl_name": ctrl_name,
+                "is_custom": is_custom,
+                "src_pbone": src_pbone,
+                "ctrl_pbone": ctrl_pbone,
+                "src_rest_inv": src_pbone.bone.matrix_local.inverted_safe(),
+                "ctrl_rest": ctrl_pbone.bone.matrix_local.copy(),
+            }
+        )
+    return valid_pairs, skipped
+
+
+def _apply_pose_matrix_to_bone(arp_obj, pose_bone, target_pose_matrix, prev_euler=None):
+    """armature-space target matrix를 pose bone의 로컬 채널로 투영한다."""
+    local_matrix = arp_obj.convert_space(
+        pose_bone=pose_bone,
+        matrix=target_pose_matrix,
+        from_space="POSE",
+        to_space="LOCAL",
+    )
+    location, rotation_quat, scale = local_matrix.decompose()
+
+    pose_bone.location = location
+    pose_bone.scale = scale
+
+    rotation_mode = pose_bone.rotation_mode
+    if rotation_mode == "QUATERNION":
+        pose_bone.rotation_quaternion = rotation_quat
+        return None
+
+    if rotation_mode == "AXIS_ANGLE":
+        axis, angle = rotation_quat.to_axis_angle()
+        pose_bone.rotation_axis_angle = (angle, axis.x, axis.y, axis.z)
+        return None
+
+    rotation_euler = rotation_quat.to_euler(rotation_mode)
+    compat_values = _make_compatible_euler_angles(tuple(rotation_euler), prev_euler)
+    rotation_euler.x = compat_values[0]
+    rotation_euler.y = compat_values[1]
+    rotation_euler.z = compat_values[2]
+    pose_bone.rotation_euler = rotation_euler
+    return compat_values
+
+
+def _insert_pose_keyframe(pose_bone, frame, include_scale):
+    """현재 pose bone 채널을 키프레임으로 기록."""
+    pose_bone.keyframe_insert(data_path="location", frame=frame)
+
+    rotation_mode = pose_bone.rotation_mode
+    if rotation_mode == "QUATERNION":
+        pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
+    elif rotation_mode == "AXIS_ANGLE":
+        pose_bone.keyframe_insert(data_path="rotation_axis_angle", frame=frame)
+    else:
+        pose_bone.keyframe_insert(data_path="rotation_euler", frame=frame)
+
+    if include_scale:
+        pose_bone.keyframe_insert(data_path="scale", frame=frame)
+
+
 def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, frame_end):
-    """bone_pairs 기반으로 COPY_TRANSFORMS → Bake → Constraint 제거."""
+    """bone_pairs 기반으로 rest delta를 ARP 컨트롤러에 직접 베이크."""
     ensure_object_mode()
     select_only(arp_obj)
     bpy.ops.object.mode_set(mode="POSE")
@@ -327,9 +427,7 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
         log(f"  pose_position 복원: {arp_obj.data.pose_position} → POSE")
         arp_obj.data.pose_position = "POSE"
     if source_obj.data.pose_position != "POSE":
-        log(
-            f"  source pose_position 복원: {source_obj.data.pose_position} → POSE"
-        )
+        log(f"  source pose_position 복원: {source_obj.data.pose_position} → POSE")
         source_obj.data.pose_position = "POSE"
 
     # ── [1/5] IK 모드 확인 ──
@@ -340,68 +438,52 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
     else:
         log("  [1/5] IK/FK 스위치 프로퍼티 없음 (이미 IK이거나 미지원)")
 
-    # ── [2/5] COPY_TRANSFORMS constraint 추가 ──
-    # WARN이 나오면 해당 본의 애니메이션이 누락됨
-    added_bones = []
-    skipped = 0
-    for src_name, ctrl_name, _is_custom in bone_pairs:
-        pose_bone = arp_obj.pose.bones.get(ctrl_name)
-        if pose_bone is None:
-            log(f"  [WARN] ARP 컨트롤러 '{ctrl_name}' 없음 — 스킵", "WARN")
-            skipped += 1
-            continue
-        src_bone = source_obj.pose.bones.get(src_name)
-        if src_bone is None:
-            log(f"  [WARN] 소스 본 '{src_name}' 없음 — 스킵", "WARN")
-            skipped += 1
-            continue
-
-        # c_root_master는 rest pose가 소스와 180도 반전 → COPY_LOCATION만 사용
-        if ctrl_name == "c_root_master.x":
-            con = pose_bone.constraints.new("COPY_LOCATION")
-            con.name = BAKE_CONSTRAINT_NAME
-            con.target = source_obj
-            con.subtarget = src_name
-            con.target_space = "WORLD"
-            con.owner_space = "WORLD"
-            log("  root: COPY_LOCATION (rest pose 반전 보정)")
-        else:
-            con = pose_bone.constraints.new("COPY_TRANSFORMS")
-            con.name = BAKE_CONSTRAINT_NAME
-            con.target = source_obj
-            con.subtarget = src_name
-            con.target_space = "WORLD"
-            con.owner_space = "WORLD"
-        added_bones.append(ctrl_name)
-
-    if not added_bones:
-        log("  [ERROR] 추가된 constraint 없음 — 베이크 중단", "ERROR")
+    # ── [2/5] 베이크 pair 준비 ──
+    valid_pairs, skipped = _iter_bake_pose_pairs(source_obj, arp_obj, bone_pairs)
+    if not valid_pairs:
+        log("  [ERROR] 유효한 bone_pairs 없음 — 베이크 중단", "ERROR")
         return
 
-    log(f"  [2/5] COPY_TRANSFORMS 추가: {len(added_bones)}개 (스킵: {skipped}개)")
+    log(f"  [2/5] rest-delta pair 준비: {len(valid_pairs)}개 (스킵: {skipped}개)")
 
-    # ── [3/5] nla.bake ──
-    for bone in arp_obj.data.bones:
-        bone.select = False
-    added_set = set(added_bones)
-    for bone in arp_obj.data.bones:
-        if bone.name in added_set:
-            bone.select = True
+    # ── [3/5] 프레임 샘플링 기반 offset bake ──
+    euler_cache = {
+        pair["ctrl_name"]: None
+        for pair in valid_pairs
+        if _is_euler_rotation_mode(pair["ctrl_pbone"].rotation_mode)
+    }
+    frame_count = frame_end - frame_start + 1
 
-    bpy.ops.nla.bake(
-        frame_start=frame_start,
-        frame_end=frame_end,
-        only_selected=True,
-        visual_keying=True,
-        clear_constraints=False,
-        use_current_action=True,
-        bake_types={"POSE"},
-    )
-    log(f"  [3/5] nla.bake 완료: {frame_start}~{frame_end} ({frame_end - frame_start + 1}프레임)")
+    for frame in range(frame_start, frame_end + 1):
+        bpy.context.scene.frame_set(frame)
+        bpy.context.view_layer.update()
 
-    # ── [4/5] constraint 제거 ──
+        for pair in valid_pairs:
+            src_pose_matrix = pair["src_pbone"].matrix.copy()
+            delta_matrix = pair["src_rest_inv"] @ src_pose_matrix
+            target_pose_matrix = pair["ctrl_rest"] @ delta_matrix
+            prev_euler = euler_cache.get(pair["ctrl_name"])
+            next_euler = _apply_pose_matrix_to_bone(
+                arp_obj,
+                pair["ctrl_pbone"],
+                target_pose_matrix,
+                prev_euler=prev_euler,
+            )
+            if pair["ctrl_name"] in euler_cache:
+                euler_cache[pair["ctrl_name"]] = next_euler
+            _insert_pose_keyframe(
+                pair["ctrl_pbone"],
+                frame,
+                include_scale=pair["is_custom"],
+            )
+
+        bpy.context.view_layer.update()
+
+    log(f"  [3/5] offset bake 완료: {frame_start}~{frame_end} ({frame_count}프레임)")
+
+    # ── [4/5] 레거시 bake constraint 정리 ──
     removed = 0
-    for ctrl_name in added_bones:
+    for _, ctrl_name, _ in bone_pairs:
         pose_bone = arp_obj.pose.bones.get(ctrl_name)
         if pose_bone is None:
             continue
@@ -409,7 +491,7 @@ def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, fram
             if con.name == BAKE_CONSTRAINT_NAME:
                 pose_bone.constraints.remove(con)
                 removed += 1
-    log(f"  [4/5] constraint 제거: {removed}개")
+    log(f"  [4/5] 레거시 constraint 제거: {removed}개")
 
     # ── [5/5] 역할 본 Scale FCurve 삭제 ──
     action = arp_obj.animation_data.action if arp_obj.animation_data else None

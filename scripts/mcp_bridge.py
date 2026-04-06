@@ -13,6 +13,7 @@ Claude Code에서 execute_blender_code()를 통해 호출하는 고수준 함수
 """
 
 import json
+import math
 import os
 import sys
 import traceback
@@ -550,7 +551,7 @@ def mcp_inspect_bone_pairs(role_filter=None):
 
 
 def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
-    """소스와 ARP 본의 월드 위치를 지정 프레임에서 비교.
+    """소스와 ARP 본의 월드 위치/회전을 지정 프레임에서 비교.
 
     Args:
         pairs: [(src_bone_name, arp_bone_name), ...] — 비교할 본 쌍.
@@ -565,7 +566,12 @@ def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
     try:
         _reload()
         from arp_utils import find_arp_armature, find_source_armature, quiet_logs
-        from mcp_verify import compute_position_stats, format_comparison_report
+        from mcp_verify import (
+            compute_position_stats,
+            compute_rotation_stats,
+            format_comparison_report,
+            summarize_pair_results,
+        )
 
         with quiet_logs():
             src_obj = find_source_armature()
@@ -596,6 +602,7 @@ def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
 
         pair_results = []
         all_distances = []
+        all_rotation_errors = []
         for src_name, arp_name in pairs:
             src_pb = src_obj.pose.bones.get(src_name)
             arp_pb = arp_obj.pose.bones.get(arp_name)
@@ -607,32 +614,50 @@ def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
                         "error": "bone not found",
                         "max_err": 0.0,
                         "mean_err": 0.0,
+                        "rot_max_deg": 0.0,
+                        "rot_mean_deg": 0.0,
                         "per_frame": [],
+                        "per_frame_rot_deg": [],
                     }
                 )
                 continue
 
             per_frame = []
+            per_frame_rot_deg = []
             for f in frames:
                 bpy.context.scene.frame_set(f)
+                bpy.context.view_layer.update()
+                src_matrix = src_obj.matrix_world @ src_obj.pose.bones[src_name].matrix
+                arp_matrix = arp_obj.matrix_world @ arp_obj.pose.bones[arp_name].matrix
                 s_pos = src_obj.matrix_world @ src_obj.pose.bones[src_name].head
                 a_pos = arp_obj.matrix_world @ arp_obj.pose.bones[arp_name].head
                 d = (a_pos - s_pos).length
+                rot_deg = (
+                    src_matrix.to_quaternion().rotation_difference(arp_matrix.to_quaternion()).angle
+                )
+                rot_deg = math.degrees(rot_deg)
                 per_frame.append(d)
+                per_frame_rot_deg.append(rot_deg)
                 all_distances.append(d)
+                all_rotation_errors.append(rot_deg)
 
-            stats = compute_position_stats(per_frame)
+            pos_stats = compute_position_stats(per_frame)
+            rot_stats = compute_rotation_stats(per_frame_rot_deg)
             pair_results.append(
                 {
                     "src": src_name,
                     "arp": arp_name,
-                    "max_err": stats["max"],
-                    "mean_err": stats["mean"],
+                    "max_err": pos_stats["max"],
+                    "mean_err": pos_stats["mean"],
+                    "rot_max_deg": rot_stats["max"],
+                    "rot_mean_deg": rot_stats["mean"],
                     "per_frame": per_frame,
+                    "per_frame_rot_deg": per_frame_rot_deg,
                 }
             )
 
         overall = compute_position_stats(all_distances)
+        overall_rot = compute_rotation_stats(all_rotation_errors)
 
         current_action_name = None
         if src_obj.animation_data and src_obj.animation_data.action:
@@ -649,33 +674,25 @@ def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
                     "results": pair_results,
                     "overall_max_err": overall["max"],
                     "overall_mean_err": overall["mean"],
+                    "overall_rot_max_deg": overall_rot["max"],
+                    "overall_rot_mean_deg": overall_rot["mean"],
                     "report": report,
                 },
             )
         else:
-            # 요약 모드: top-5 offenders + pass/fail 통계만 반환
-            sorted_pairs = sorted(pair_results, key=lambda r: r["max_err"], reverse=True)
-            top_n = 5
-            top_offenders = [
-                {
-                    "src": r["src"],
-                    "arp": r["arp"],
-                    "max_err": r["max_err"],
-                    "mean_err": r["mean_err"],
-                }
-                for r in sorted_pairs[:top_n]
-            ]
-            pass_count = sum(1 for r in pair_results if r["max_err"] < 0.001)
+            summary = summarize_pair_results(pair_results)
             _result(
                 True,
                 {
                     "action": action_name or current_action_name,
                     "frame_count": len(frames),
                     "pair_count": len(pairs),
-                    "pass_count": pass_count,
+                    "pass_count": summary["pass_count"],
                     "overall_max_err": overall["max"],
                     "overall_mean_err": overall["mean"],
-                    "top_offenders": top_offenders,
+                    "overall_rot_max_deg": overall_rot["max"],
+                    "overall_rot_mean_deg": overall_rot["mean"],
+                    "top_offenders": summary["top_offenders"],
                 },
             )
     except Exception as e:
