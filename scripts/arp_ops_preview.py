@@ -133,8 +133,8 @@ class ARPCONV_OT_CreatePreview(Operator):
             self.report({"ERROR"}, analysis["error"])
             return {"CANCELLED"}
 
-        # 검증 리포트 출력
-        print(generate_verification_report(analysis))
+        # 검증 리포트 출력 (quiet_logs 컨텍스트에서 억제됨)
+        log(generate_verification_report(analysis), "INFO")
 
         # Preview Armature 생성
         preview_obj = create_preview_armature(source_obj, analysis)

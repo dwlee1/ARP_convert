@@ -106,7 +106,7 @@ Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에
 | `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 |
 | `mcp_reload_addon()` | 레포 `scripts/arp_*.py` → Blender addons sync + 애드온 재등록 |
 
-**토큰 최적화**: MCP 함수는 내부에서 `quiet_logs()` 컨텍스트로 INFO/DEBUG 로그를 억제(WARN/ERROR만 출력). `mcp_compare_frames`는 `detailed=False` 기본으로 `per_frame` 배열과 `report` 문자열 생략. 디버깅 시 `arp_utils.set_log_level("DEBUG")` 또는 `detailed=True` 사용.
+**토큰 최적화**: MCP 함수는 내부에서 `quiet_logs()` 컨텍스트로 INFO/DEBUG 로그를 억제(WARN/ERROR만 출력). `mcp_compare_frames`는 `detailed=False` 기본으로 top-5 offenders + `pass_count` 요약만 반환 (`top_offenders` 키). `detailed=True`면 전체 `results` + `report` 반환. 디버깅 시 `arp_utils.set_log_level("DEBUG")` 또는 `detailed=True` 사용.
 
 상세 사용 레시피: `docs/MCP_Recipes.md`
 
@@ -149,22 +149,25 @@ Conventional Commits 형식: `type(scope): subject`
 
 본문(선택)에는 **왜** 바꿨는지와 참고할 커밋 SHA, 스펙 경로를 남긴다.
 
-### 브레인스토밍 / 스펙이 필수인 작업
+### 작업 규모별 워크플로 (3-Tier)
 
-다음 중 **하나라도** 해당하면 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` 풀 사이클로 진행한다:
-
-- 3개 이상의 파일에 걸친 변경
-- 아키텍처 결정이 필요한 작업 (라이브러리 선택, 파일 분할, 인터페이스 설계)
-- 동작 변경이 기존 사용자에게 영향을 주는 작업
-- 요구사항이 불명확하거나 여러 해석이 가능한 작업
-
-**바로 구현해도 되는 작업**:
-
+**Tier 1 — 즉시 구현** (브레인스토밍 불필요):
 - 오탈자, 1-3줄 명확한 버그 수정
 - 문서 업데이트
-- 기존 패턴을 그대로 따르는 작은 추가 (함수 하나 추가, 테스트 하나 추가)
+- 기존 패턴을 그대로 따르는 추가 (함수, 테스트 등)
+- 패턴이 확립된 다중 파일 버그 수정 (같은 수정을 여러 파일에 적용)
 
-애매하면 브레인스토밍 쪽으로 기운다. 오버슛이 언더슛보다 싸다.
+**Tier 2 — 인라인 계획** (대화 내 TODO 리스트, spec/plan 파일 불필요):
+- 3-10개 파일 변경이지만 기존 아키텍처 범위 내
+- 동작 변경이 기존 아키텍처 안에서 진행되는 작업
+- 요구사항이 약간 애매하지만 탐색 범위가 좁은 경우
+- **애매하면 여기서 시작** (Tier 3이 아님)
+
+**Tier 3 — 풀 사이클** (`superpowers:brainstorming` → `writing-plans` → `subagent-driven-development`):
+- 새 서브시스템/모듈 신규 생성
+- 아키텍처 결정 (새 인터페이스, 라이브러리 선택, 파일 분할)
+- 외부 API/계약에 영향을 주는 변경
+- 횡단 관심사 (역할 체계 전면 변경 등)
 
 ### ProjectPlan.md 업데이트
 
@@ -177,6 +180,7 @@ Conventional Commits 형식: `type(scope): subject`
 - Spec: `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
 - Plan: `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
 - 브랜치 단위로 쌍(스펙-플랜-구현)이 맞물린다. 이름의 topic은 브랜치명과 정렬시킨다
+- **Spec/Plan 파일은 Tier 3 작업에서만 생성한다. Tier 2는 대화 내 인라인 계획으로 충분하다.**
 
 ### 완료 기준
 

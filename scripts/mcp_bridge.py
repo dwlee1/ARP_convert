@@ -633,29 +633,51 @@ def mcp_compare_frames(pairs, frames, action_name=None, detailed=False):
             )
 
         overall = compute_position_stats(all_distances)
-        report = format_comparison_report(pair_results) if detailed else ""
-
-        # detailed=False: per_frame 배열을 빈 [] 로 치환(키 유지로 호출부 호환)
-        if not detailed:
-            for r in pair_results:
-                r["per_frame"] = []
 
         current_action_name = None
         if src_obj.animation_data and src_obj.animation_data.action:
             current_action_name = src_obj.animation_data.action.name
 
-        _result(
-            True,
-            {
-                "action": action_name or current_action_name,
-                "frame_count": len(frames),
-                "pair_count": len(pairs),
-                "results": pair_results,
-                "overall_max_err": overall["max"],
-                "overall_mean_err": overall["mean"],
-                "report": report,
-            },
-        )
+        if detailed:
+            report = format_comparison_report(pair_results)
+            _result(
+                True,
+                {
+                    "action": action_name or current_action_name,
+                    "frame_count": len(frames),
+                    "pair_count": len(pairs),
+                    "results": pair_results,
+                    "overall_max_err": overall["max"],
+                    "overall_mean_err": overall["mean"],
+                    "report": report,
+                },
+            )
+        else:
+            # 요약 모드: top-5 offenders + pass/fail 통계만 반환
+            sorted_pairs = sorted(pair_results, key=lambda r: r["max_err"], reverse=True)
+            top_n = 5
+            top_offenders = [
+                {
+                    "src": r["src"],
+                    "arp": r["arp"],
+                    "max_err": r["max_err"],
+                    "mean_err": r["mean_err"],
+                }
+                for r in sorted_pairs[:top_n]
+            ]
+            pass_count = sum(1 for r in pair_results if r["max_err"] < 0.001)
+            _result(
+                True,
+                {
+                    "action": action_name or current_action_name,
+                    "frame_count": len(frames),
+                    "pair_count": len(pairs),
+                    "pass_count": pass_count,
+                    "overall_max_err": overall["max"],
+                    "overall_mean_err": overall["mean"],
+                    "top_offenders": top_offenders,
+                },
+            )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
 
@@ -810,10 +832,7 @@ def mcp_reload_addon():
         # 3) sys.modules 캐시 제거 — 애드온 의존 모듈 전부 (arp_utils 포함 이번엔)
         purged = []
         for m in list(sys.modules.keys()):
-            if (
-                m.startswith("arp_")
-                or m in ("skeleton_analyzer", "weight_transfer_rules")
-            ):
+            if m.startswith("arp_") or m in ("skeleton_analyzer", "weight_transfer_rules"):
                 del sys.modules[m]
                 purged.append(m)
 
