@@ -22,6 +22,7 @@ from arp_cc_bones import (
     _create_cc_bones_from_preview,
     _make_cc_bone_name,
 )
+from arp_def_separator import DEF_PREFIX, create_def_bones
 from arp_foot_guides import (
     GUIDE_SUFFIX_BANK,
     GUIDE_SUFFIX_HEEL,
@@ -78,6 +79,7 @@ def _reload_modules():
         "arp_fixture_io",
         "arp_cc_bones",
         "arp_build_helpers",
+        "arp_def_separator",
         "arp_props",
         "arp_ui",
         "arp_ops_preview",
@@ -199,6 +201,12 @@ class ARPCONV_OT_BuildRig(Operator):
             for role_label, bone_names in roles.items()
             for bone_name in bone_names
         }
+
+        # Step 2.5: DEF 본 분리 (소스 아마추어에 DEF 계층 생성)
+        log("DEF 본 분리")
+        def_created = create_def_bones(source_obj, roles)
+        if def_created:
+            log(f"  DEF 본 {len(def_created)}개 생성 완료")
 
         # Step 3: ARP Edit 모드 1회 진입 → ref 검색 + 매핑 + 위치 설정
         log("ARP ref 본 검색 + 위치 정렬 (단일 Edit 세션)")
@@ -1017,6 +1025,14 @@ class ARPCONV_OT_BuildRig(Operator):
         _IK_LEG_ROLES = {"back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"}
         _IK_FOOT_ROLES = {"back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"}
 
+        # DEF 본이 생성된 경우 src_name에 DEF- 접두사 적용
+        def _def_src(name):
+            if def_created:
+                def_name = f"{DEF_PREFIX}{name}"
+                if def_name in def_created:
+                    return def_name
+            return name
+
         for src_name, ref_name in deform_to_ref.items():
             role_idx = ref_to_role_idx.get(ref_name)
             if not role_idx or role_idx[0] not in ctrl_map:
@@ -1028,25 +1044,26 @@ class ARPCONV_OT_BuildRig(Operator):
                 continue
 
             ctrl_name = ctrls[idx]
+            pair_src = _def_src(src_name)
 
             if role in _IK_LEG_ROLES:
                 # IK 다리: shoulder(첫 본)만 유지, 중간 본 제거, foot은 아래 foot 역할에서 처리
                 if idx == 0:
                     # shoulder (c_thigh_b) — IK 체인 밖, 독립 제어
-                    bone_pairs.append((src_name, ctrl_name, False))
+                    bone_pairs.append((pair_src, ctrl_name, False))
                 # idx > 0: 중간/마지막 FK 본 → IK solver가 처리, bone_pairs에서 제외
             elif role in _IK_FOOT_ROLES:
                 # foot 역할: FK foot → IK foot으로 변환
                 ik_ctrl, _pole, is_ik = _apply_ik_to_foot_ctrl(ctrl_name, role)
                 if is_ik and arp_obj.data.bones.get(ik_ctrl):
-                    bone_pairs.append((src_name, ik_ctrl, False))
-                    log(f"  IK foot: {src_name} → {ik_ctrl}")
+                    bone_pairs.append((pair_src, ik_ctrl, False))
+                    log(f"  IK foot: {pair_src} → {ik_ctrl}")
                 else:
                     # IK 변환 실패 시 FK 유지
-                    bone_pairs.append((src_name, ctrl_name, False))
+                    bone_pairs.append((pair_src, ctrl_name, False))
             else:
                 # 비-다리 역할: 그대로 COPY_TRANSFORMS
-                bone_pairs.append((src_name, ctrl_name, False))
+                bone_pairs.append((pair_src, ctrl_name, False))
 
         # back_leg의 마지막 본(foot)도 IK로 매핑 — deform_to_ref에서 foot 역할이
         # back_foot으로 분리되어 있으므로 위 _IK_FOOT_ROLES에서 처리됨.
@@ -1066,9 +1083,7 @@ class ARPCONV_OT_BuildRig(Operator):
         # REST 상태로 남으면 제약/애니메이션이 전혀 평가되지 않아 "180도 꼬임"이나
         # "IK 변환 안 됨"처럼 보이는 부작용이 생긴다.
         if arp_obj.data.pose_position != "POSE":
-            log(
-                f"  pose_position 복원: {arp_obj.data.pose_position} → POSE"
-            )
+            log(f"  pose_position 복원: {arp_obj.data.pose_position} → POSE")
             arp_obj.data.pose_position = "POSE"
 
         # IK pole이 다리 IK 컨트롤러를 따라가도록 pole_parent=1 기본 활성화.

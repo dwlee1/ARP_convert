@@ -94,6 +94,7 @@ def _reload_modules():
         "arp_fixture_io",
         "arp_cc_bones",
         "arp_build_helpers",
+        "arp_def_separator",
         "arp_props",
         "arp_ui",
         "arp_ops_preview",

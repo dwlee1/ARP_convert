@@ -27,6 +27,7 @@
 | `scripts/arp_ops_build.py` | BuildRig 오퍼레이터 (가장 큰 execute 본문) |
 | `scripts/arp_ops_bake_regression.py` | BakeAnimation + RunRegression 오퍼레이터 |
 | `scripts/arp_build_helpers.py` | BuildRig 내부 헬퍼 (ref 메타데이터, deform 매핑) |
+| `scripts/arp_def_separator.py` | DEF 본 분리 (역할 기반 계층 + Copy Transforms) |
 | `scripts/arp_cc_bones.py` | cc bone 생성 + constraint 복사 |
 | `scripts/arp_weight_xfer.py` | 웨이트 전송 로직 |
 | `scripts/arp_foot_guides.py` | Foot guide 생성/감지/자동 배치 |

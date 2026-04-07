@@ -30,12 +30,13 @@ Addon 경로
 1. 소스 deform 본 분석 (웨이트 0 본 필터링 + 제외 본 부모 관계 포함)
 2. Preview Armature 생성 + Source Hierarchy 트리 데이터 생성
 3. 역할 수정 (Source Hierarchy 트리에서 본 클릭 → 선택 → 역할 변경)
-4. ARP 리그 생성 (append_arp → set_spine/neck/tail/ears → ref 정렬 → match_to_rig)
-5. 앞다리 3 Bones IK 값 설정 + IK pole vector 위치 매칭
-6. cc_ 커스텀 본 추가 (shape key 드라이버 컨트롤러 포함)
-7. 전체 웨이트 전송 (deform + cc_ → ARP)
-8. Shape key 드라이버 리맵
-9. 애니메이션 베이크 (F12, 별도 버튼 — rest-delta offset bake)
+4. DEF 본 분리 (소스 아마추어에 역할 기반 DEF 계층 생성)
+5. ARP 리그 생성 (append_arp → set_spine/neck/tail/ears → ref 정렬 → match_to_rig)
+6. 앞다리 3 Bones IK 값 설정 + IK pole vector 위치 매칭
+7. cc_ 커스텀 본 추가 (shape key 드라이버 컨트롤러 포함)
+8. 전체 웨이트 전송 (deform + cc_ → ARP)
+9. Shape key 드라이버 리맵
+10. 애니메이션 베이크 (F12, 별도 버튼 — rest-delta offset bake)
 ```
 
 ```text
@@ -70,6 +71,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] F1+: Step 2에 Source Hierarchy 트리 UI 추가
 - [x] F2: IK pole vector 위치 매칭 (완료)
 - [x] F3: Shape key 드라이버 보존 (완료)
+- [x] DEF 본 분리: Build Rig 내부에서 역할 기반 DEF 계층 자동 생성 (`docs/DEF_BoneSeparator.md`)
 - [ ] F12: ARP 네이티브 리타겟 위임 방식으로 재설계 (`docs/F12_ARP_NativeRetarget.md`) — Setup Retarget + Cleanup 오퍼레이터 구현 필요
 - [ ] F8: 웨이트 전송 실제 검증
 
