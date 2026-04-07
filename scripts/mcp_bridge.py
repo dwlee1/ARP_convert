@@ -291,12 +291,12 @@ def mcp_get_bone_roles():
 
         roles = {}
         unmapped = []
-        for bone in preview_obj.data.bones:
-            role = bone.get("arp_role", "")
-            if role:
-                roles[bone.name] = role
+        for pbone in preview_obj.pose.bones:
+            role = pbone.get("arp_role", "")
+            if role and role != "unmapped":
+                roles[pbone.name] = role
             else:
-                unmapped.append(bone.name)
+                unmapped.append(pbone.name)
 
         _result(
             True,
