@@ -430,18 +430,19 @@ def mcp_validate_weights():
 # ═══════════════════════════════════════════════════════════════
 
 
-def mcp_bake_animation():
-    """소스 아마추어의 모든 액션을 ARP 컨트롤러에 베이크."""
+def mcp_setup_retarget():
+    """bone_pairs → ARP bones_map_v2 변환 및 리타겟 씬 설정."""
     try:
         _reload()
         from arp_utils import (
             BAKE_PAIRS_KEY,
-            bake_all_actions,
             deserialize_bone_pairs,
             ensure_object_mode,
             find_arp_armature,
             find_source_armature,
+            preflight_check_transforms,
             quiet_logs,
+            setup_arp_retarget,
         )
 
         with quiet_logs():
@@ -456,7 +457,6 @@ def mcp_bake_animation():
                 _result(False, error="ARP 아마추어를 찾을 수 없습니다.")
                 return
 
-            # bone_pairs는 BuildRig 후 ARP 아마추어에 저장됨
             pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
             if not pairs_json:
                 _result(
@@ -465,8 +465,13 @@ def mcp_bake_animation():
                 )
                 return
 
+            error = preflight_check_transforms(source_obj, arp_obj)
+            if error:
+                _result(False, error=f"Preflight 실패: {error}")
+                return
+
             bone_pairs = deserialize_bone_pairs(pairs_json)
-            created = bake_all_actions(source_obj, arp_obj, bone_pairs)
+            result = setup_arp_retarget(source_obj, arp_obj, bone_pairs)
 
         _result(
             True,
@@ -474,12 +479,15 @@ def mcp_bake_animation():
                 "source_armature": source_obj.name,
                 "arp_armature": arp_obj.name,
                 "total_pairs": len(bone_pairs),
-                "created_actions": created,
-                "created_count": len(created),
+                **result,
             },
         )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
+
+
+# 하위 호환 alias
+mcp_bake_animation = mcp_setup_retarget
 
 
 # ═══════════════════════════════════════════════════════════════

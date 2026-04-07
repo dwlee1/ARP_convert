@@ -108,7 +108,11 @@ def _reload_modules():
 _ensure_scripts_path()
 
 # 분리된 helper 모듈 import (scripts/ 경로 설정 이후)
-from arp_ops_bake_regression import ARPCONV_OT_BakeAnimation, ARPCONV_OT_RunRegression
+from arp_ops_bake_regression import (
+    ARPCONV_OT_Cleanup,
+    ARPCONV_OT_RunRegression,
+    ARPCONV_OT_SetupRetarget,
+)
 from arp_ops_build import ARPCONV_OT_BuildRig
 from arp_ops_preview import ARPCONV_OT_CreatePreview
 from arp_ops_roles import (
@@ -133,7 +137,8 @@ classes = [
     ARPCONV_OT_SetParent,
     ARPCONV_OT_SetRole,
     ARPCONV_OT_BuildRig,
-    ARPCONV_OT_BakeAnimation,
+    ARPCONV_OT_SetupRetarget,
+    ARPCONV_OT_Cleanup,
     ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,
 ]

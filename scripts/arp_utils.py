@@ -6,8 +6,8 @@ ARP 리그 생성 공통 유틸리티.
 
 import contextlib
 import json
-import math
 import os
+import re
 from datetime import datetime
 
 import bpy
@@ -228,11 +228,15 @@ def load_mapping_profile(profile_name, project_root=None):
 
 
 # ═══════════════════════════════════════════════════════════════
-# F12: 애니메이션 베이크 유틸리티
+# F12: ARP 리타겟 위임 유틸리티
 # ═══════════════════════════════════════════════════════════════
 
 BAKE_PAIRS_KEY = "arpconv_bone_pairs"
-BAKE_CONSTRAINT_NAME = "ARPCONV_CopyTF"
+
+# IK foot 컨트롤러 패턴 (location=False, ik=True)
+_IK_CTRL_PATTERN = re.compile(r"^c_foot_ik|^c_hand_ik")
+# Pole vector 패턴 (pole_parent=1로 처리, 매핑 제외)
+_POLE_CTRL_PATTERN = re.compile(r"^c_(leg|arm)_pole")
 
 
 def serialize_bone_pairs(pairs):
@@ -279,355 +283,167 @@ def preflight_check_transforms(source_obj, arp_obj):
     return None
 
 
-def _ensure_ik_mode(arp_obj):
-    """ARP 리그의 모든 IK/FK 스위치를 IK 모드(0.0)로 전환.
-
-    IK 모드에서 foot 위치를 직접 제어하고 IK solver가 다리 체인을 자동 계산.
-    FK 모드의 Z축 잠금 문제를 회피한다.
+def _classify_ctrl(ctrl_name, is_custom):
+    """컨트롤러 이름에서 ARP 리타겟 플래그를 결정한다.
 
     Returns:
-        list[tuple]: [(pose_bone, prop_name, old_value), ...] 복원용
+        dict: {"location": bool, "ik": bool, "set_as_root": bool, "ctrl": str}
     """
-    original_values = []
-    for pbone in arp_obj.pose.bones:
-        # Blender 4.5: PoseBone 직접 순회 불가, keys() 사용
-        for prop_name in list(pbone.keys()):
-            if prop_name.startswith("_"):
-                continue
-            prop_lower = prop_name.lower()
-            if "ik" in prop_lower and "fk" in prop_lower:
-                old_val = pbone[prop_name]
-                try:
-                    pbone[prop_name] = 0.0
-                    original_values.append((pbone, prop_name, old_val))
-                    log(f"  IK 모드: {pbone.name}['{prop_name}']: {old_val} → 0.0", "DEBUG")
-                except Exception:
-                    log(f"  IK 모드: {pbone.name}['{prop_name}']: 변경 실패", "WARN")
-    return original_values
+    # root: c_root_master.x → c_root.x로 교체
+    if ctrl_name == "c_root_master.x":
+        return {"ctrl": "c_root.x", "location": True, "ik": False, "set_as_root": True}
+
+    # IK foot/hand 컨트롤러
+    if _IK_CTRL_PATTERN.match(ctrl_name):
+        return {"ctrl": ctrl_name, "location": False, "ik": True, "set_as_root": False}
+
+    # 커스텀 본 또는 일반 FK
+    return {"ctrl": ctrl_name, "location": True, "ik": False, "set_as_root": False}
 
 
-def _restore_ik_fk(original_values):
-    """IK/FK 스위치를 원래 값으로 복원."""
-    for pbone, prop_name, old_val in original_values:
-        try:
-            pbone[prop_name] = old_val
-        except Exception:
-            pass
+def _override_bones_map(bone_pairs):
+    """bone_pairs 기반으로 ARP bones_map_v2 엔트리를 오버라이드.
 
+    bone_pairs에 매핑이 있는 본은 우리 매핑으로 덮어쓰고,
+    bone_pairs에 없는 본은 빈 매핑("")으로 비운다.
+    사용자가 필요하면 ARP Remap UI에서 수동 추가 가능.
+    """
+    scn = bpy.context.scene
 
-def _wrap_angle_near(value, previous):
-    """value를 previous 근처의 동치 각도로 정규화."""
-    while value - previous > math.pi:
-        value -= math.tau
-    while value - previous < -math.pi:
-        value += math.tau
-    return value
-
-
-def _make_compatible_euler_angles(current, previous):
-    """Euler 각도를 이전 프레임 근처로 보정해 180도 점프를 줄인다."""
-    if previous is None:
-        return tuple(float(v) for v in current)
-    return tuple(_wrap_angle_near(float(cur), float(prev)) for cur, prev in zip(current, previous))
-
-
-def _is_euler_rotation_mode(rotation_mode):
-    return rotation_mode not in {"QUATERNION", "AXIS_ANGLE"}
-
-
-def _iter_bake_pose_pairs(source_obj, arp_obj, bone_pairs):
-    """베이크 가능한 bone_pairs만 추려 rest matrix 캐시와 함께 반환."""
-    valid_pairs = []
-    skipped = 0
+    # bone_pairs → 룩업 테이블 (src_name → 매핑 정보)
+    # pole vector 본은 제외 (pole_parent=1로 ARP가 자동 처리)
+    lookup = {}
     for src_name, ctrl_name, is_custom in bone_pairs:
-        ctrl_pbone = arp_obj.pose.bones.get(ctrl_name)
-        if ctrl_pbone is None:
-            log(f"  [WARN] ARP 컨트롤러 '{ctrl_name}' 없음 — 스킵", "WARN")
-            skipped += 1
+        if _POLE_CTRL_PATTERN.match(ctrl_name):
             continue
+        classified = _classify_ctrl(ctrl_name, is_custom)
+        lookup[src_name] = classified
 
-        src_pbone = source_obj.pose.bones.get(src_name)
-        if src_pbone is None:
-            log(f"  [WARN] 소스 본 '{src_name}' 없음 — 스킵", "WARN")
-            skipped += 1
-            continue
+    overridden = 0
+    cleared = 0
+    for entry in scn.bones_map_v2:
+        if entry.source_bone in lookup:
+            info = lookup[entry.source_bone]
+            entry.name = info["ctrl"]
+            entry.location = info["location"]
+            entry.ik = info["ik"]
+            entry.set_as_root = info["set_as_root"]
+            overridden += 1
+        elif entry.name:
+            # bone_pairs에 없는 본: ARP 자동 추측 제거
+            entry.name = ""
+            entry.location = False
+            entry.ik = False
+            entry.set_as_root = False
+            cleared += 1
 
-        valid_pairs.append(
-            {
-                "src_name": src_name,
-                "ctrl_name": ctrl_name,
-                "is_custom": is_custom,
-                "src_pbone": src_pbone,
-                "ctrl_pbone": ctrl_pbone,
-                "src_rest_inv": src_pbone.bone.matrix_local.inverted_safe(),
-                "ctrl_rest": ctrl_pbone.bone.matrix_local.copy(),
-            }
-        )
-    return valid_pairs, skipped
-
-
-def _apply_pose_matrix_to_bone(arp_obj, pose_bone, target_pose_matrix, prev_euler=None):
-    """armature-space target matrix를 pose bone의 로컬 채널로 투영한다."""
-    local_matrix = arp_obj.convert_space(
-        pose_bone=pose_bone,
-        matrix=target_pose_matrix,
-        from_space="POSE",
-        to_space="LOCAL",
-    )
-    location, rotation_quat, scale = local_matrix.decompose()
-
-    pose_bone.location = location
-    pose_bone.scale = scale
-
-    rotation_mode = pose_bone.rotation_mode
-    if rotation_mode == "QUATERNION":
-        pose_bone.rotation_quaternion = rotation_quat
-        return None
-
-    if rotation_mode == "AXIS_ANGLE":
-        axis, angle = rotation_quat.to_axis_angle()
-        pose_bone.rotation_axis_angle = (angle, axis.x, axis.y, axis.z)
-        return None
-
-    rotation_euler = rotation_quat.to_euler(rotation_mode)
-    compat_values = _make_compatible_euler_angles(tuple(rotation_euler), prev_euler)
-    rotation_euler.x = compat_values[0]
-    rotation_euler.y = compat_values[1]
-    rotation_euler.z = compat_values[2]
-    pose_bone.rotation_euler = rotation_euler
-    return compat_values
+    log(f"  bones_map_v2 오버라이드: {overridden}/{len(lookup)}개, 추측 제거: {cleared}개")
+    if overridden < len(lookup):
+        missing = set(lookup.keys()) - {e.source_bone for e in scn.bones_map_v2}
+        if missing:
+            log(f"  bones_map_v2에 없는 소스 본: {missing}", "WARN")
 
 
-def _insert_pose_keyframe(pose_bone, frame, include_scale):
-    """현재 pose bone 채널을 키프레임으로 기록."""
-    pose_bone.keyframe_insert(data_path="location", frame=frame)
-
-    rotation_mode = pose_bone.rotation_mode
-    if rotation_mode == "QUATERNION":
-        pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
-    elif rotation_mode == "AXIS_ANGLE":
-        pose_bone.keyframe_insert(data_path="rotation_axis_angle", frame=frame)
-    else:
-        pose_bone.keyframe_insert(data_path="rotation_euler", frame=frame)
-
-    if include_scale:
-        pose_bone.keyframe_insert(data_path="scale", frame=frame)
+def _delete_existing_remap_actions():
+    """기존 _remap 액션을 삭제하여 중복 방지."""
+    removed = []
+    for action in list(bpy.data.actions):
+        if action.name.endswith("_remap") or "_remap." in action.name:
+            removed.append(action.name)
+            bpy.data.actions.remove(action)
+    if removed:
+        log(f"  기존 _remap 액션 삭제: {len(removed)}개")
 
 
-def bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, frame_end):
-    """bone_pairs 기반으로 rest delta를 ARP 컨트롤러에 직접 베이크."""
+def setup_arp_retarget(source_obj, arp_obj, bone_pairs):
+    """bone_pairs를 ARP bones_map_v2로 변환하고 리타겟 씬 프로퍼티를 설정한다.
+
+    ARP Remap 패널에서 사용자가 매핑을 확인/수정한 뒤
+    ARP Re-Retarget 버튼을 직접 클릭하여 베이크한다.
+
+    Returns:
+        dict: {"overridden": int, "total_pairs": int, "remap_deleted": int}
+    """
+    scn = bpy.context.scene
+
+    # 1. Scene property 세팅
+    scn.source_rig = source_obj.name
+    scn.target_rig = arp_obj.name
+    log(f"  source_rig={source_obj.name}, target_rig={arp_obj.name}")
+
+    # 2. ARP build_bones_list 호출 → bones_map_v2 생성
     ensure_object_mode()
     select_only(arp_obj)
-    bpy.ops.object.mode_set(mode="POSE")
+    run_arp_operator(bpy.ops.arp.build_bones_list)
+    log(f"  build_bones_list 완료: {len(scn.bones_map_v2)}개 엔트리")
 
-    # ARP 리그가 REST 상태로 남아 있으면 제약/애니메이션이 전혀 평가되지 않아
-    # bake 결과가 rest에 고정된다(회전 180° 꼬임, root 위치 이상 등 증상).
-    # Build Rig의 match_to_rig가 REST로 남길 수 있으므로 방어적으로 복원.
-    if arp_obj.data.pose_position != "POSE":
-        log(f"  pose_position 복원: {arp_obj.data.pose_position} → POSE")
-        arp_obj.data.pose_position = "POSE"
-    if source_obj.data.pose_position != "POSE":
-        log(f"  source pose_position 복원: {source_obj.data.pose_position} → POSE")
-        source_obj.data.pose_position = "POSE"
+    # 3. bone_pairs 기반 오버라이드
+    _override_bones_map(bone_pairs)
 
-    # ── [1/5] IK 모드 확인 ──
-    # IK 모드에서 foot 위치를 직접 제어, IK solver가 다리 체인 자동 계산
-    ik_fk_originals = _ensure_ik_mode(arp_obj)
-    if ik_fk_originals:
-        log(f"  [1/5] IK 모드 전환 완료: {len(ik_fk_originals)}개 스위치")
-    else:
-        log("  [1/5] IK/FK 스위치 프로퍼티 없음 (이미 IK이거나 미지원)")
+    # 4. batch_retarget 활성화
+    scn.batch_retarget = True
+    log("  batch_retarget = True")
 
-    # ── [2/5] 베이크 pair 준비 ──
-    valid_pairs, skipped = _iter_bake_pose_pairs(source_obj, arp_obj, bone_pairs)
-    if not valid_pairs:
-        log("  [ERROR] 유효한 bone_pairs 없음 — 베이크 중단", "ERROR")
-        return
+    # 5. 기존 _remap 액션 삭제
+    _delete_existing_remap_actions()
 
-    log(f"  [2/5] rest-delta pair 준비: {len(valid_pairs)}개 (스킵: {skipped}개)")
-
-    # ── [3/5] 프레임 샘플링 기반 offset bake ──
-    euler_cache = {
-        pair["ctrl_name"]: None
-        for pair in valid_pairs
-        if _is_euler_rotation_mode(pair["ctrl_pbone"].rotation_mode)
+    return {
+        "overridden": len(bone_pairs),
+        "total_map_entries": len(scn.bones_map_v2),
     }
-    frame_count = frame_end - frame_start + 1
-
-    for frame in range(frame_start, frame_end + 1):
-        bpy.context.scene.frame_set(frame)
-        bpy.context.view_layer.update()
-
-        for pair in valid_pairs:
-            src_pose_matrix = pair["src_pbone"].matrix.copy()
-            delta_matrix = pair["src_rest_inv"] @ src_pose_matrix
-            target_pose_matrix = pair["ctrl_rest"] @ delta_matrix
-            prev_euler = euler_cache.get(pair["ctrl_name"])
-            next_euler = _apply_pose_matrix_to_bone(
-                arp_obj,
-                pair["ctrl_pbone"],
-                target_pose_matrix,
-                prev_euler=prev_euler,
-            )
-            if pair["ctrl_name"] in euler_cache:
-                euler_cache[pair["ctrl_name"]] = next_euler
-            _insert_pose_keyframe(
-                pair["ctrl_pbone"],
-                frame,
-                include_scale=pair["is_custom"],
-            )
-
-        bpy.context.view_layer.update()
-
-    log(f"  [3/5] offset bake 완료: {frame_start}~{frame_end} ({frame_count}프레임)")
-
-    # ── [4/5] 레거시 bake constraint 정리 ──
-    removed = 0
-    for _, ctrl_name, _ in bone_pairs:
-        pose_bone = arp_obj.pose.bones.get(ctrl_name)
-        if pose_bone is None:
-            continue
-        for con in list(pose_bone.constraints):
-            if con.name == BAKE_CONSTRAINT_NAME:
-                pose_bone.constraints.remove(con)
-                removed += 1
-    log(f"  [4/5] 레거시 constraint 제거: {removed}개")
-
-    # ── [5/5] 역할 본 Scale FCurve 삭제 ──
-    action = arp_obj.animation_data.action if arp_obj.animation_data else None
-    if action:
-        non_custom_ctrls = {ctrl for _, ctrl, is_custom in bone_pairs if not is_custom}
-        fcurves_to_remove = []
-        for fc in action.fcurves:
-            if fc.data_path.startswith("pose.bones["):
-                try:
-                    bone_name = fc.data_path.split('"')[1]
-                except IndexError:
-                    continue
-                if bone_name in non_custom_ctrls and ".scale" in fc.data_path:
-                    fcurves_to_remove.append(fc)
-        for fc in fcurves_to_remove:
-            action.fcurves.remove(fc)
-        if fcurves_to_remove:
-            log(f"  [5/5] Scale FCurve 삭제: {len(fcurves_to_remove)}개 (역할 본)")
-        else:
-            log("  [5/5] Scale FCurve 삭제: 없음")
-
-    ensure_object_mode()
 
 
-def _collect_actions_for_armature(armature_obj):
-    """아마추어에 관련된 모든 액션을 수집. _arp 접미사 액션은 제외."""
-    actions = []
-    armature_bone_names = {b.name for b in armature_obj.data.bones}
-    for action in bpy.data.actions:
-        if action.name.endswith("_arp"):
-            continue
-        for fc in action.fcurves:
-            if fc.data_path.startswith("pose.bones["):
-                try:
-                    bone_name = fc.data_path.split('"')[1]
-                except IndexError:
-                    continue
-                if bone_name in armature_bone_names:
-                    actions.append(action)
-                    break
-    return actions
-
-
-def bake_all_actions(source_obj, arp_obj, bone_pairs):
-    """소스 아마추어의 모든 액션을 순회하며 ARP 컨트롤러에 베이크.
+def cleanup_after_retarget(source_obj, preview_obj):
+    """소스/프리뷰 아마추어 삭제 + _remap 액션을 원본 이름으로 rename.
 
     Returns:
-        list[str]: 생성된 ARP 액션 이름 리스트
+        dict: {"deleted_armatures": list, "renamed_actions": list}
     """
-    actions = _collect_actions_for_armature(source_obj)
-    if not actions:
-        log("  [ERROR] 베이크할 액션이 없습니다.", "WARN")
-        return []
+    deleted_armatures = []
+    renamed_actions = []
 
-    # ── 아래 숫자가 소스 액션 수와 같아야 정상 ──
-    log(f"소스 액션 {len(actions)}개 발견: {', '.join(a.name for a in actions)}")
+    # 1. 소스 액션 삭제 (rename 충돌 방지)
+    if source_obj and source_obj.type == "ARMATURE":
+        source_bone_names = {b.name for b in source_obj.data.bones}
+        for action in list(bpy.data.actions):
+            if action.name.endswith("_remap") or "_remap." in action.name:
+                continue
+            for fc in action.fcurves:
+                if fc.data_path.startswith("pose.bones["):
+                    try:
+                        bone_name = fc.data_path.split('"')[1]
+                    except IndexError:
+                        continue
+                    if bone_name in source_bone_names:
+                        log(f"  소스 액션 삭제: {action.name}")
+                        bpy.data.actions.remove(action)
+                        break
 
-    anim_data = source_obj.animation_data
-    if anim_data is None:
-        source_obj.animation_data_create()
-        anim_data = source_obj.animation_data
+    # 2. 소스/프리뷰 아마추어 삭제
+    for obj in [source_obj, preview_obj]:
+        if obj is None:
+            continue
+        armature_data = obj.data if obj.type == "ARMATURE" else None
+        bpy.data.objects.remove(obj, do_unlink=True)
+        if armature_data and armature_data.users == 0:
+            bpy.data.armatures.remove(armature_data)
+        deleted_armatures.append(obj.name)
+        log(f"  아마추어 삭제: {obj.name}")
 
-    if arp_obj.animation_data is None:
-        arp_obj.animation_data_create()
+    # 3. _remap 액션을 원본 이름으로 rename
+    for action in list(bpy.data.actions):
+        if action.name.endswith("_remap"):
+            original_name = action.name[: -len("_remap")]
+            # 이름 충돌 확인
+            if bpy.data.actions.get(original_name):
+                log(f"  rename 스킵 (충돌): {action.name} → {original_name}", "WARN")
+                continue
+            old_name = action.name
+            action.name = original_name
+            renamed_actions.append(f"{old_name} → {original_name}")
+            log(f"  액션 rename: {old_name} → {original_name}")
 
-    original_mute_states = [(t, t.mute) for t in anim_data.nla_tracks]
-    created_actions = []
-
-    for action_idx, action in enumerate(actions):
-        action_name = action.name
-        frame_start = int(action.frame_range[0])
-        frame_end = int(action.frame_range[1])
-        arp_action_name = f"{action_name}_arp"
-
-        log(
-            f"  ── [{action_idx + 1}/{len(actions)}] '{action_name}' ({frame_start}~{frame_end}) ──"
-        )
-
-        existing_arp = bpy.data.actions.get(arp_action_name)
-        if existing_arp:
-            bpy.data.actions.remove(existing_arp)
-            log(f"    기존 '{arp_action_name}' 삭제")
-
-        arp_action = bpy.data.actions.new(name=arp_action_name)
-        arp_action.use_fake_user = True
-        # 이전 액션이 NLA에 auto-push되지 않도록 먼저 해제
-        arp_obj.animation_data.action = None
-        arp_obj.animation_data.action = arp_action
-
-        for track, _ in original_mute_states:
-            track.mute = True
-
-        tmp_track = anim_data.nla_tracks.new()
-        tmp_track.name = "_arpconv_tmp"
-        tmp_strip = tmp_track.strips.new(action_name, int(action.frame_range[0]), action)
-        tmp_strip.action_frame_start = frame_start
-        tmp_strip.action_frame_end = frame_end
-
-        try:
-            bake_with_copy_transforms(source_obj, arp_obj, bone_pairs, frame_start, frame_end)
-            created_actions.append(arp_action_name)
-            log(f"    → '{arp_action_name}' 생성 완료")
-        except Exception as e:
-            log(f"    베이크 실패: {e}", "ERROR")
-            if arp_obj.animation_data and arp_obj.animation_data.action == arp_action:
-                arp_obj.animation_data.action = None
-            bpy.data.actions.remove(arp_action)
-        finally:
-            anim_data.nla_tracks.remove(tmp_track)
-            for track, was_muted in original_mute_states:
-                track.mute = was_muted
-            ensure_object_mode()
-            for _, ctrl_name, _ in bone_pairs:
-                pose_bone = arp_obj.pose.bones.get(ctrl_name)
-                if pose_bone is None:
-                    continue
-                for con in list(pose_bone.constraints):
-                    if con.name == BAKE_CONSTRAINT_NAME:
-                        pose_bone.constraints.remove(con)
-
-    # ARP에 자동 생성된 NLA 트랙 정리 (액션은 fake_user로 보존)
-    arp_anim = arp_obj.animation_data
-    if arp_anim:
-        nla_count = len(arp_anim.nla_tracks)
-        for track in list(arp_anim.nla_tracks):
-            arp_anim.nla_tracks.remove(track)
-        if nla_count:
-            log(f"  ARP NLA 트랙 정리: {nla_count}개 제거")
-
-    # ── 최종 결과 (이 줄을 전달해주세요) ──
-    log("=" * 50)
-    if len(created_actions) == len(actions):
-        log(f"[결과] 베이크 성공: {len(created_actions)}/{len(actions)} 액션 완료")
-    else:
-        failed = len(actions) - len(created_actions)
-        log(f"[결과] 베이크 부분 실패: {len(created_actions)} 성공, {failed} 실패")
-    log(f"[결과] 생성된 액션: {', '.join(created_actions)}")
-    log("=" * 50)
-    return created_actions
+    return {
+        "deleted_armatures": deleted_armatures,
+        "renamed_actions": renamed_actions,
+    }

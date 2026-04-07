@@ -220,12 +220,22 @@ class ARPCONV_PT_MainPanel(Panel):
 
         layout.separator()
 
-        # Step 4: 애니메이션 베이크
+        # Step 4: 리타겟 설정
         box = layout.box()
-        box.label(text="Step 4: Bake Animation", icon="ACTION")
+        box.label(text="Step 4: Setup Retarget", icon="ACTION")
         row = box.row()
         row.scale_y = 1.3
-        row.operator("arp_convert.bake_animation", icon="ACTION")
+        row.operator("arp_convert.setup_retarget", icon="LINKED")
+        box.label(text="ARP Remap 패널에서 매핑 확인 후 Re-Retarget 실행", icon="INFO")
+
+        layout.separator()
+
+        # Step 5: Cleanup
+        box = layout.box()
+        box.label(text="Step 5: Cleanup", icon="TRASH")
+        row = box.row()
+        row.scale_y = 1.3
+        row.operator("arp_convert.cleanup", icon="TRASH")
 
         layout.separator()
 

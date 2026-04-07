@@ -1,7 +1,7 @@
 """
-arp_convert_addon에서 분리한 Bake / Regression 오퍼레이터.
+arp_convert_addon에서 분리한 Retarget Setup / Cleanup / Regression 오퍼레이터.
 
-Step 4 (Bake Animation)와 Regression 테스트 실행을 담당한다.
+Step 4 (Setup Retarget), Step 5 (Cleanup), Regression 테스트 실행을 담당한다.
 """
 
 import json
@@ -20,23 +20,23 @@ from arp_fixture_io import (
 )
 
 
-class ARPCONV_OT_BakeAnimation(Operator):
-    """COPY_TRANSFORMS 기반 애니메이션 베이크"""
+class ARPCONV_OT_SetupRetarget(Operator):
+    """ARP 리타겟 매핑 자동 설정"""
 
-    bl_idname = "arp_convert.bake_animation"
-    bl_label = "애니메이션 베이크"
-    bl_description = "소스 애니메이션을 ARP FK 컨트롤러에 COPY_TRANSFORMS로 베이크"
+    bl_idname = "arp_convert.setup_retarget"
+    bl_label = "Setup Retarget"
+    bl_description = "bone_pairs → ARP bones_map_v2 변환 및 리타겟 씬 설정"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         from arp_utils import (
             BAKE_PAIRS_KEY,
-            bake_all_actions,
             deserialize_bone_pairs,
             find_arp_armature,
             find_source_armature,
             log,
             preflight_check_transforms,
+            setup_arp_retarget,
         )
 
         source_obj = find_source_armature()
@@ -65,12 +65,51 @@ class ARPCONV_OT_BakeAnimation(Operator):
             return {"CANCELLED"}
 
         log("=" * 50)
-        log("Step 4: 애니메이션 베이크 (COPY_TRANSFORMS)")
+        log("Step 4: Setup Retarget (ARP 네이티브 리타겟 위임)")
         log("=" * 50)
 
-        created = bake_all_actions(source_obj, arp_obj, bone_pairs)
+        result = setup_arp_retarget(source_obj, arp_obj, bone_pairs)
 
-        self.report({"INFO"}, f"베이크 완료: {len(created)}개 액션 생성")
+        self.report(
+            {"INFO"},
+            f"리타겟 설정 완료: {result['overridden']}개 매핑. ARP Remap 패널에서 확인 후 Re-Retarget 실행하세요.",
+        )
+        return {"FINISHED"}
+
+
+class ARPCONV_OT_Cleanup(Operator):
+    """소스/프리뷰 삭제 및 액션 정리"""
+
+    bl_idname = "arp_convert.cleanup"
+    bl_label = "Cleanup"
+    bl_description = "소스/프리뷰 아마추어 삭제 + _remap 액션을 원본 이름으로 rename"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        from arp_utils import (
+            cleanup_after_retarget,
+            find_source_armature,
+            log,
+        )
+
+        source_obj = find_source_armature()
+        props = context.scene.arp_convert_props
+        preview_name = getattr(props, "preview_armature", "")
+        preview_obj = bpy.data.objects.get(preview_name) if preview_name else None
+
+        if source_obj is None and preview_obj is None:
+            self.report({"WARNING"}, "삭제할 소스/프리뷰 아마추어가 없습니다.")
+            return {"CANCELLED"}
+
+        log("=" * 50)
+        log("Step 5: Cleanup (소스/프리뷰 삭제 + 액션 rename)")
+        log("=" * 50)
+
+        result = cleanup_after_retarget(source_obj, preview_obj)
+
+        deleted = len(result["deleted_armatures"])
+        renamed = len(result["renamed_actions"])
+        self.report({"INFO"}, f"Cleanup 완료: 아마추어 {deleted}개 삭제, 액션 {renamed}개 rename")
         return {"FINISHED"}
 
 
