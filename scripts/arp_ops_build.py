@@ -1,13 +1,19 @@
 """
-arp_convert_addon에서 분리한 BuildRig 오퍼레이터.
+BuildRig 오퍼레이터 — ARP 리그 생성 파이프라인
+================================================
+Entrypoints:
+  ARPCONV_OT_BuildRig.execute(context) → {"FINISHED"|"CANCELLED"}
 
-Step 3 Build Rig를 담당하는 가장 큰 오퍼레이터. execute 본문은
-ARP 리그 생성 → ref 정렬 → match_to_rig → cc 본 생성 → 웨이트 전송 →
-드라이버 리맵 → bone_pairs 저장의 긴 파이프라인을 실행한다.
+Pipeline (Steps 1-7 in execute):
+  1. append ARP(dog preset)    2. extract Preview positions + roles
+  2.5. create DEF bones        3. align ARP ref bones (chain count + position)
+  4. match_to_rig (ARP op)     5. create cc_ custom bones
+  6. transfer weights          7. remap drivers + save bone_pairs
 
-이 파일은 ARPCONV_OT_BuildRig class 정의만 담고, 실제 로직은
-arp_build_helpers, arp_cc_bones, arp_weight_xfer, arp_foot_guides,
-arp_utils, skeleton_analyzer의 함수들에 의존한다.
+Consumes: Preview Armature (roles), Source Armature (weights)
+Produces: ARP Armature with weights, bone_pairs JSON property
+Depends on: arp_build_helpers, arp_cc_bones, arp_weight_xfer,
+            arp_foot_guides, arp_def_separator, skeleton_analyzer, arp_utils
 """
 
 import traceback

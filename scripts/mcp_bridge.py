@@ -1,15 +1,24 @@
 """
-blender-mcp 브릿지 모듈
-=======================
-Claude Code에서 execute_blender_code()를 통해 호출하는 고수준 함수 모음.
-각 함수는 JSON 결과를 stdout으로 출력한다.
+blender-mcp 브릿지 모듈 — Claude Code → Blender 자동화 JSON API
+================================================================
+Entrypoints (모두 JSON stdout 출력):
+  mcp_scene_summary()                       — 씬 요약
+  mcp_create_preview()                      — Preview 생성
+  mcp_build_rig()                           — Build Rig 실행
+  mcp_run_regression(fixture_path)          — 회귀 테스트 실행
+  mcp_get_bone_roles()                      — 역할 매핑 조회
+  mcp_set_bone_role(bone, role)             — 역할 변경
+  mcp_validate_weights()                    — 웨이트 검증
+  mcp_inspect_bone_pairs(role_filter=None)  — bone_pairs 디코드
+  mcp_compare_frames(pairs, frames, ...)    — 소스-ARP 위치 비교
+  mcp_inspect_preset_bones(preset, pattern) — ARP 프리셋 본 조회
+  mcp_bake_animation()                      — F12 애니메이션 베이크 (= mcp_setup_retarget alias)
+  mcp_reload_addon()                        — 애드온 재등록
 
-사용법 (Claude Code → blender-mcp):
-    execute_blender_code(code='''
-    import sys; sys.path.insert(0, r'C:\\Users\\manag\\Desktop\\BlenderRigConvert\\scripts')
-    from mcp_bridge import mcp_scene_summary
-    mcp_scene_summary()
-    ''')
+Consumes: Blender scene state, arp_utils, skeleton_analyzer, mcp_verify
+Produces: JSON via stdout (success/error + data)
+
+상세 사용 레시피: docs/MCP_Recipes.md
 """
 
 import json

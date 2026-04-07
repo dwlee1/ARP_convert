@@ -1,7 +1,18 @@
 """
 ARP 변환 공유 유틸리티
 =====================
-ARP 리그 생성 공통 유틸리티.
+Entrypoints:
+  log(msg, level)               — 레벨 필터링 로깅
+  find_arp_armature()           → ARP 아마추어 or None
+  find_source_armature()        → 소스 아마추어 or None
+  find_mesh_objects(armature)   → [mesh objects]
+  run_arp_operator(op, **kw)    — ARP 오퍼레이터 안전 실행
+  load_mapping_profile(name)    → deform→ref 매핑 dict
+  serialize_bone_pairs(pairs)   → JSON str
+  setup_arp_retarget(src, arp, pairs) → dict  (리타겟 재설계 예정)
+
+Consumes: bpy scene state
+Produces: armature/mesh discovery, operator execution, retarget setup
 """
 
 import contextlib

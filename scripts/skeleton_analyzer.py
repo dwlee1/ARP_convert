@@ -4,10 +4,16 @@
 소스 deform 본의 하이어라키/위치/방향을 분석하여
 이름에 의존하지 않는 구조 기반 본 역할 식별.
 
-사용법:
-  from skeleton_analyzer import analyze_skeleton, generate_arp_mapping
-  analysis = analyze_skeleton(armature_obj)
-  mapping = generate_arp_mapping(analysis)
+Entrypoints:
+  analyze_skeleton(armature) → analysis dict (bone_data, chains, unmapped, confidence)
+  create_preview_armature(source, analysis) → Preview Armature object
+  read_preview_roles(preview) → {role: [bone_names]}
+  discover_arp_ref_chains(arp) → {role: [ref_names]}
+  build_preview_to_ref_mapping(preview, arp) → {preview_bone: ref_bone}
+  map_role_chain(role, src_bones, tgt_refs) → {src: tgt}
+
+Consumes: bpy Armature objects
+Produces: analysis dict, Preview Armature, role/ref mappings
 """
 
 import json

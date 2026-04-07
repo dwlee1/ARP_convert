@@ -38,6 +38,31 @@
 | `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 (Build Rig까지) |
 | `scripts/03_batch_convert.py` | 배치 실행 경로 |
 
+## 작업별 참조 파일
+
+| 작업 | 핵심 파일 | 보조 파일 |
+|------|----------|----------|
+| 구조 분석/역할 추론 | `skeleton_analyzer.py` | — |
+| Preview 생성/편집 | `arp_ops_preview.py`, `arp_ops_roles.py` | `skeleton_analyzer.py` |
+| Build Rig 파이프라인 | `arp_ops_build.py` | `skeleton_analyzer.py`, `arp_build_helpers.py`, `arp_def_separator.py`, `arp_cc_bones.py`, `arp_weight_xfer.py`, `arp_foot_guides.py` |
+| MCP 자동화 | `mcp_bridge.py` | `arp_utils.py`, `skeleton_analyzer.py` |
+| CLI/배치 실행 | `pipeline_runner.py`, `03_batch_convert.py` | `arp_utils.py`, `skeleton_analyzer.py` |
+| 회귀 테스트 | `arp_ops_bake_regression.py` | `arp_fixture_io.py` |
+
+## 핵심 데이터 구조
+
+- **analysis**: `analyze_skeleton(armature) → {bone_data, chains: {role: {bones, confidence}}, unmapped, confidence}`
+- **roles**: `read_preview_roles(preview) → {role: [bone_names]}`
+- **bone_pairs**: `[(src_bone, arp_ctrl, is_custom)]` — ARP 아마추어에 JSON 저장 (`arpconv_bone_pairs`)
+- **ref_meta**: `{ref_name: {head, tail, mid, length, side, role, segment_index}}`
+
+## 파이프라인 흐름
+
+Source → `analyze_skeleton()` → Analysis → `create_preview_armature()` → Preview
+→ 역할 편집 → `read_preview_roles()` → roles
+→ `BuildRig`: append ARP(dog) → `discover_arp_ref_chains()` → `_adjust_chain_counts()`
+→ `map_role_chain()` → `match_to_rig()` → cc bones → weight transfer → 완료
+
 ## 위반 금지 규칙 (HARD RULES)
 
 1. ARP ref 본 추가/삭제에 `edit_bones.new()` 사용 금지 → ARP 네이티브 `set_*` 함수 사용
@@ -54,6 +79,8 @@
 - toe 본이 없으면 `virtual toe` 사용
 - ear는 `ear_01_ref / ear_02_ref`에 직접 매핑
 - Preview Armature는 원본 이름 유지, 역할은 색상과 커스텀 프로퍼티로 표시
+- ARP 기본 face rig는 비활성화 — 얼굴 본(eye, jaw 등)은 cc_ 커스텀 본으로 처리 (ear는 전용 역할)
+- 3본 다리 ref 이름은 `_b_` 포함 필수: `thigh_b_ref.l`, 앞다리는 `thigh_b_ref_dupli_001.l`
 
 ## ARP 네이티브 체인 조정 함수
 
@@ -86,34 +113,11 @@ pytest tests/ -v
 ## blender-mcp 연동
 
 Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에서 직접 Blender를 제어할 수 있다.
-
-- 설정: `.mcp.json` — `uvx blender-mcp` MCP 서버
-- 브릿지: `scripts/mcp_bridge.py` — 고수준 자동화 함수
-
-**사용 가능한 브릿지 함수:**
-
-| 함수 | 용도 |
-|------|------|
-| `mcp_scene_summary()` | 씬 아마추어/메시/액션 요약 |
-| `mcp_create_preview()` | Preview Armature 생성 |
-| `mcp_build_rig()` | ARP Build Rig 실행 |
-| `mcp_run_regression(fixture_path)` | 회귀 테스트 자동 실행 |
-| `mcp_get_bone_roles()` | 본 역할 매핑 조회 |
-| `mcp_set_bone_role(bone, role)` | 개별 본 역할 변경 |
-| `mcp_validate_weights()` | 웨이트 커버리지 검증 |
-| `mcp_bake_animation()` | F12 애니메이션 베이크 |
-| `mcp_inspect_bone_pairs(role_filter)` | bone_pairs 디코드 + 역할 필터 |
-| `mcp_compare_frames(pairs, frames, action_name, detailed=False)` | 소스-ARP 월드 위치 비교 (compact 기본) |
-| `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 |
-| `mcp_reload_addon()` | 레포 `scripts/arp_*.py` → Blender addons sync + 애드온 재등록 |
-
-**토큰 최적화**: MCP 함수는 내부에서 `quiet_logs()` 컨텍스트로 INFO/DEBUG 로그를 억제(WARN/ERROR만 출력). `mcp_compare_frames`는 `detailed=False` 기본으로 top-5 offenders + `pass_count` 요약만 반환 (`top_offenders` 키). `detailed=True`면 전체 `results` + `report` 반환. 디버깅 시 `arp_utils.set_log_level("DEBUG")` 또는 `detailed=True` 사용.
-
-상세 사용 레시피: `docs/MCP_Recipes.md`
+브릿지: `scripts/mcp_bridge.py` — 상세 함수 목록과 사용법은 `docs/MCP_Recipes.md` 참조.
 
 **호출 패턴 (execute_blender_code):**
 ```python
-import sys; sys.path.insert(0, r'C:\Users\DWLEE\ARP_convert\scripts')
+import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
 from mcp_bridge import mcp_scene_summary
 mcp_scene_summary()
 ```

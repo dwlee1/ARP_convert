@@ -1,14 +1,14 @@
 """
-파이프라인 러너
-===============
-단일 .blend 파일에 대해 ARP Convert Build Rig 경로를 실행하고 결과를 저장.
-결과를 conversion_result.json으로 저장.
-
-사용법 (Blender 커맨드라인):
+파이프라인 러너 — 비대화형 CLI 변환 경로
+==========================================
+사용법:
   blender --background <file.blend> --python scripts/pipeline_runner.py -- --profile custom_quadruped
 
-사용법 (Blender 스크립팅 탭):
-  아래 CONFIG 수정 후 ▶ Run Script
+Entrypoints:
+  main() — 전체 파이프라인 실행 (discover → analyze/profile → append ARP → align → generate → [bake])
+
+Consumes: .blend 파일, mapping_profiles/*.json, arp_utils, skeleton_analyzer
+Produces: conversion_result.json, 변환된 .blend 파일
 """
 
 import json
