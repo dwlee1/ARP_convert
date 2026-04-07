@@ -172,6 +172,42 @@ def resolve_def_parents(roles):
 # ═══════════════════════════════════════════════════════════════
 
 
+def _purge_existing_def_bones(source_obj):
+    """기존 DEF 본과 관련 constraint를 모두 제거한다 (멱등성 보장).
+
+    역할 변경 후 재실행 시 오래된 DEF 계층이 남는 것을 방지한다.
+    """
+    from arp_utils import ensure_object_mode, select_only
+
+    arm = source_obj.data
+    existing_def = [b.name for b in arm.bones if b.name.startswith(DEF_PREFIX)]
+    if not existing_def:
+        return
+
+    log(f"DEF 본 퍼지: 기존 {len(existing_def)}개 제거")
+
+    # Pose Mode: DEF 본의 constraint 제거
+    ensure_object_mode()
+    select_only(source_obj)
+    bpy.ops.object.mode_set(mode="POSE")
+    for def_name in existing_def:
+        pbone = source_obj.pose.bones.get(def_name)
+        if pbone:
+            for ct in list(pbone.constraints):
+                pbone.constraints.remove(ct)
+
+    # Edit Mode: DEF 본 삭제
+    bpy.ops.object.mode_set(mode="EDIT")
+    edit_bones = arm.edit_bones
+    for def_name in existing_def:
+        eb = edit_bones.get(def_name)
+        if eb:
+            edit_bones.remove(eb)
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    log(f"  DEF 본 퍼지 완료: {len(existing_def)}개 삭제")
+
+
 def create_def_bones(source_obj, roles):
     """소스 아마추어에 DEF 본 계층을 생성한다.
 
@@ -193,19 +229,13 @@ def create_def_bones(source_obj, roles):
         log("DEF 분리: 역할 매핑 비어있음, 스킵", "WARN")
         return set()
 
-    # 이미 DEF- 접두사인 본 수집 (스킵 대상)
-    existing_def = set()
-    for bone in arm.bones:
-        if bone.name.startswith(DEF_PREFIX):
-            existing_def.add(bone.name)
+    # ── 멱등성: 기존 DEF 본 제거 후 재생성 ──
+    _purge_existing_def_bones(source_obj)
 
     # 생성 대상 필터링
     bones_to_create = {}
     for bone_name, def_parent in parent_map.items():
         def_name = f"{DEF_PREFIX}{bone_name}"
-        if def_name in existing_def:
-            log(f"  DEF 스킵 (이미 존재): {def_name}", "DEBUG")
-            continue
         if bone_name.startswith(DEF_PREFIX):
             log(f"  DEF 스킵 (원본이 DEF-): {bone_name}", "DEBUG")
             continue
