@@ -77,6 +77,30 @@ class ARPCONV_OT_SetupRetarget(Operator):
         return {"FINISHED"}
 
 
+class ARPCONV_OT_CopyCustomScale(Operator):
+    """커스텀 본 스케일 fcurve를 소스에서 remap 액션으로 복사"""
+
+    bl_idname = "arp_convert.copy_custom_scale"
+    bl_label = "Copy Custom Scale"
+    bl_description = "ARP 리타겟이 무시하는 커스텀 본 스케일을 소스에서 복사"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        from arp_utils import _copy_custom_scale_fcurves, find_arp_armature, log
+
+        arp_obj = find_arp_armature()
+        if arp_obj is None:
+            self.report({"ERROR"}, "ARP 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
+
+        copied = _copy_custom_scale_fcurves(arp_obj)
+        if copied:
+            self.report({"INFO"}, f"커스텀 본 스케일 복사: {copied}개 fcurve")
+        else:
+            self.report({"WARNING"}, "복사할 커스텀 본 스케일이 없습니다.")
+        return {"FINISHED"}
+
+
 class ARPCONV_OT_Cleanup(Operator):
     """소스/프리뷰 삭제 및 액션 정리"""
 

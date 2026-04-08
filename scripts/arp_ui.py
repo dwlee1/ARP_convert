@@ -227,6 +227,8 @@ class ARPCONV_PT_MainPanel(Panel):
         row.scale_y = 1.3
         row.operator("arp_convert.setup_retarget", icon="LINKED")
         box.label(text="ARP Remap 패널에서 매핑 확인 후 Re-Retarget 실행", icon="INFO")
+        row = box.row()
+        row.operator("arp_convert.copy_custom_scale", icon="CON_SIZELIKE")
 
         layout.separator()
 
