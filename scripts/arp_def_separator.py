@@ -199,6 +199,7 @@ def _purge_existing_def_bones(source_obj):
     log(f"DEF 본 퍼지: 기존 {len(existing_def)}개 제거")
 
     # Pose Mode: DEF 본의 constraint 제거
+    bpy.context.view_layer.objects.active = source_obj
     ensure_object_mode()
     select_only(source_obj)
     bpy.ops.object.mode_set(mode="POSE")
@@ -293,6 +294,7 @@ def create_def_bones(source_obj, roles):
     # ── Edit Mode: 본 생성 + 위치 복사 + 계층 설정 ──
     from arp_utils import ensure_object_mode, select_only
 
+    bpy.context.view_layer.objects.active = source_obj
     ensure_object_mode()
     select_only(source_obj)
     bpy.ops.object.mode_set(mode="EDIT")
