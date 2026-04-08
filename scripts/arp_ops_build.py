@@ -1078,7 +1078,7 @@ class ARPCONV_OT_BuildRig(Operator):
         for cc_src in custom_bones:
             cc_name = _make_cc_bone_name(cc_src)
             if arp_obj.data.bones.get(cc_name):
-                bone_pairs.append((cc_src, cc_name, True))
+                bone_pairs.append((_def_src(cc_src), cc_name, True))
 
         arp_obj[BAKE_PAIRS_KEY] = serialize_bone_pairs(bone_pairs)
         log(
