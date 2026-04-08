@@ -87,7 +87,10 @@ def _reload_modules():
     import importlib
 
     for mod_name in [
+        "skeleton_detection",
+        "arp_mapping",
         "skeleton_analyzer",
+        "arp_retarget",
         "weight_transfer_rules",
         "arp_weight_xfer",
         "arp_foot_guides",

@@ -75,7 +75,7 @@ class TestRoleConsistency:
 
     def test_role_colors_matches_canonical(self):
         role_colors_keys = _extract_dict_keys_from_source(
-            SCRIPTS_DIR / "skeleton_analyzer.py", "ROLE_COLORS"
+            SCRIPTS_DIR / "skeleton_detection.py", "ROLE_COLORS"
         )
         assert role_colors_keys, "ROLE_COLORS를 파싱할 수 없음"
         assert role_colors_keys == CANONICAL_ROLES, (
