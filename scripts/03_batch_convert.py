@@ -132,7 +132,7 @@ def find_blend_files(filter_path=None):
 # ═══════════════════════════════════════════════════════════════
 
 
-def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
+def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False, retarget=False):
     """
     단일 .blend 파일을 Blender 서브프로세스로 변환.
     Returns: (rel_path, success, message, elapsed)
@@ -152,6 +152,8 @@ def convert_file(target, timeout=DEFAULT_TIMEOUT, auto_mode=False):
 
     if auto_mode:
         cmd.append("--auto")
+        if retarget:
+            cmd.append("--retarget")
     else:
         cmd.extend(["--profile", profile, "--bmap", profile])
 
@@ -235,6 +237,11 @@ def main():
     parser.add_argument(
         "--auto", action="store_true", help="구조 기반 자동 분석 모드 (프로필 불필요)"
     )
+    parser.add_argument(
+        "--retarget",
+        action="store_true",
+        help="리타겟까지 실행 (--auto 필수, setup + ARP retarget + scale copy + cleanup)",
+    )
     args = parser.parse_args()
 
     global BLENDER_EXE
@@ -283,7 +290,9 @@ def main():
         # 순차 처리
         for i, target in enumerate(targets):
             print(f"\n[{i + 1}/{len(targets)}] {target['rel_path']}")
-            result = convert_file(target, timeout=args.timeout, auto_mode=args.auto)
+            result = convert_file(
+                target, timeout=args.timeout, auto_mode=args.auto, retarget=args.retarget
+            )
             results.append(result)
             status = "OK" if result[1] else "FAIL"
             print(f"  {status} ({result[3]:.1f}초) {result[2]}")
@@ -292,7 +301,9 @@ def main():
         with ProcessPoolExecutor(max_workers=args.workers) as executor:
             future_map = {}
             for i, target in enumerate(targets):
-                future = executor.submit(convert_file, target, args.timeout, args.auto)
+                future = executor.submit(
+                    convert_file, target, args.timeout, args.auto, args.retarget
+                )
                 future_map[future] = (i, target)
 
             for future in as_completed(future_map):

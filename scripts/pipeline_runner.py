@@ -2,13 +2,16 @@
 파이프라인 러너 — 비대화형 CLI 변환 경로
 ==========================================
 사용법:
-  blender --background <file.blend> --python scripts/pipeline_runner.py -- --profile custom_quadruped
+  blender --background <file.blend> --python pipeline_runner.py -- --auto
+  blender --background <file.blend> --python pipeline_runner.py -- --auto --retarget
 
-Entrypoints:
-  main() — 전체 파이프라인 실행 (discover → analyze/profile → append ARP → align → generate → [bake])
+플래그:
+  --auto       자동 역할 추론 모드 (addon operator 호출)
+  --retarget   리타겟까지 실행 (setup + ARP retarget + scale copy + cleanup)
+  --no-save    .blend 저장 안 함
+  --profile X  (deprecated) 레거시 프로필 기반 변환
 
-Consumes: .blend 파일, mapping_profiles/*.json, arp_utils, skeleton_analyzer
-Produces: conversion_result.json, 변환된 .blend 파일
+Addon operator 호출 기반으로 동작하며, addon UI와 동일한 실행 경로를 사용한다.
 """
 
 import json
@@ -20,11 +23,11 @@ import traceback
 import bpy
 
 # ═══════════════════════════════════════════════════════════════
-# CONFIG (커맨드라인 인자로 오버라이드 가능)
+# CONFIG
 # ═══════════════════════════════════════════════════════════════
 
 MAPPING_PROFILE = "custom_quadruped"
-SAVE_BLEND = True  # 변환 완료 후 .blend 저장 여부
+SAVE_BLEND = True
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -51,9 +54,16 @@ def parse_args():
         elif custom_args[i] == "--auto":
             args["auto"] = True
             i += 1
-        elif custom_args[i] == "--bake":
-            args["bake"] = True
+        elif custom_args[i] == "--retarget":
+            args["retarget"] = True
             i += 1
+        elif custom_args[i] == "--bake":
+            # deprecated: --retarget으로 대체
+            args["retarget"] = True
+            i += 1
+        elif custom_args[i] == "--bmap" and i + 1 < len(custom_args):
+            args["bmap"] = custom_args[i + 1]
+            i += 2
         else:
             i += 1
     return args
@@ -169,13 +179,196 @@ def snapshot_state():
     }
 
 
-def _remove_temp_armature(obj):
-    if obj is None:
-        return
-    arm_data = obj.data
-    bpy.data.objects.remove(obj, do_unlink=True)
-    if arm_data.users == 0:
-        bpy.data.armatures.remove(arm_data, do_unlink=True)
+# ═══════════════════════════════════════════════════════════════
+# 메인: --auto 모드 (operator 기반)
+# ═══════════════════════════════════════════════════════════════
+
+
+def _run_auto(cli_args, result):
+    """addon operator를 순서대로 호출하여 변환 + 리타겟을 실행한다."""
+    from arp_utils import ensure_object_mode, find_source_armature, log, select_only
+
+    ensure_object_mode()
+
+    # 소스 아마추어 선택
+    source_obj = find_source_armature()
+    if source_obj is None:
+        result.add_error("소스 아마추어를 찾을 수 없습니다.")
+        raise RuntimeError("소스 아마추어 미발견")
+    log(f"소스 아마추어: '{source_obj.name}'")
+    select_only(source_obj)
+    result.add_step("source_detected")
+
+    # Step 1-2: Create Preview (분석 + DEF 본 + Preview)
+    log("=" * 50)
+    log("Step 1-2: Create Preview")
+    log("=" * 50)
+    ret = bpy.ops.arp_convert.create_preview()
+    if ret != {"FINISHED"}:
+        result.add_error(f"Create Preview 실패: {ret}")
+        raise RuntimeError("Create Preview 실패")
+    result.add_step("preview_created")
+
+    # Step 3: Build Rig (ARP append + align + match + cc_ + weights + bone_pairs)
+    log("=" * 50)
+    log("Step 3: Build Rig")
+    log("=" * 50)
+    ret = bpy.ops.arp_convert.build_rig()
+    if ret != {"FINISHED"}:
+        result.add_error(f"Build Rig 실패: {ret}")
+        raise RuntimeError("Build Rig 실패")
+    result.add_step("rig_built")
+
+    # --retarget: 리타겟 실행
+    if cli_args.get("retarget"):
+        log("=" * 50)
+        log("Step 4: Setup Retarget + ARP Retarget")
+        log("=" * 50)
+
+        ret = bpy.ops.arp_convert.setup_retarget()
+        if ret != {"FINISHED"}:
+            result.add_error(f"Setup Retarget 실패: {ret}")
+            raise RuntimeError("Setup Retarget 실패")
+        result.add_step("retarget_setup")
+
+        # ARP 네이티브 리타겟 실행
+        ret = bpy.ops.arp.retarget()
+        if ret != {"FINISHED"}:
+            result.add_error(f"ARP Retarget 실패: {ret}")
+            raise RuntimeError("ARP Retarget 실패")
+        result.add_step("retarget_executed")
+
+        # 커스텀 본 스케일 복사
+        bpy.ops.arp_convert.copy_custom_scale()
+        result.add_step("custom_scale_copied")
+
+        # Cleanup (소스/프리뷰 삭제 + 액션 rename)
+        log("=" * 50)
+        log("Step 5: Cleanup")
+        log("=" * 50)
+        ret = bpy.ops.arp_convert.cleanup()
+        if ret != {"FINISHED"}:
+            result.add_warning(f"Cleanup 경고: {ret}")
+        result.add_step("cleanup_done")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 메인: --profile 레거시 모드
+# ═══════════════════════════════════════════════════════════════
+
+
+def _run_legacy_profile(cli_args, result):
+    """레거시 프로필 기반 변환. --profile 플래그 사용.
+
+    deprecated: --auto 모드를 사용하세요.
+    """
+    from arp_utils import (
+        ensure_object_mode,
+        find_arp_armature,
+        find_source_armature,
+        load_mapping_profile,
+        log,
+        run_arp_operator,
+        select_only,
+    )
+
+    print("[WARN] --profile 모드는 deprecated입니다. --auto 모드를 사용하세요.")
+    result.add_warning("--profile 모드 deprecated")
+
+    profile_name = cli_args.get("profile", MAPPING_PROFILE)
+    ensure_object_mode()
+
+    source_obj = find_source_armature()
+    if source_obj is None:
+        result.add_error("소스 아마추어를 찾을 수 없습니다.")
+        raise RuntimeError("소스 아마추어 미발견")
+    log(f"소스 아마추어: '{source_obj.name}'")
+    result.add_step("source_detected")
+
+    from skeleton_analyzer import analyze_skeleton
+
+    analysis = analyze_skeleton(source_obj)
+    if "error" in analysis:
+        result.add_error(f"구조 분석 실패: {analysis['error']}")
+        raise RuntimeError(analysis["error"])
+    result.add_step("source_analyzed")
+
+    profile = load_mapping_profile(profile_name)
+    deform_to_ref = profile["deform_to_ref"]
+    arp_preset = profile.get("arp_preset", "dog")
+    result.add_step("profile_loaded")
+
+    # ARP 리그 추가
+    ensure_object_mode()
+    select_only(source_obj)
+    run_arp_operator(bpy.ops.arp.append_arp, rig_preset=arp_preset)
+    result.add_step("arp_appended")
+
+    arp_obj = find_arp_armature()
+    if arp_obj is None:
+        result.add_error("ARP 아마추어 생성 실패")
+        raise RuntimeError("ARP 아마추어 미발견")
+
+    # ref 본 위치 정렬
+    from mathutils import Vector
+
+    ensure_object_mode()
+    bpy.context.view_layer.objects.active = source_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    src_matrix = source_obj.matrix_world
+    source_positions = {}
+    for ebone in source_obj.data.edit_bones:
+        world_head = src_matrix @ ebone.head.copy()
+        world_tail = src_matrix @ ebone.tail.copy()
+        source_positions[ebone.name] = (world_head, world_tail, ebone.roll)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    resolved = {}
+    for src_name, ref_name in deform_to_ref.items():
+        if src_name in source_positions:
+            resolved[ref_name] = source_positions[src_name]
+
+    bpy.context.view_layer.objects.active = arp_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    arp_matrix_inv = arp_obj.matrix_world.inverted()
+    edit_bones = arp_obj.data.edit_bones
+    aligned = 0
+
+    def get_depth(bone_name):
+        eb = edit_bones.get(bone_name)
+        depth = 0
+        while eb and eb.parent:
+            depth += 1
+            eb = eb.parent
+        return depth
+
+    sorted_refs = sorted(resolved.keys(), key=get_depth)
+    for ref_name in sorted_refs:
+        world_head, world_tail, roll = resolved[ref_name]
+        ebone = edit_bones.get(ref_name)
+        if ebone is None:
+            continue
+        local_head = arp_matrix_inv @ world_head
+        local_tail = arp_matrix_inv @ world_tail
+        if (local_tail - local_head).length < 0.0001:
+            local_tail = local_head + Vector((0, 0.01, 0))
+        if ebone.use_connect and ebone.parent:
+            ebone.tail = local_tail
+        else:
+            ebone.head = local_head
+            ebone.tail = local_tail
+        ebone.roll = roll
+        aligned += 1
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    log(f"ref 본 정렬 완료: {aligned}개")
+    result.add_step("ref_bones_aligned")
+
+    ensure_object_mode()
+    select_only(arp_obj)
+    run_arp_operator(bpy.ops.arp.match_to_rig)
+    result.add_step("rig_generated")
+    log("ARP 리그 생성 완료 (레거시 프로필 모드)")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -187,206 +380,46 @@ def main():
     start_time = time.time()
     result = ConversionResult()
 
-    # 인자 파싱
     cli_args = parse_args()
-    profile_name = cli_args.get("profile", MAPPING_PROFILE)
     save_blend = cli_args.get("save", SAVE_BLEND)
     auto_mode = cli_args.get("auto", False)
 
-    # 출력 디렉토리 결정
     blend_path = bpy.data.filepath
     if not blend_path:
         print("[ERROR] .blend 파일이 저장되지 않은 상태입니다.")
         return
     output_dir = os.path.dirname(blend_path)
 
-    mode_str = "자동 분석" if auto_mode else f"프로필: {profile_name}"
+    mode_str = "자동 분석 (operator)" if auto_mode else "레거시 프로필"
     print("=" * 60)
     print("파이프라인 러너 시작")
     print(f"  파일: {blend_path}")
     print(f"  모드: {mode_str}")
+    if cli_args.get("retarget"):
+        print("  리타겟: 활성화")
     print("=" * 60)
 
-    # 사전 상태 기록
     result.pre_state = snapshot_state()
     result.add_step("state_recorded")
 
-    analysis = None
-
-    # Step 1: ARP 리그 생성
-    print("\n--- Step 1: ARP 리그 생성 ---")
     try:
-        from arp_utils import (
-            ensure_object_mode,
-            find_arp_armature,
-            find_mesh_objects,
-            find_source_armature,
-            load_mapping_profile,
-            log,
-            run_arp_operator,
-            select_only,
-        )
-
-        ensure_object_mode()
-
-        # 소스 아마추어 식별
-        source_obj = find_source_armature()
-        if source_obj is None:
-            result.add_error("소스 아마추어를 찾을 수 없습니다.")
-            raise RuntimeError("소스 아마추어 미발견")
-        log(f"소스 아마추어: '{source_obj.name}'")
-        result.add_step("source_detected")
-
-        if analysis is None:
-            from skeleton_analyzer import analyze_skeleton
-
-            analysis = analyze_skeleton(source_obj)
-            if "error" in analysis:
-                result.add_error(f"구조 분석 실패: {analysis['error']}")
-                raise RuntimeError(analysis["error"])
-            result.add_step("source_analyzed")
-
-        # 매핑 생성 (자동 분석 또는 프로필)
         if auto_mode:
-            from skeleton_analyzer import (
-                generate_arp_mapping,
-                generate_verification_report,
-                save_auto_mapping,
-            )
-
-            print(generate_verification_report(analysis))
-            save_auto_mapping(analysis, output_dir)
-
-            mapping = generate_arp_mapping(analysis)
-            deform_to_ref = mapping["deform_to_ref"]
-            arp_preset = mapping.get("arp_preset", "dog")
-            result.add_step("auto_analyzed")
+            _run_auto(cli_args, result)
         else:
-            profile = load_mapping_profile(profile_name)
-            deform_to_ref = profile["deform_to_ref"]
-            arp_preset = profile.get("arp_preset", "dog")
-            result.add_step("profile_loaded")
-
-        # ARP 리그 추가
-        ensure_object_mode()
-        select_only(source_obj)
-        run_arp_operator(bpy.ops.arp.append_arp, rig_preset=arp_preset)
-        result.add_step("arp_appended")
-
-        arp_obj = find_arp_armature()
-        if arp_obj is None:
-            result.add_error("ARP 아마추어 생성 실패")
-            raise RuntimeError("ARP 아마추어 미발견")
-
-        # ref 본 위치 정렬
-        from mathutils import Vector
-
-        ensure_object_mode()
-
-        # 소스 본 위치 추출
-        bpy.context.view_layer.objects.active = source_obj
-        bpy.ops.object.mode_set(mode="EDIT")
-        src_matrix = source_obj.matrix_world
-        source_positions = {}
-        for ebone in source_obj.data.edit_bones:
-            world_head = src_matrix @ ebone.head.copy()
-            world_tail = src_matrix @ ebone.tail.copy()
-            source_positions[ebone.name] = (world_head, world_tail, ebone.roll)
-        bpy.ops.object.mode_set(mode="OBJECT")
-
-        # 목표 위치 결정
-        resolved = {}
-        for src_name, ref_name in deform_to_ref.items():
-            if src_name in source_positions:
-                resolved[ref_name] = source_positions[src_name]
-
-        # ARP ref 본에 위치 적용 (하이어라키 순서: 부모 → 자식)
-        bpy.context.view_layer.objects.active = arp_obj
-        bpy.ops.object.mode_set(mode="EDIT")
-        arp_matrix_inv = arp_obj.matrix_world.inverted()
-        edit_bones = arp_obj.data.edit_bones
-        aligned = 0
-
-        # 하이어라키 깊이순 정렬 (부모 먼저 처리)
-        def get_depth(bone_name):
-            eb = edit_bones.get(bone_name)
-            depth = 0
-            while eb and eb.parent:
-                depth += 1
-                eb = eb.parent
-            return depth
-
-        sorted_refs = sorted(resolved.keys(), key=get_depth)
-
-        for ref_name in sorted_refs:
-            world_head, world_tail, roll = resolved[ref_name]
-            ebone = edit_bones.get(ref_name)
-            if ebone is None:
-                continue
-            local_head = arp_matrix_inv @ world_head
-            local_tail = arp_matrix_inv @ world_tail
-            if (local_tail - local_head).length < 0.0001:
-                local_tail = local_head + Vector((0, 0.01, 0))
-
-            if ebone.use_connect and ebone.parent:
-                ebone.tail = local_tail
-            else:
-                ebone.head = local_head
-                ebone.tail = local_tail
-            ebone.roll = roll
-            aligned += 1
-
-        bpy.ops.object.mode_set(mode="OBJECT")
-        log(f"ref 본 정렬 완료: {aligned}개")
-        result.add_step("ref_bones_aligned")
-
-        # match_to_rig
-        ensure_object_mode()
-        select_only(arp_obj)
-        run_arp_operator(bpy.ops.arp.match_to_rig)
-        result.add_step("rig_generated")
-        log("ARP 리그 생성 완료")
-
-        # F12: 애니메이션 베이크 (--bake 플래그 시)
-        if cli_args.get("bake"):
-            from arp_utils import (
-                BAKE_PAIRS_KEY,
-                bake_all_actions,
-                deserialize_bone_pairs,
-                preflight_check_transforms,
-            )
-
-            log("=" * 50)
-            log("F12: 애니메이션 베이크")
-            log("=" * 50)
-
-            error = preflight_check_transforms(source_obj, arp_obj)
-            if error:
-                log(f"Preflight 실패: {error}", "ERROR")
-                result.add_error(f"베이크 Preflight 실패: {error}")
-            else:
-                raw_pairs = arp_obj.get(BAKE_PAIRS_KEY)
-                if raw_pairs:
-                    bone_pairs = deserialize_bone_pairs(raw_pairs)
-                    created = bake_all_actions(source_obj, arp_obj, bone_pairs)
-                    result.add_step("animation_baked")
-                    log(f"베이크 완료: {len(created)}개 액션")
-                else:
-                    log("bone_pairs 없음 — 베이크 건너뜀", "WARN")
-
+            _run_legacy_profile(cli_args, result)
     except Exception as e:
-        result.add_error(f"리그 생성 실패: {e}")
+        result.add_error(f"실패: {e}")
+        from arp_utils import log
+
         log(traceback.format_exc(), "ERROR")
         result.elapsed_sec = time.time() - start_time
         result.save(output_dir)
         return
 
-    # 저장
     if save_blend:
         bpy.ops.wm.save_mainfile()
         result.add_step("blend_saved")
 
-    # 사후 상태 기록
     result.post_state = snapshot_state()
     result.success = len(result.errors) == 0
     result.elapsed_sec = time.time() - start_time
