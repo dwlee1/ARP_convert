@@ -723,9 +723,7 @@ class TestRoleMapConsistency:
         """단일 본 역할은 ref_map과 ctrl_patterns에 모두 등장해야 한다."""
         single_roles = set(sa.ARP_REF_MAP) - sa._MULTI_BONE_ROLES
         for role in single_roles:
-            assert role in sa._CTRL_SEARCH_PATTERNS, (
-                f"{role} missing in _CTRL_SEARCH_PATTERNS"
-            )
+            assert role in sa._CTRL_SEARCH_PATTERNS, f"{role} missing in _CTRL_SEARCH_PATTERNS"
 
     def test_single_bone_ctrl_patterns_cover_all_refs(self):
         """단일 본 역할에서 ctrl 패턴 수는 ref 수 이상이어야 한다.
@@ -773,9 +771,7 @@ class TestApplyIkToFootCtrl:
         assert is_ik is True
 
     def test_c_toes_fk_dupli_converts_to_c_foot_ik_dupli(self):
-        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl(
-            "c_toes_fk_dupli_001.l", "front_foot_l"
-        )
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_toes_fk_dupli_001.l", "front_foot_l")
         assert ik == "c_foot_ik_dupli_001.l"
         assert pole == "c_leg_pole_dupli_001.l"
         assert is_ik is True
@@ -795,12 +791,58 @@ class TestApplyIkToFootCtrl:
         assert is_ik is True
 
     def test_c_foot_fk_dupli_converts_to_c_foot_ik_dupli(self):
-        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl(
-            "c_foot_fk_dupli_001.l", "front_foot_l"
-        )
+        ik, pole, is_ik = sa._apply_ik_to_foot_ctrl("c_foot_fk_dupli_001.l", "front_foot_l")
         assert ik == "c_foot_ik_dupli_001.l"
         assert pole == "c_leg_pole_dupli_001.l"
         assert is_ik is True
+
+
+class TestChainsToFlatRoles:
+    """chains_to_flat_roles() 순수 함수 테스트."""
+
+    def test_basic_conversion(self):
+        analysis = {
+            "chains": {
+                "root": {"bones": ["pelvis"], "confidence": 0.95},
+                "spine": {"bones": ["sp1", "sp2"], "confidence": 0.9},
+            },
+            "unmapped": ["eye_L", "jaw"],
+        }
+        result = sa.chains_to_flat_roles(analysis)
+        assert result["root"] == ["pelvis"]
+        assert result["spine"] == ["sp1", "sp2"]
+        assert result["unmapped"] == ["eye_L", "jaw"]
+
+    def test_no_unmapped(self):
+        analysis = {
+            "chains": {"root": {"bones": ["Root"], "confidence": 1.0}},
+            "unmapped": [],
+        }
+        result = sa.chains_to_flat_roles(analysis)
+        assert result == {"root": ["Root"]}
+        assert "unmapped" not in result
+
+    def test_empty_analysis(self):
+        result = sa.chains_to_flat_roles({})
+        assert result == {}
+
+    def test_full_fox_roles(self):
+        analysis = {
+            "chains": {
+                "root": {"bones": ["pelvis"], "confidence": 0.95},
+                "spine": {"bones": ["spine01", "spine02", "chest"], "confidence": 0.9},
+                "neck": {"bones": ["neck"], "confidence": 0.9},
+                "head": {"bones": ["head"], "confidence": 0.9},
+                "back_leg_l": {"bones": ["thigh_L", "leg_L", "foot_L"], "confidence": 0.85},
+                "tail": {"bones": ["tail_01", "tail02", "tail03", "tail04"], "confidence": 0.9},
+            },
+            "unmapped": ["Food", "jaw", "eye_L"],
+        }
+        result = sa.chains_to_flat_roles(analysis)
+        assert len(result) == 7  # 6 chains + unmapped
+        assert result["back_leg_l"] == ["thigh_L", "leg_L", "foot_L"]
+        assert result["tail"] == ["tail_01", "tail02", "tail03", "tail04"]
+        assert result["unmapped"] == ["Food", "jaw", "eye_L"]
 
     def test_c_hand_fk_humanoid_front_foot(self):
         """humanoid 프리셋 대비 기존 c_hand_fk 분기 유지."""

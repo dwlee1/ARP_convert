@@ -208,11 +208,11 @@ class ARPCONV_OT_BuildRig(Operator):
             for bone_name in bone_names
         }
 
-        # Step 2.5: DEF 본 분리 (소스 아마추어에 DEF 계층 생성)
-        log("DEF 본 분리")
+        # Step 2.5: DEF 본 계층 동기화 (역할 편집 반영)
+        log("DEF 본 계층 동기화")
         def_created = create_def_bones(source_obj, roles)
         if def_created:
-            log(f"  DEF 본 {len(def_created)}개 생성 완료")
+            log(f"  DEF 본 {len(def_created)}개 동기화 완료")
 
         # Step 3: ARP Edit 모드 1회 진입 → ref 검색 + 매핑 + 위치 설정
         log("ARP ref 본 검색 + 위치 정렬 (단일 Edit 세션)")

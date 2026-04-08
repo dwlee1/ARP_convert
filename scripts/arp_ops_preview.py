@@ -102,13 +102,15 @@ class ARPCONV_OT_CreatePreview(Operator):
         _reload_modules()
 
         try:
+            from arp_def_separator import create_def_bones
             from skeleton_analyzer import (
                 analyze_skeleton,
-                create_preview_armature,
+                chains_to_flat_roles,
+                create_preview_from_def_bones,
                 generate_verification_report,
             )
         except ImportError as e:
-            self.report({"ERROR"}, f"skeleton_analyzer 임포트 실패: {e}")
+            self.report({"ERROR"}, f"모듈 임포트 실패: {e}")
             return {"CANCELLED"}
 
         # 소스 아마추어 찾기
@@ -136,8 +138,13 @@ class ARPCONV_OT_CreatePreview(Operator):
         # 검증 리포트 출력 (quiet_logs 컨텍스트에서 억제됨)
         log(generate_verification_report(analysis), "INFO")
 
-        # Preview Armature 생성
-        preview_obj = create_preview_armature(source_obj, analysis)
+        # DEF 본 분리 (Preview 생성 전에 clean hierarchy 구축)
+        flat_roles = chains_to_flat_roles(analysis)
+        def_result = create_def_bones(source_obj, flat_roles)
+        log(f"DEF 본 {len(def_result)}개 생성", "INFO")
+
+        # Preview Armature 생성 (DEF 기반)
+        preview_obj = create_preview_from_def_bones(source_obj, analysis)
         if preview_obj is None:
             self.report({"ERROR"}, "Preview Armature 생성 실패")
             return {"CANCELLED"}

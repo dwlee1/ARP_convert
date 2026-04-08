@@ -2027,6 +2027,223 @@ def create_preview_armature(source_obj, analysis):
     return preview_obj
 
 
+def create_preview_from_def_bones(source_obj, analysis):
+    """DEF 본 기반 Preview Armature 생성.
+
+    소스 아마추어에 이미 생성된 DEF-* 본의 clean hierarchy를 반영하여
+    Preview를 만든다. 본 이름에서 DEF- 접두사를 제거하여 downstream 호환성 유지.
+    unmapped 본(eye, jaw 등)은 DEF에 없으므로 원본 deform 본에서 복사.
+
+    Args:
+        source_obj: DEF 본이 생성된 소스 Armature 오브젝트
+        analysis: analyze_skeleton() 결과
+
+    Returns:
+        bpy.types.Object: 생성된 Preview Armature 오브젝트
+    """
+    from mathutils import Vector
+
+    from arp_def_separator import DEF_PREFIX
+
+    chains = analysis.get("chains", {})
+    unmapped_list = analysis.get("unmapped", [])
+    bone_data = analysis.get("bone_data", {})
+
+    if not bone_data:
+        return None
+
+    # 역할 매핑 구성
+    bone_to_role = {}
+    for role, chain_info in chains.items():
+        for bone_name in chain_info["bones"]:
+            bone_to_role[bone_name] = role
+    for bone_name in unmapped_list:
+        bone_to_role[bone_name] = "unmapped"
+
+    # Object 모드 확보
+    if bpy.context.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+    # 새 Armature 데이터 생성
+    arm_data = bpy.data.armatures.new(f"{source_obj.name}_preview")
+    arm_data.display_type = "OCTAHEDRAL"
+    preview_obj = bpy.data.objects.new(f"{source_obj.name}_preview", arm_data)
+    bpy.context.collection.objects.link(preview_obj)
+    preview_obj.matrix_world = source_obj.matrix_world.copy()
+
+    # ── 소스 Edit Mode: DEF 본 + unmapped 원본 본 데이터 수집 ──
+    bpy.ops.object.select_all(action="DESELECT")
+    source_obj.select_set(True)
+    bpy.context.view_layer.objects.active = source_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    src_edit = source_obj.data.edit_bones
+    src_matrix = source_obj.matrix_world
+
+    # DEF 본 수집 (이름에서 DEF- 제거)
+    def_bone_data = {}  # {stripped_name: {head, tail, roll, parent_stripped}}
+    for eb in src_edit:
+        if not eb.name.startswith(DEF_PREFIX):
+            continue
+        stripped = eb.name[len(DEF_PREFIX) :]
+        parent_stripped = None
+        if eb.parent and eb.parent.name.startswith(DEF_PREFIX):
+            parent_stripped = eb.parent.name[len(DEF_PREFIX) :]
+        def_bone_data[stripped] = {
+            "head": src_matrix @ eb.head.copy(),
+            "tail": src_matrix @ eb.tail.copy(),
+            "roll": eb.roll,
+            "parent": parent_stripped,
+        }
+
+    # unmapped 본 수집 (DEF에 없는 원본 deform 본)
+    unmapped_bone_data = {}
+    for bone_name in unmapped_list:
+        if bone_name in def_bone_data:
+            continue  # DEF에 이미 있으면 스킵
+        eb = src_edit.get(bone_name)
+        if eb is None:
+            continue
+        # 부모 결정: 원본 부모가 DEF에 있으면 해당 본, 아니면 원본 계층 추적
+        parent_name = None
+        parent_eb = eb.parent
+        while parent_eb:
+            candidate = parent_eb.name
+            if candidate in def_bone_data:
+                parent_name = candidate
+                break
+            # DEF- 접두사 본의 stripped 이름도 확인
+            if candidate.startswith(DEF_PREFIX):
+                stripped_candidate = candidate[len(DEF_PREFIX) :]
+                if stripped_candidate in def_bone_data:
+                    parent_name = stripped_candidate
+                    break
+            parent_eb = parent_eb.parent
+
+        unmapped_bone_data[bone_name] = {
+            "head": src_matrix @ eb.head.copy(),
+            "tail": src_matrix @ eb.tail.copy(),
+            "roll": eb.roll,
+            "parent": parent_name,
+        }
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    # ── Preview Edit Mode: 본 생성 ──
+    bpy.ops.object.select_all(action="DESELECT")
+    preview_obj.select_set(True)
+    bpy.context.view_layer.objects.active = preview_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    edit_bones = preview_obj.data.edit_bones
+    preview_matrix_inv = preview_obj.matrix_world.inverted()
+
+    created_bones = {}
+
+    # DEF 기반 본 생성 (원본 이름으로)
+    for bone_name, binfo in def_bone_data.items():
+        ebone = edit_bones.new(bone_name)
+        ebone.head = preview_matrix_inv @ binfo["head"]
+        ebone.tail = preview_matrix_inv @ binfo["tail"]
+        ebone.roll = binfo["roll"]
+        ebone.use_deform = True
+        created_bones[bone_name] = ebone
+
+    # unmapped 본 생성
+    for bone_name, binfo in unmapped_bone_data.items():
+        ebone = edit_bones.new(bone_name)
+        ebone.head = preview_matrix_inv @ binfo["head"]
+        ebone.tail = preview_matrix_inv @ binfo["tail"]
+        ebone.roll = binfo["roll"]
+        ebone.use_deform = True
+        created_bones[bone_name] = ebone
+
+    # 부모-자식 관계 설정
+    all_bone_data = {**def_bone_data, **unmapped_bone_data}
+    for bone_name, binfo in all_bone_data.items():
+        parent_name = binfo["parent"]
+        if parent_name and parent_name in created_bones:
+            ebone = created_bones[bone_name]
+            parent_ebone = created_bones[parent_name]
+            ebone.parent = parent_ebone
+            if (ebone.head - parent_ebone.tail).length < 0.001:
+                ebone.use_connect = True
+
+    # Virtual neck 생성 (기존 로직과 동일)
+    has_neck_chain = bool(chains.get("neck", {}).get("bones"))
+    head_chain = chains.get("head", {}).get("bones", [])
+    spine_chain = chains.get("spine", {}).get("bones", [])
+    if (not has_neck_chain) and head_chain and spine_chain:
+        head_name = head_chain[0]
+        head_ebone = created_bones.get(head_name)
+        if head_ebone and head_ebone.parent:
+            original_head = head_ebone.head.copy()
+            original_tail = head_ebone.tail.copy()
+            head_vector = original_tail - original_head
+
+            if head_vector.length > 0.001:
+                split_point = original_head.lerp(original_tail, VIRTUAL_NECK_RATIO)
+                parent_ebone = head_ebone.parent
+                original_connect = head_ebone.use_connect
+
+                neck_ebone = edit_bones.new(VIRTUAL_NECK_BONE)
+                neck_ebone.head = original_head
+                neck_ebone.tail = split_point
+                neck_ebone.roll = head_ebone.roll
+                neck_ebone.use_deform = True
+                neck_ebone.parent = parent_ebone
+                neck_ebone.use_connect = original_connect
+
+                head_ebone.head = split_point
+                head_ebone.parent = neck_ebone
+                head_ebone.use_connect = True
+
+                created_bones[VIRTUAL_NECK_BONE] = neck_ebone
+                bone_to_role[VIRTUAL_NECK_BONE] = "neck"
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    # ── Pose Mode: 역할 + 색상 설정 ──
+    bpy.ops.object.mode_set(mode="POSE")
+
+    for bone_name in created_bones:
+        pbone = preview_obj.pose.bones.get(bone_name)
+        if pbone is None:
+            continue
+
+        role = bone_to_role.get(bone_name, "unmapped")
+        color = ROLE_COLORS.get(role, ROLE_COLORS["unmapped"])
+
+        pbone[ROLE_PROP_KEY] = role
+
+        pbone.color.palette = "CUSTOM"
+        pbone.color.custom.normal = color
+        pbone.color.custom.select = tuple(min(c + 0.3, 1.0) for c in color)
+        pbone.color.custom.active = tuple(min(c + 0.5, 1.0) for c in color)
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    return preview_obj
+
+
+def chains_to_flat_roles(analysis):
+    """analysis chains → flat {role: [bone_names]} 변환.
+
+    analyze_skeleton()의 chains 형태:
+        {role: {"bones": [...], "confidence": float}}
+    를 create_def_bones / resolve_def_parents가 기대하는:
+        {role: [bone_names]}
+    로 변환한다.  unmapped 목록도 포함.
+    """
+    roles = {}
+    for role, chain_info in analysis.get("chains", {}).items():
+        roles[role] = list(chain_info["bones"])
+    unmapped = analysis.get("unmapped", [])
+    if unmapped:
+        roles["unmapped"] = list(unmapped)
+    return roles
+
+
 def read_preview_roles(preview_obj):
     """
     Preview Armature의 본 역할 정보를 읽어서 analysis 형식으로 반환.

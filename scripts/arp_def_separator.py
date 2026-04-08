@@ -63,11 +63,14 @@ _LEG_PARENT_ROLE = {
 }
 
 
-def resolve_def_parents(roles):
+def resolve_def_parents(roles, armature_root=None):
     """역할 맵에서 각 본의 DEF 부모 이름을 결정한다.
 
     Args:
         roles: {role: [bone_names]} — read_preview_roles 결과
+        armature_root: 소스 아마추어의 최상위 본 이름 (예: "root").
+                       지정하면 DEF-{armature_root}를 최상위로 생성하고,
+                       기존 최상위 본들과 unmapped 본들을 그 아래에 배치.
 
     Returns:
         dict: {bone_name: def_parent_name_or_None}
@@ -159,10 +162,19 @@ def resolve_def_parents(roles):
             else:
                 parents[bone] = _def(ear_bones[i - 1])
 
-    # unmapped (커스텀 본) — head DEF 또는 가장 가까운 deform 조상
-    # Build Rig 시점에서 unmapped 본은 cc_ 커스텀 본으로 처리되므로
-    # DEF 계층에 포함하지 않음 (설계 문서 §3: "커스텀 본은 DEF-{head본} 또는
-    # 가장 가까운 deform 조상"이지만, 실제로는 cc_ 본이므로 DEF 생성 대상 아님)
+    # unmapped 본 — armature_root가 지정되면 DEF 계층에 포함
+    unmapped_bones = _bones("unmapped")
+    if armature_root and unmapped_bones:
+        for bone in unmapped_bones:
+            parents[bone] = _def(armature_root)
+
+    # armature_root 처리: 최상위 DEF 본으로 추가,
+    # 기존 최상위(None) 본들을 그 아래에 재배치
+    if armature_root:
+        for bone in list(parents):
+            if parents[bone] is None and bone != armature_root:
+                parents[bone] = _def(armature_root)
+        parents[armature_root] = None
 
     return parents
 
@@ -223,7 +235,34 @@ def create_def_bones(source_obj, roles):
         return set()
 
     arm = source_obj.data
-    parent_map = resolve_def_parents(roles)
+
+    # 소스 아마추어의 최상위 본 탐색
+    armature_root = None
+    for bone in arm.bones:
+        if bone.parent is None:
+            armature_root = bone.name
+            break
+
+    parent_map = resolve_def_parents(roles, armature_root=armature_root)
+
+    # unmapped 본의 부모를 소스 계층에서 탐색하여 보정
+    # resolve_def_parents는 순수 함수라 소스 계층을 모르므로
+    # DEF-root를 기본 부모로 넣는다. 여기서 실제 조상을 추적.
+    unmapped = roles.get("unmapped", [])
+    if unmapped and armature_root:
+        mapped_bones = set(parent_map) - set(unmapped) - {armature_root}
+        for bone_name in unmapped:
+            src_bone = arm.bones.get(bone_name)
+            if src_bone is None:
+                continue
+            # 소스 계층을 위로 탐색 → DEF가 존재하는 첫 조상 찾기
+            ancestor = src_bone.parent
+            while ancestor:
+                if ancestor.name in mapped_bones:
+                    parent_map[bone_name] = f"{DEF_PREFIX}{ancestor.name}"
+                    break
+                ancestor = ancestor.parent
+            # 조상을 못 찾으면 DEF-root 유지 (resolve_def_parents 기본값)
 
     if not parent_map:
         log("DEF 분리: 역할 매핑 비어있음, 스킵", "WARN")

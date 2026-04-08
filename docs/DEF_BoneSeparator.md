@@ -44,19 +44,22 @@
 | `ear_l/r` | `DEF-{head본}` |
 | 커스텀 본 (eye, jaw 등) | `DEF-{head본}` 또는 가장 가까운 deform 조상 |
 
-## 4. 실행 순서 (Build Rig 내부)
+## 4. 실행 순서
+
+DEF 본은 **CreatePreview 내부**에서 생성되며, Build Rig에서 역할 편집 반영을 위해 재동기화된다.
 
 ```
+CreatePreview execute():
+  1. analyze_skeleton() — 구조 분석, 역할 추론
+  2. chains_to_flat_roles() — analysis → flat {role: [bones]} 변환
+  3. ★ create_def_bones() — DEF-{name} 생성, 역할 기반 계층, constraint
+  4. create_preview_from_def_bones() — DEF 기반 Preview Armature 생성
+
 Build Rig execute():
-  1. Preview 역할 읽기 (기존)
-  2. ★ DEF 본 생성 (신규)
-     - deform 본마다 DEF-{name} 생성 (DEF- 접두사 본은 스킵)
-     - 역할 기반 부모-자식 계층 강제 적용
-     - Copy Transforms constraint (DEF → 원본, WORLD space)
-     - DEF bone collection 생성
-     - DEF 본 use_deform=False
-  3. ARP 리그 생성 (기존)
-  4. bone_pairs 생성 — src_name이 DEF-{원본} (수정)
+  1. Preview 역할 읽기
+  2. create_def_bones() — DEF 계층 동기화 (역할 편집 반영, 멱등)
+  3. ARP 리그 생성
+  4. bone_pairs 생성 — src_name이 DEF-{원본}
 ```
 
 ## 5. 영향 범위

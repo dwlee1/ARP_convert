@@ -235,6 +235,48 @@ class TestResolveDEFParentsMinimal:
         assert parents["Head"] == f"{DEF_PREFIX}Neck02"
 
 
+class TestArmatureRoot:
+    """armature_root 파라미터 테스트."""
+
+    def test_root_bone_is_toplevel(self):
+        _, resolve_def_parents = _import_resolve()
+        parents = resolve_def_parents(FOX_ROLES, armature_root="Root")
+        assert parents["Root"] is None
+
+    def test_pelvis_reparented_under_root(self):
+        DEF_PREFIX, resolve_def_parents = _import_resolve()
+        parents = resolve_def_parents(FOX_ROLES, armature_root="Root")
+        assert parents["Pelvis"] == f"{DEF_PREFIX}Root"
+
+    def test_no_other_none_parents(self):
+        """armature_root 외에 None 부모가 없어야 한다."""
+        _, resolve_def_parents = _import_resolve()
+        parents = resolve_def_parents(FOX_ROLES, armature_root="Root")
+        none_parents = [b for b, p in parents.items() if p is None]
+        assert none_parents == ["Root"]
+
+    def test_unmapped_included_under_root(self):
+        DEF_PREFIX, resolve_def_parents = _import_resolve()
+        parents = resolve_def_parents(FOX_ROLES, armature_root="Root")
+        assert "Eye_L" in parents
+        assert "Jaw" in parents
+        assert parents["Eye_L"] == f"{DEF_PREFIX}Root"
+        assert parents["Jaw"] == f"{DEF_PREFIX}Root"
+
+    def test_total_count_includes_root_and_unmapped(self):
+        _, resolve_def_parents = _import_resolve()
+        parents = resolve_def_parents(FOX_ROLES, armature_root="Root")
+        # mapped 32 + Root(1) + unmapped(3: Eye_L, Eye_R, Jaw) = 36
+        assert len(parents) == 36
+
+    def test_without_armature_root_unchanged(self):
+        """armature_root=None이면 기존 동작과 동일."""
+        _, resolve_def_parents = _import_resolve()
+        parents = resolve_def_parents(FOX_ROLES)
+        assert parents["Pelvis"] is None
+        assert "Eye_L" not in parents
+
+
 class TestDEFPrefix:
     """DEF_PREFIX 상수 테스트."""
 
