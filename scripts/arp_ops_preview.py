@@ -37,6 +37,8 @@ def _populate_hierarchy_collection(context, analysis):
     roots = [name for name, b in bone_data.items() if b["parent"] is None]
 
     def _walk(name, depth):
+        if name not in bone_data:
+            return
         item = coll.add()
         item.name = name
         item.depth = depth
