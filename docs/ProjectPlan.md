@@ -72,7 +72,13 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] F2: IK pole vector 위치 매칭 (완료)
 - [x] F3: Shape key 드라이버 보존 (완료)
 - [x] DEF 본 분리: Build Rig 내부에서 역할 기반 DEF 계층 자동 생성 (`docs/DEF_BoneSeparator.md`)
-- [ ] F12: ARP 네이티브 리타겟 위임 방식으로 재설계 (`docs/F12_ARP_NativeRetarget.md`) — Setup Retarget + Cleanup 오퍼레이터 구현 필요
+- [x] F12: ARP 네이티브 리타겟 위임 (`docs/F12_ARP_NativeRetarget.md`)
+  - [x] Setup Retarget + Cleanup + Copy Custom Scale 오퍼레이터 구현
+  - [x] ik=True 월드 스페이스 매칭 — spine/neck/head/ear/shoulder/custom 전부 0.000mm, 0.0°
+  - [x] tail_master COPY_ROTATION constraint mute — tail 오차 해결
+  - [x] 커스텀 본 DEF 소스 통일 — bone_pairs 소스가 전부 DEF 본
+  - [x] 커스텀 본 스케일 fcurve 복사 — ARP 리타겟이 무시하는 스케일 보존
+  - [ ] root(pelvis) 1.03° 회전 오차 — ARP 내부 offset, 허용 범위
 - [ ] F8: 웨이트 전송 실제 검증
 
 ### 자동화 전략
