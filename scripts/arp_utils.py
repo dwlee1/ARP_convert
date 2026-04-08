@@ -423,6 +423,62 @@ def setup_arp_retarget(source_obj, arp_obj, bone_pairs):
     }
 
 
+def _copy_custom_scale_fcurves(arp_obj):
+    """커스텀 본의 스케일 fcurve를 소스 액션에서 _remap 액션으로 복사.
+
+    ARP 리타겟은 위치/회전만 전송하고 스케일을 무시한다.
+    커스텀 본(eye, jaw 등)은 스케일로 형태 변화를 표현하는 경우가 많으므로
+    소스 액션의 스케일 키프레임을 remap 액션에 그대로 복사한다.
+    """
+    bone_pairs = deserialize_bone_pairs(arp_obj.get(BAKE_PAIRS_KEY, "[]"))
+    custom_pairs = [(src, ctrl) for src, ctrl, is_custom in bone_pairs if is_custom]
+    if not custom_pairs:
+        return 0
+
+    copied = 0
+    for action in bpy.data.actions:
+        if not action.name.endswith("_remap"):
+            continue
+        src_action_name = action.name[: -len("_remap")]
+        src_action = bpy.data.actions.get(src_action_name)
+        if src_action is None:
+            continue
+
+        for def_src, target in custom_pairs:
+            # DEF- 접두사 제거 → 소스 액션의 원본 본 이름
+            original = def_src[4:] if def_src.startswith("DEF-") else def_src
+            src_path = f'pose.bones["{original}"].scale'
+            tgt_path = f'pose.bones["{target}"].scale'
+
+            for axis in range(3):
+                src_fc = src_action.fcurves.find(src_path, index=axis)
+                if src_fc is None:
+                    continue
+
+                # remap 액션에서 기존 scale fcurve 제거 후 재생성
+                tgt_fc = action.fcurves.find(tgt_path, index=axis)
+                if tgt_fc:
+                    action.fcurves.remove(tgt_fc)
+                tgt_fc = action.fcurves.new(tgt_path, index=axis)
+
+                # 키프레임 복사
+                for kp in src_fc.keyframe_points:
+                    tgt_fc.keyframe_points.insert(kp.co[0], kp.co[1])
+
+                # 보간 모드 복사
+                for i, kp in enumerate(tgt_fc.keyframe_points):
+                    if i < len(src_fc.keyframe_points):
+                        kp.interpolation = src_fc.keyframe_points[i].interpolation
+                        kp.handle_left_type = src_fc.keyframe_points[i].handle_left_type
+                        kp.handle_right_type = src_fc.keyframe_points[i].handle_right_type
+
+                copied += 1
+
+    if copied:
+        log(f"  커스텀 본 스케일 복사: {copied}개 fcurve")
+    return copied
+
+
 def cleanup_after_retarget(source_obj, preview_obj):
     """소스/프리뷰 아마추어 삭제 + _remap 액션을 원본 이름으로 rename.
 
@@ -431,6 +487,11 @@ def cleanup_after_retarget(source_obj, preview_obj):
     """
     deleted_armatures = []
     renamed_actions = []
+
+    # 0. 커스텀 본 스케일 fcurve 복사 (소스 삭제 전에 실행)
+    arp_obj = find_arp_armature()
+    if arp_obj:
+        _copy_custom_scale_fcurves(arp_obj)
 
     # 1. 소스 액션 삭제 (rename 충돌 방지)
     if source_obj and source_obj.type == "ARMATURE":
