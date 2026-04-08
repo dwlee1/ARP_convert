@@ -64,12 +64,19 @@
       "Bash(ln \"$SRC/arp_utils.py\" \"$ADDONS/arp_rig_convert/arp_utils.py\")",
       "Bash(rm -rf \"$ADDONS/arp_rig_convert/__pycache__/\")",
       "mcp__blender__get_scene_info",
-      "mcp__blender__execute_blender_code"
+      "mcp__blender__execute_blender_code",
+      "Skill(codex:setup)",
+      "Skill(codex:setup:*)",
+      "Skill(codex:rescue)",
+      "Skill(codex:rescue:*)",
+      "mcp__blender__get_viewport_screenshot",
+      "mcp__mcp-registry__search_mcp_registry"
     ],
     "additionalDirectories": [
       "C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5\\scripts\\addons"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "blender"
   ],
@@ -98,6 +105,5 @@
         ]
       }
     ]
-  },
-  "enableAllProjectMcpServers": true
+  }
 }
