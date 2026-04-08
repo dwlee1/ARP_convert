@@ -79,6 +79,21 @@ def build_weight_map(
                 weight_map[src_name] = mapping
                 reserved_targets.update(target for target, _ in mapping)
             fallback_sources.update(foot_fallbacks)
+        else:
+            # 비-다리 역할 (spine, neck, head, tail, ear 등):
+            # deform_to_ref 기반 직접 매핑 + owner_ref 형제 본 분할
+            for src_name in role_bones:
+                ref_name = deform_to_ref.get(src_name)
+                if not ref_name:
+                    continue
+                siblings = arp_by_owner_ref.get(ref_name, [])
+                if not siblings:
+                    continue
+                if len(siblings) == 1:
+                    weight_map[src_name] = [(siblings[0], 1.0)]
+                else:
+                    weight_map[src_name] = _split_by_lengths(siblings, non_aux_arp)
+                reserved_targets.update(t for t, _ in weight_map[src_name])
 
     generic_sources = [
         src_name
