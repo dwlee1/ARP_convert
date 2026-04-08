@@ -244,8 +244,6 @@ def load_mapping_profile(profile_name, project_root=None):
 
 BAKE_PAIRS_KEY = "arpconv_bone_pairs"
 
-# IK foot 컨트롤러 패턴 (location=False, ik=True)
-_IK_CTRL_PATTERN = re.compile(r"^c_foot_ik|^c_hand_ik")
 # Pole vector 패턴 (pole_parent=1로 처리, 매핑 제외)
 _POLE_CTRL_PATTERN = re.compile(r"^c_(leg|arm)_pole")
 
@@ -297,19 +295,18 @@ def preflight_check_transforms(source_obj, arp_obj):
 def _classify_ctrl(ctrl_name, is_custom):
     """컨트롤러 이름에서 ARP 리타겟 플래그를 결정한다.
 
+    ik=True는 월드 스페이스 매칭으로, rest-pose 차이와 무관하게 정확한 위치/회전을
+    보장한다. root만 location=True로 유지 (set_as_root 필요).
+
     Returns:
         dict: {"location": bool, "ik": bool, "set_as_root": bool, "ctrl": str}
     """
-    # root: c_root_master.x → c_root.x로 교체
+    # root: c_root_master.x → c_root.x로 교체, set_as_root=True
     if ctrl_name == "c_root_master.x":
         return {"ctrl": "c_root.x", "location": True, "ik": False, "set_as_root": True}
 
-    # IK foot/hand 컨트롤러
-    if _IK_CTRL_PATTERN.match(ctrl_name):
-        return {"ctrl": ctrl_name, "location": False, "ik": True, "set_as_root": False}
-
-    # 커스텀 본 또는 일반 FK
-    return {"ctrl": ctrl_name, "location": True, "ik": False, "set_as_root": False}
+    # root 외 모든 본: ik=True (월드 스페이스 매칭)
+    return {"ctrl": ctrl_name, "location": False, "ik": True, "set_as_root": False}
 
 
 def _override_bones_map(bone_pairs):

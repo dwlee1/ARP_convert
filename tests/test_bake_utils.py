@@ -62,32 +62,32 @@ class TestClassifyCtrl:
         assert result["ik"] is True
         assert result["location"] is False
 
-    def test_fk_spine_is_location_true(self):
+    def test_spine_is_ik_worldspace(self):
         result = _classify_ctrl("c_spine_01.x", False)
         assert result["ctrl"] == "c_spine_01.x"
-        assert result["location"] is True
-        assert result["ik"] is False
+        assert result["location"] is False
+        assert result["ik"] is True
         assert result["set_as_root"] is False
 
-    def test_thigh_b_is_fk(self):
+    def test_thigh_b_is_ik_worldspace(self):
         result = _classify_ctrl("c_thigh_b.l", False)
-        assert result["location"] is True
-        assert result["ik"] is False
+        assert result["location"] is False
+        assert result["ik"] is True
 
-    def test_custom_bone_is_location_true(self):
+    def test_custom_bone_is_ik_worldspace(self):
         result = _classify_ctrl("DEF-eye_L", True)
-        assert result["location"] is True
-        assert result["ik"] is False
+        assert result["location"] is False
+        assert result["ik"] is True
 
-    def test_tail_is_fk(self):
+    def test_tail_is_ik_worldspace(self):
         result = _classify_ctrl("c_tail_01.x", False)
-        assert result["location"] is True
-        assert result["ik"] is False
+        assert result["location"] is False
+        assert result["ik"] is True
 
-    def test_head_is_fk(self):
+    def test_head_is_ik_worldspace(self):
         result = _classify_ctrl("c_head.x", False)
-        assert result["location"] is True
-        assert result["ik"] is False
+        assert result["location"] is False
+        assert result["ik"] is True
 
 
 class TestPoleFiltering:

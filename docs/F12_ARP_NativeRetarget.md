@@ -66,11 +66,13 @@ def execute(self, context):
 | 조건 | target (name) | location | ik | set_as_root |
 |------|---------------|----------|-----|-------------|
 | root | `c_root.x` | True | False | True |
-| FK (spine/neck/head/tail/shoulder) | 해당 컨트롤러 | True | False | False |
-| IK 발 (back_foot/front_foot) | `c_foot_ik.*` | False | True | False |
+| root 외 모든 매핑 본 | 해당 컨트롤러 | False | **True** | False |
 | 다리 중간 (leg role, idx > 0) | `""` (빈 매핑) | - | - | - |
-| cc_ 커스텀 본 | 자기 자신 | True | False | False |
-| bone_pairs에 없는 본 | ARP 추측 유지 | - | - | - |
+| bone_pairs에 없는 본 | `""` (빈 매핑) | - | - | - |
+
+> **ik=True는 월드 스페이스 매칭**: rest-pose 차이와 무관하게 소스 본의 월드 위치/회전을
+> 직접 매칭한다. `location=True`(rest-relative)보다 정확하며, 여우 리그 walk 검증에서
+> spine/neck/head/ear/shoulder/custom 본 모두 위치 0.000mm, 회전 0.0° 달성 (2026-04-08).
 
 ### Root 매핑 주의사항
 
