@@ -337,12 +337,13 @@ def cleanup_after_retarget(source_obj, preview_obj):
     for obj in [source_obj, preview_obj]:
         if obj is None:
             continue
+        obj_name = obj.name
         armature_data = obj.data if obj.type == "ARMATURE" else None
         bpy.data.objects.remove(obj, do_unlink=True)
         if armature_data and armature_data.users == 0:
             bpy.data.armatures.remove(armature_data)
-        deleted_armatures.append(obj.name)
-        log(f"  아마추어 삭제: {obj.name}")
+        deleted_armatures.append(obj_name)
+        log(f"  아마추어 삭제: {obj_name}")
 
     # 3. _remap 액션을 원본 이름으로 rename
     for action in list(bpy.data.actions):
