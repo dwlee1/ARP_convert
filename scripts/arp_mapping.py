@@ -92,13 +92,13 @@ ARP_CTRL_MAP = {
 }
 
 # 와일드카드(다중 본) 패턴 — 이 역할은 하나의 패턴이 여러 본을 매칭해야 함
-_MULTI_BONE_ROLES = {"spine", "tail", "ear_l", "ear_r"}
+_MULTI_BONE_ROLES = {"spine", "neck", "tail", "ear_l", "ear_r"}
 
 # 역할별 컨트롤러 이름 검색 패턴 (정규식)
 _CTRL_SEARCH_PATTERNS = {
     "root": [r"^c_root_master\."],
     "spine": [r"^c_spine_\d+\."],
-    "neck": [r"^c_neck"],
+    "neck": [r"^c_subneck_\d+\.", r"^c_neck\."],
     "head": [r"^c_head\."],
     "back_leg_l": [r"^c_thigh_b\.l", r"^c_thigh_fk\.l", r"^c_leg_fk\.l"],
     "back_leg_r": [r"^c_thigh_b\.r", r"^c_thigh_fk\.r", r"^c_leg_fk\.r"],

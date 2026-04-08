@@ -22,7 +22,7 @@ __all__ = [
     "_classify_ctrl",
     "_copy_custom_scale_fcurves",
     "_delete_existing_remap_actions",
-    "_mute_tail_master_constraints",
+    "_mute_master_rotation_constraints",
     "_override_bones_map",
     "cleanup_after_retarget",
     "deserialize_bone_pairs",
@@ -160,25 +160,23 @@ def _override_bones_map(bone_pairs):
             log(f"  bones_map_v2에 없는 소스 본: {missing}", "WARN")
 
 
-def _mute_tail_master_constraints(arp_obj):
-    """tail controller의 COPY_ROTATION(tail_master) constraint를 mute.
+def _mute_master_rotation_constraints(arp_obj):
+    """tail/neck controller의 COPY_ROTATION(master) constraint를 mute.
 
-    ARP tail 시스템은 c_tail_master.x의 회전을 OFFSET 모드로 각 tail controller에
-    더하는 구조다. 리타겟 시 이 constraint가 활성화되어 있으면 리타겟 회전에
-    추가 회전이 합산되어 오차가 체인을 따라 누적된다.
+    ARP의 tail/neck 시스템은 master 본(c_tail_master.x, c_neck_master.x)의 회전을
+    OFFSET 모드로 각 controller에 더하는 구조다. 리타겟 시 이 constraint가
+    활성화되어 있으면 리타겟 회전에 추가 회전이 합산되어 오차가 체인을 따라 누적된다.
     """
     from arp_utils import log
 
     muted = 0
     for pb in arp_obj.pose.bones:
-        if not pb.name.startswith("c_tail_"):
-            continue
         for c in pb.constraints:
-            if c.type == "COPY_ROTATION" and "tail_master" in c.name and not c.mute:
+            if c.type == "COPY_ROTATION" and "master" in c.name and not c.mute:
                 c.mute = True
                 muted += 1
     if muted:
-        log(f"  tail_master constraint mute: {muted}개")
+        log(f"  master COPY_ROTATION(OFFSET) mute: {muted}개")
 
 
 def _delete_existing_remap_actions():
@@ -285,7 +283,7 @@ def setup_arp_retarget(source_obj, arp_obj, bone_pairs):
     _override_bones_map(bone_pairs)
 
     # 4. tail master constraint mute (COPY_ROTATION OFFSET이 리타겟 회전을 왜곡)
-    _mute_tail_master_constraints(arp_obj)
+    _mute_master_rotation_constraints(arp_obj)
 
     # 5. batch_retarget 활성화
     scn.batch_retarget = True
