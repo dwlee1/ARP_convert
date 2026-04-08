@@ -635,21 +635,40 @@ def read_preview_roles(preview_obj):
     Preview Armature의 본 역할 정보를 읽어서 analysis 형식으로 반환.
     사용자가 수정한 역할을 반영.
 
+    역할 내 본 순서는 Preview 계층으로 결정하되, Preview가 flat(같은 depth)이면
+    소스 아마추어의 원본 계층을 fallback으로 사용한다.
+
     Returns:
         dict: {role: [bone_names], ...}
     """
+    import bpy
+
     roles = defaultdict(list)
 
     for pbone in preview_obj.pose.bones:
         role = pbone.get(ROLE_PROP_KEY, "unmapped")
         roles[role].append(pbone.name)
 
+    # 소스 아마추어 찾기 (fallback 정렬용)
+    source_obj = None
+    for obj in bpy.data.objects:
+        if (
+            obj.type == "ARMATURE"
+            and obj != preview_obj
+            and not any(b.name.startswith("c_") for b in obj.data.bones)
+            and "rig" not in obj.name.lower()
+        ):
+            source_obj = obj
+            break
+
     # 각 역할 내에서 하이어라키 순서(부모->자식)로 정렬
     for role in roles:
         bone_names = roles[role]
+        if len(bone_names) <= 1:
+            continue
 
-        # depth 기준 정렬
-        def get_depth(name):
+        # Preview depth 기준
+        def _preview_depth(name):
             depth = 0
             bone = preview_obj.data.bones.get(name)
             while bone and bone.parent:
@@ -657,7 +676,24 @@ def read_preview_roles(preview_obj):
                 bone = bone.parent
             return depth
 
-        roles[role] = sorted(bone_names, key=get_depth)
+        depths = [_preview_depth(n) for n in bone_names]
+
+        if len(set(depths)) > 1:
+            # Preview 계층에 차이가 있으면 그대로 사용
+            roles[role] = sorted(bone_names, key=_preview_depth)
+        elif source_obj:
+            # flat(모두 같은 depth)이면 소스 아마추어 계층으로 정렬
+            def _source_depth(name):
+                bone = source_obj.data.bones.get(name)
+                if bone is None:
+                    return 999
+                depth = 0
+                while bone.parent:
+                    depth += 1
+                    bone = bone.parent
+                return depth
+
+            roles[role] = sorted(bone_names, key=_source_depth)
 
     return dict(roles)
 
