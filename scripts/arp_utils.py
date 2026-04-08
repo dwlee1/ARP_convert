@@ -352,6 +352,25 @@ def _override_bones_map(bone_pairs):
             log(f"  bones_map_v2에 없는 소스 본: {missing}", "WARN")
 
 
+def _mute_tail_master_constraints(arp_obj):
+    """tail controller의 COPY_ROTATION(tail_master) constraint를 mute.
+
+    ARP tail 시스템은 c_tail_master.x의 회전을 OFFSET 모드로 각 tail controller에
+    더하는 구조다. 리타겟 시 이 constraint가 활성화되어 있으면 리타겟 회전에
+    추가 회전이 합산되어 오차가 체인을 따라 누적된다.
+    """
+    muted = 0
+    for pb in arp_obj.pose.bones:
+        if not pb.name.startswith("c_tail_"):
+            continue
+        for c in pb.constraints:
+            if c.type == "COPY_ROTATION" and "tail_master" in c.name and not c.mute:
+                c.mute = True
+                muted += 1
+    if muted:
+        log(f"  tail_master constraint mute: {muted}개")
+
+
 def _delete_existing_remap_actions():
     """기존 _remap 액션을 삭제하여 중복 방지."""
     removed = []
@@ -388,11 +407,14 @@ def setup_arp_retarget(source_obj, arp_obj, bone_pairs):
     # 3. bone_pairs 기반 오버라이드
     _override_bones_map(bone_pairs)
 
-    # 4. batch_retarget 활성화
+    # 4. tail master constraint mute (COPY_ROTATION OFFSET이 리타겟 회전을 왜곡)
+    _mute_tail_master_constraints(arp_obj)
+
+    # 5. batch_retarget 활성화
     scn.batch_retarget = True
     log("  batch_retarget = True")
 
-    # 5. 기존 _remap 액션 삭제
+    # 6. 기존 _remap 액션 삭제
     _delete_existing_remap_actions()
 
     return {
