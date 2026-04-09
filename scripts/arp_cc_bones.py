@@ -68,6 +68,17 @@ def _create_cc_bones_from_preview(
         log,
     )
 
+    # trajectory 본 → c_traj 매핑 추가
+    # trajectory 역할 본(non-deform root 등)의 자식 cc_ 본이 c_traj 아래에 배치되도록
+    from skeleton_detection import ROLE_PROP_KEY
+
+    for pbone in preview_obj.pose.bones:
+        if pbone.get(ROLE_PROP_KEY) == "trajectory":
+            c_traj = arp_obj.data.bones.get("c_traj")
+            if c_traj:
+                source_to_deform_parent[pbone.name] = "c_traj"
+                log(f"  trajectory → c_traj 매핑: {pbone.name}")
+
     from skeleton_analyzer import order_bones_by_hierarchy
 
     ordered_custom_bones = order_bones_by_hierarchy(custom_bone_names, preview_hierarchy)

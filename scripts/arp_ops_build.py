@@ -951,11 +951,30 @@ class ARPCONV_OT_BuildRig(Operator):
                 )
                 log(f"  cc_ 생성 완료: {created_cc}개")
 
+                # constraint subtarget 리매핑용 source→controller 매핑 구축
+                # deform_to_ref는 ref 본(edit-mode 전용)을 돌려주므로
+                # constraint에는 실제 controller 본 이름이 필요하다
+                from skeleton_analyzer import discover_arp_ctrl_map
+
+                _ctrl_map = discover_arp_ctrl_map(arp_obj)
+                _ref_to_role_idx = {}
+                for _role, _refs in arp_chains.items():
+                    for _idx, _ref in enumerate(_refs):
+                        _ref_to_role_idx[_ref] = (_role, _idx)
+
+                source_to_controller = {}
+                for _src, _ref in deform_to_ref.items():
+                    _ri = _ref_to_role_idx.get(_ref)
+                    if _ri and _ri[0] in _ctrl_map:
+                        _ctrls = _ctrl_map[_ri[0]]
+                        if _ri[1] < len(_ctrls):
+                            source_to_controller[_src] = _ctrls[_ri[1]]
+
                 copied_constraints = _copy_custom_bone_constraints(
                     source_obj=source_obj,
                     arp_obj=arp_obj,
                     custom_bone_names=custom_bones,
-                    deform_to_ref=deform_to_ref,
+                    deform_to_ref=source_to_controller,
                     log=log,
                 )
                 if copied_constraints:
