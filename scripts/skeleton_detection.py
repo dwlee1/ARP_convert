@@ -21,7 +21,6 @@ __all__ = [
     "BACKWARD_THRESHOLD",
     "CC_NAME_PATTERNS",
     "CENTER_X_RATIO",
-    # 상수
     "DEBUG",
     "DOWNWARD_THRESHOLD",
     "EAR_KEYWORDS",
@@ -36,37 +35,33 @@ __all__ = [
     "ROOT_NAME_HINTS",
     "UPWARD_THRESHOLD",
     "_extract_bone_from_data_path",
-    # Shape key
     "_extract_shape_key_name",
-    # 공간 재구성
     "_reconstruct_spatial_hierarchy",
     "build_preview_parent_overrides",
     "classify_legs",
-    # 구조 식별
+    "compute_geometric_pole",
     "count_descendants",
-    # 본 추출
     "extract_bone_data",
     "filter_deform_bones",
     "find_downward_branches",
     "find_head_features",
-    # Pole / Head
     "find_pole_vectors",
     "find_root_bone",
     "find_tail_chain",
     "get_weighted_bone_names",
-    # 하이어라키
     "order_bones_by_hierarchy",
     "scan_shape_key_drivers",
     "split_leg_foot",
     "trace_chain",
     "trace_spine_chain",
+    "validate_pole_against_geometry",
     "vec_add",
     "vec_avg",
+    "vec_cross",
     "vec_dot",
     "vec_length",
     "vec_normalize",
     "vec_scale",
-    # 벡터 유틸리티
     "vec_sub",
 ]
 
@@ -156,6 +151,14 @@ def vec_avg(vectors):
     for v in vectors:
         s = vec_add(s, v)
     return vec_scale(s, 1.0 / n)
+
+
+def vec_cross(a, b):
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1279,10 +1282,125 @@ def scan_shape_key_drivers(armature_obj):
 
 POLE_KEYWORDS = ["pole", "knee", "elbow"]
 
+# 기하학적 pole vector에서 직선 판별 임계값 (체인 길이 대비 비율)
+_POLE_COLLINEAR_RATIO = 0.02  # 체인 길이의 2% 미만이면 직선으로 간주
+
+
+def compute_geometric_pole(bone_data_list, leg_key=None):
+    """다리 3+ 본 체인의 기하학에서 pole vector 위치를 계산.
+
+    무릎(중간 관절)이 thigh→foot 직선에서 벗어나는 방향으로 pole을 배치한다.
+    직선에 가까운 경우 다리 유형별 기본 방향을 사용한다.
+
+    Args:
+        bone_data_list: [{"head": (x,y,z), "tail": (x,y,z), ...}, ...] 본 데이터 리스트
+                        체인 순서대로 (thigh → knee → foot)
+        leg_key: "back_leg_l" 등 다리 키 (직선 fallback 방향 결정용)
+
+    Returns:
+        tuple: (x, y, z) pole 위치, 또는 None (본이 2개 미만)
+    """
+    if len(bone_data_list) < 2:
+        return None
+
+    # A = 체인 시작 (thigh head), C = 체인 끝 (last bone tail)
+    a = bone_data_list[0]["head"]
+    c = bone_data_list[-1]["tail"]
+
+    # B = 중간 관절 찾기: 체인 길이 절반 지점에 가장 가까운 관절
+    chain_length = 0.0
+    joints = [a]  # 각 본의 head + 마지막 bone의 tail
+    for bd in bone_data_list:
+        chain_length += bd["length"]
+        joints.append(bd["tail"])
+
+    if chain_length < 1e-8:
+        return None
+
+    half_len = chain_length / 2.0
+    cumulative = 0.0
+    b = joints[1]  # 기본: 첫 번째 관절
+    best_diff = abs(cumulative - half_len)
+    for i, bd in enumerate(bone_data_list):
+        cumulative += bd["length"]
+        diff = abs(cumulative - half_len)
+        if diff < best_diff:
+            best_diff = diff
+            b = joints[i + 1]
+
+    # knee_dir = B - midpoint(A, C)
+    mid_ac = vec_scale(vec_add(a, c), 0.5)
+    knee_dir = vec_sub(b, mid_ac)
+    knee_dist = vec_length(knee_dir)
+
+    pole_distance = chain_length * 0.5
+
+    if knee_dist > chain_length * _POLE_COLLINEAR_RATIO:
+        # 무릎이 직선에서 벗어남 → 해당 방향으로 pole 배치
+        pole_dir = vec_normalize(knee_dir)
+        return vec_add(b, vec_scale(pole_dir, pole_distance))
+
+    # ── 직선 fallback: 다리 유형별 기본 방향 ──
+    # 사족보행: 뒷다리는 앞(+Y), 앞다리는 뒤(-Y)로 무릎이 꺾임
+    chain_dir = vec_normalize(vec_sub(c, a))
+
+    if leg_key and "front" in leg_key:
+        preferred = (0, -1, 0)  # 앞다리: 뒤쪽으로
+    else:
+        preferred = (0, 1, 0)  # 뒷다리: 앞쪽으로
+
+    # preferred에서 chain_dir 성분을 빼서 수직 방향 추출
+    proj = vec_scale(chain_dir, vec_dot(preferred, chain_dir))
+    perp = vec_sub(preferred, proj)
+    perp_len = vec_length(perp)
+    if perp_len > 1e-8:
+        pole_dir = vec_normalize(perp)
+    else:
+        # chain_dir이 preferred와 평행 → cross product로 대안
+        up = (0, 0, 1)
+        cross = vec_cross(chain_dir, up)
+        if vec_length(cross) > 1e-8:
+            pole_dir = vec_normalize(cross)
+        else:
+            pole_dir = (1, 0, 0)  # 최후 fallback
+
+    return vec_add(b, vec_scale(pole_dir, pole_distance))
+
+
+def validate_pole_against_geometry(source_pole_pos, geometric_pole_pos, knee_pos):
+    """소스 pole이 기하학적 기대와 같은 방향인지 검증.
+
+    Args:
+        source_pole_pos: 소스 pole 본의 위치 (x, y, z)
+        geometric_pole_pos: 기하학적으로 계산된 pole 위치
+        knee_pos: 무릎 관절 위치 (방향 비교 기준점)
+
+    Returns:
+        bool: True면 소스 pole 사용 가능, False면 기하학적 pole로 대체
+    """
+    src_dir = vec_sub(source_pole_pos, knee_pos)
+    geo_dir = vec_sub(geometric_pole_pos, knee_pos)
+
+    src_len = vec_length(src_dir)
+    geo_len = vec_length(geo_dir)
+
+    if src_len < 1e-8 or geo_len < 1e-8:
+        return False
+
+    dot = vec_dot(vec_normalize(src_dir), vec_normalize(geo_dir))
+    # 같은 반구에 있으면 유효 (dot > 0)
+    return dot > 0
+
 
 def find_pole_vectors(all_bones, legs, leg_foot_pairs):
     """
-    전체 본(deform + non-deform)에서 IK pole vector 본을 찾아 다리에 매칭.
+    각 다리의 IK pole vector 위치를 결정.
+
+    전략:
+    1. 기하학적 pole을 항상 계산 (3본 체인의 무릎 굽힘 방향)
+    2. 이름 기반("pole/knee/elbow")으로 소스 pole 본 탐색
+    3. 소스 pole이 있으면 기하학적 pole과 비교 검증 → 통과 시 소스 사용
+    4. 소스 pole이 없거나 검증 실패 → 기하학적 pole 사용
 
     Args:
         all_bones: 전체 본 딕셔너리 (extract_bone_data 결과)
@@ -1290,21 +1408,14 @@ def find_pole_vectors(all_bones, legs, leg_foot_pairs):
         leg_foot_pairs: {"back_foot_l": [...], ...} 발 체인
 
     Returns:
-        dict: {"back_leg_l": {"name": ..., "head": (x,y,z)}, ...}
+        dict: {"back_leg_l": {"name": str, "head": (x,y,z), "source": str}, ...}
+              source는 "name_based" 또는 "geometric"
     """
-    # 1. 이름 기반 pole 후보 수집
-    pole_candidates = []
-    for name, bone in all_bones.items():
-        name_lower = name.lower()
-        if any(kw in name_lower for kw in POLE_KEYWORDS):
-            pole_candidates.append(bone)
-
-    if not pole_candidates:
-        return {}
-
-    # 2. 각 다리 체인의 중간점 계산
     leg_keys = ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]
-    leg_midpoints = {}
+
+    # ── 1. 각 다리의 기하학적 pole 계산 ──
+    geo_poles = {}  # {leg_key: (x, y, z)}
+    leg_chain_data = {}  # {leg_key: [bone_data, ...]}
     for key in leg_keys:
         chain = legs.get(key, [])
         foot_key = key.replace("_leg_", "_foot_")
@@ -1313,38 +1424,87 @@ def find_pole_vectors(all_bones, legs, leg_foot_pairs):
         if not full_chain:
             continue
 
-        # 체인의 첫 번째 본 head와 마지막 본 tail의 중간점
-        first_bone = all_bones.get(full_chain[0])
-        last_bone = all_bones.get(full_chain[-1])
-        if first_bone and last_bone:
-            mid = tuple((first_bone["head"][i] + last_bone["tail"][i]) / 2 for i in range(3))
-            leg_midpoints[key] = mid
+        bone_data_list = [all_bones[n] for n in full_chain if n in all_bones]
+        if len(bone_data_list) < 2:
+            continue
 
-    if not leg_midpoints:
-        return {}
+        leg_chain_data[key] = bone_data_list
+        geo_pos = compute_geometric_pole(bone_data_list, leg_key=key)
+        if geo_pos:
+            geo_poles[key] = geo_pos
 
-    # 3. 각 pole 후보를 가장 가까운 다리에 매칭
+    # ── 2. 이름 기반 pole 후보 수집 ──
+    pole_candidates = []
+    for name, bone in all_bones.items():
+        name_lower = name.lower()
+        if any(kw in name_lower for kw in POLE_KEYWORDS):
+            pole_candidates.append(bone)
+
+    # ── 3. 이름 기반 매칭 (기존 로직) ──
+    name_based = {}
+    if pole_candidates:
+        leg_midpoints = {}
+        for key, bone_data_list in leg_chain_data.items():
+            a = bone_data_list[0]["head"]
+            c = bone_data_list[-1]["tail"]
+            leg_midpoints[key] = vec_scale(vec_add(a, c), 0.5)
+
+        used_poles = set()
+        for key, midpoint in leg_midpoints.items():
+            best_pole = None
+            best_dist = float("inf")
+            for pole in pole_candidates:
+                if pole["name"] in used_poles:
+                    continue
+                dist = vec_length(vec_sub(pole["head"], midpoint))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_pole = pole
+            if best_pole:
+                name_based[key] = best_pole
+                used_poles.add(best_pole["name"])
+
+    # ── 4. 통합: 검증 후 최종 pole 결정 ──
     pole_vectors = {}
-    used_poles = set()
+    for key in leg_keys:
+        src_pole = name_based.get(key)
+        geo_pos = geo_poles.get(key)
 
-    for key, midpoint in leg_midpoints.items():
-        best_pole = None
-        best_dist = float("inf")
-
-        for pole in pole_candidates:
-            if pole["name"] in used_poles:
-                continue
-            dist = vec_length(vec_sub(pole["head"], midpoint))
-            if dist < best_dist:
-                best_dist = dist
-                best_pole = pole
-
-        if best_pole:
+        if src_pole and geo_pos:
+            # 소스 pole 존재 + 기하학적 pole 존재 → 검증
+            bone_data_list = leg_chain_data[key]
+            # 무릎 위치 (체인 중간 관절)
+            knee = bone_data_list[min(1, len(bone_data_list) - 1)]["head"]
+            if validate_pole_against_geometry(src_pole["head"], geo_pos, knee):
+                pole_vectors[key] = {
+                    "name": src_pole["name"],
+                    "head": src_pole["head"],
+                    "source": "name_based",
+                }
+            else:
+                if DEBUG:
+                    print(
+                        f"  [POLE] {key}: 소스 pole '{src_pole['name']}' 검증 실패 → 기하학적 pole 사용"
+                    )
+                pole_vectors[key] = {
+                    "name": "__geometric__",
+                    "head": geo_pos,
+                    "source": "geometric",
+                }
+        elif src_pole:
+            # 소스만 존재 (기하학적 계산 불가) → 소스 사용
             pole_vectors[key] = {
-                "name": best_pole["name"],
-                "head": best_pole["head"],
+                "name": src_pole["name"],
+                "head": src_pole["head"],
+                "source": "name_based",
             }
-            used_poles.add(best_pole["name"])
+        elif geo_pos:
+            # 기하학적만 존재 (소스 pole 없음) → 기하학적 사용
+            pole_vectors[key] = {
+                "name": "__geometric__",
+                "head": geo_pos,
+                "source": "geometric",
+            }
 
     return pole_vectors
 

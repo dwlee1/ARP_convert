@@ -601,12 +601,22 @@ class TestPoleVectors:
             assert "front_leg_r" in analysis["pole_vectors"], "front_leg_r pole 미감지"
 
     def test_pole_names_contain_pole_keyword(self, animal_name, analysis):
-        """감지된 pole 본 이름에 pole 키워드가 포함되어야 함."""
+        """이름 기반 pole은 pole 키워드를 포함해야 함."""
         for key, pole_info in analysis.get("pole_vectors", {}).items():
+            if pole_info.get("source") == "geometric":
+                continue  # 기하학적 pole은 이름 검증 스킵
             name_lower = pole_info["name"].lower()
             assert any(kw in name_lower for kw in ["pole", "knee", "elbow"]), (
                 f"{key} pole 본 이름에 키워드 없음: {pole_info['name']}"
             )
+
+    def test_all_legs_have_poles(self, animal_name, analysis):
+        """모든 감지된 다리에 pole vector가 있어야 함 (기하학적 fallback 포함)."""
+        for leg_key in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
+            if analysis["legs"].get(leg_key):
+                assert leg_key in analysis["pole_vectors"], (
+                    f"{animal_name}: {leg_key} 다리 있지만 pole 없음"
+                )
 
 
 class TestShapeKeyDriverParsing:
@@ -857,6 +867,98 @@ class TestChainsToFlatRoles:
         assert ik == "c_random_ctrl.l"
         assert pole == ""
         assert is_ik is False
+
+
+# ═══════════════════════════════════════════════════════════════
+# 기하학적 Pole Vector 계산 테스트
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestGeometricPole:
+    """compute_geometric_pole / validate_pole_against_geometry 단위 테스트."""
+
+    @staticmethod
+    def _make_chain(positions):
+        """[(head, tail), ...] → bone_data 리스트."""
+        result = []
+        for head, tail in positions:
+            d = sa.vec_sub(tail, head)
+            length = sa.vec_length(d)
+            direction = sa.vec_normalize(d) if length > 0 else (0, 0, 0)
+            result.append(
+                {
+                    "head": head,
+                    "tail": tail,
+                    "length": length,
+                    "direction": direction,
+                }
+            )
+        return result
+
+    def test_bent_knee_forward(self):
+        """무릎이 +Y로 굽혀진 뒷다리 → pole도 +Y 방향."""
+        chain = self._make_chain(
+            [
+                ((0, 0, 1.0), (0, 0.3, 0.5)),  # thigh: 아래+앞
+                ((0, 0.3, 0.5), (0, 0.1, 0.0)),  # shin: 아래+뒤
+            ]
+        )
+        pole = sa.compute_geometric_pole(chain, leg_key="back_leg_l")
+        assert pole is not None
+        # pole Y > knee Y (무릎 앞쪽)
+        knee_y = 0.3
+        assert pole[1] > knee_y, f"pole Y={pole[1]:.3f}, knee Y={knee_y}"
+
+    def test_bent_elbow_backward(self):
+        """무릎이 -Y로 굽혀진 앞다리 → pole도 -Y 방향."""
+        chain = self._make_chain(
+            [
+                ((0, 0, 1.0), (0, -0.3, 0.5)),  # upper arm: 아래+뒤
+                ((0, -0.3, 0.5), (0, -0.1, 0.0)),  # lower arm: 아래+앞
+            ]
+        )
+        pole = sa.compute_geometric_pole(chain, leg_key="front_leg_l")
+        assert pole is not None
+        knee_y = -0.3
+        assert pole[1] < knee_y, f"pole Y={pole[1]:.3f}, knee Y={knee_y}"
+
+    def test_straight_leg_uses_fallback(self):
+        """거의 직선인 다리 → fallback 방향 사용, None이 아닌 값 반환."""
+        chain = self._make_chain(
+            [
+                ((0, 0, 1.0), (0, 0, 0.5)),  # 완전 수직
+                ((0, 0, 0.5), (0, 0, 0.0)),  # 완전 수직
+            ]
+        )
+        pole = sa.compute_geometric_pole(chain, leg_key="back_leg_l")
+        assert pole is not None, "직선 다리에서 pole 계산 실패"
+
+    def test_too_few_bones_returns_none(self):
+        """본 1개 이하 → None."""
+        chain = self._make_chain([((0, 0, 1), (0, 0, 0))])
+        assert sa.compute_geometric_pole(chain) is None
+        assert sa.compute_geometric_pole([]) is None
+
+    def test_validate_same_direction_passes(self):
+        """같은 방향의 소스 pole → 검증 통과."""
+        knee = (0, 0, 0.5)
+        geo_pole = (0, 1.0, 0.5)  # +Y 방향
+        src_pole = (0, 0.8, 0.6)  # +Y 방향 (약간 다름)
+        assert sa.validate_pole_against_geometry(src_pole, geo_pole, knee) is True
+
+    def test_validate_opposite_direction_fails(self):
+        """반대 방향의 소스 pole → 검증 실패."""
+        knee = (0, 0, 0.5)
+        geo_pole = (0, 1.0, 0.5)  # +Y 방향
+        src_pole = (0, -1.0, 0.5)  # -Y 방향 (반대)
+        assert sa.validate_pole_against_geometry(src_pole, geo_pole, knee) is False
+
+    def test_validate_zero_length_fails(self):
+        """pole이 knee 위에 있으면 → 검증 실패."""
+        knee = (0, 0, 0.5)
+        geo_pole = (0, 1.0, 0.5)
+        src_pole = knee  # knee와 같은 위치
+        assert sa.validate_pole_against_geometry(src_pole, geo_pole, knee) is False
 
 
 # ═══════════════════════════════════════════════════════════════
