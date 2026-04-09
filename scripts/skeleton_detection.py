@@ -443,6 +443,60 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
             ancestor = all_bones.get(ancestor, {}).get("parent")
         return None
 
+    # ── Step 0: non-deform 투과 (collapse) ──
+    # 원본 계층에서 non-deform 본을 건너뛰어 deform 본 간 부모-자식을 확립.
+    # RECON-1(tail→head) 후에 실행되어야 형제 중 연결된 본을 찾을 수 있음.
+    def _run_collapse():
+        collapse_connected = 0
+        for name in list(deform_names):
+            bone = deform_bones[name]
+            if bone["parent"] is not None:
+                continue
+
+            # 1) 원본 계층에서 deform 조상 탐색
+            deform_parent = _find_deform_ancestor(name)
+            if deform_parent:
+                _try_set_parent(name, deform_parent, "collapse")
+                collapse_connected += 1
+                continue
+
+            # 2) 같은 non-deform 부모를 공유하는 deform 형제 탐색
+            orig_parent = all_bones.get(name, {}).get("parent")
+            if not orig_parent or orig_parent in deform_names:
+                continue
+
+            # 형제 중 이미 트리에 연결된 본 우선, 없으면 가장 가까운 형제
+            siblings = [
+                sib_name
+                for sib_name in deform_names
+                if all_bones.get(sib_name, {}).get("parent") == orig_parent and sib_name != name
+            ]
+            if not siblings:
+                continue
+
+            # ROOT_NAME_HINTS 본은 형제의 자식이 되면 안 됨 — 스킵
+            name_is_root = any(h in name.lower() for h in ROOT_NAME_HINTS)
+            if name_is_root:
+                continue
+
+            # 이미 트리에 연결된 형제 우선 (RECON-1/2/3 후이므로 spine 트리 확립됨)
+            connected_sibs = [s for s in siblings if deform_bones[s]["parent"] is not None]
+            pool = connected_sibs if connected_sibs else siblings
+
+            best_sib, best_dist = None, float("inf")
+            for sib_name in pool:
+                dist = vec_length(vec_sub(deform_bones[sib_name]["head"], bone["head"]))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_sib = sib_name
+            if best_sib:
+                _try_set_parent(name, best_sib, "sibling")
+                collapse_connected += 1
+
+        if DEBUG and collapse_connected:
+            print(f"  [COLLAPSE] {collapse_connected}개 본 연결됨")
+        return collapse_connected > 0
+
     def _try_set_parent(child_name, parent_name, method):
         """순환 방지 후 부모 설정."""
         if parent_name == child_name:
@@ -627,6 +681,11 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
         any_changed |= ch
         rest, ch = _run_step(rest, _step3)
         any_changed |= ch
+        # RECON-1/2/3 후 collapse: spine 트리가 확립된 상태에서 형제 연결
+        ch_collapse = _run_collapse()
+        any_changed |= ch_collapse
+        if ch_collapse:
+            rest = [n for n in rest if deform_bones[n]["parent"] is None]
         rest, ch = _run_step(rest, _step4)
         any_changed |= ch
 
