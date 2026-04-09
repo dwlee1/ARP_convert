@@ -718,6 +718,10 @@ def trace_spine_chain(root_name, deform_bones):
     루트에서 위(+Z)로 가장 긴 체인을 추적.
     각 분기점에서 +Z 방향에 가장 가까운 자식을 선택.
     """
+    # center_x 정규화용 스케일 상대 임계값 (본 평균 길이 기반)
+    avg_bone_len = sum(b["length"] for b in deform_bones.values()) / max(len(deform_bones), 1)
+    center_threshold = max(avg_bone_len * 0.5, 0.01)
+
     chain = []
     current = root_name
 
@@ -778,7 +782,7 @@ def trace_spine_chain(root_name, deform_bones):
             if abs(pos_z_delta) < 1e-6:
                 pos_z_delta = child["tail"][2] - bone["head"][2]
             desc_count = count_descendants(child_name, deform_bones)
-            center_x = 1.0 - min(abs(child["head"][0]) / 0.1, 1.0)
+            center_x = 1.0 - min(abs(child["head"][0]) / center_threshold, 1.0)
 
             score = (
                 dir_z * 0.2
@@ -836,15 +840,75 @@ def find_downward_branches(spine_chain, deform_bones):
                 if len(chain) >= MIN_LEG_CHAIN_LENGTH:
                     branches.append((spine_bone_name, chain))
             else:
-                # 중간 허브 본(예: hip_01)을 통해 분기하는 경우 — 손자 본 탐색
+                # 중간 허브 본(예: shoulder_L)을 통해 분기하는 경우 — 손자 본 탐색
+                downward_gcs = []
                 for gc_name in child["children"]:
                     if gc_name in spine_set or gc_name not in deform_bones:
                         continue
                     gc = deform_bones[gc_name]
                     if _is_downward(gc, child["head"][2]):
-                        chain = trace_chain(gc_name, deform_bones, spine_set)
-                        if len(chain) >= MIN_LEG_CHAIN_LENGTH:
-                            branches.append((spine_bone_name, chain))
+                        downward_gcs.append(gc_name)
+                # hub 본은 전용 허브(하향 grandchild 1개)일 때만 체인에 포함
+                # 다중 분기(hip_01 등)는 공유 분기점이므로 hub 제외
+                include_hub = len(downward_gcs) == 1
+                for gc_name in downward_gcs:
+                    chain = trace_chain(gc_name, deform_bones, spine_set)
+                    if len(chain) >= MIN_LEG_CHAIN_LENGTH:
+                        if include_hub:
+                            chain = [child_name, *chain]
+                        branches.append((spine_bone_name, chain))
+
+    # orphan 본 탐색: 부모가 없는 deform 본 중 하향 본이 있으면
+    # 가장 가까운 spine 본에 연결해 다리 후보로 추가
+    already_found = set()
+    for _, chain in branches:
+        already_found.update(chain)
+
+    orphans = [
+        name
+        for name, b in deform_bones.items()
+        if b["parent"] is None and name not in spine_set and name not in already_found
+    ]
+    if orphans:
+        from skeleton_detection import vec_length, vec_sub
+
+        for orphan_name in orphans:
+            orphan = deform_bones[orphan_name]
+            if not _is_downward(orphan, orphan["head"][2]):
+                # hub 패턴: orphan 자체가 하향이 아니면 자식 확인
+                downward_children = [
+                    c
+                    for c in orphan["children"]
+                    if c in deform_bones
+                    and c not in spine_set
+                    and c not in already_found
+                    and _is_downward(deform_bones[c], orphan["head"][2])
+                ]
+                if not downward_children:
+                    continue
+                # 자식부터 체인 시작, orphan을 hub로 포함
+                for dc_name in downward_children:
+                    chain = trace_chain(dc_name, deform_bones, spine_set)
+                    if len(chain) >= MIN_LEG_CHAIN_LENGTH:
+                        full_chain = [orphan_name, *chain]
+                        # 가장 가까운 spine 본 찾기
+                        nearest_spine = min(
+                            spine_chain,
+                            key=lambda s: vec_length(
+                                vec_sub(deform_bones[s]["head"], orphan["head"])
+                            ),
+                        )
+                        branches.append((nearest_spine, full_chain))
+                        already_found.update(full_chain)
+            else:
+                chain = trace_chain(orphan_name, deform_bones, spine_set)
+                if len(chain) >= MIN_LEG_CHAIN_LENGTH:
+                    nearest_spine = min(
+                        spine_chain,
+                        key=lambda s: vec_length(vec_sub(deform_bones[s]["head"], orphan["head"])),
+                    )
+                    branches.append((nearest_spine, chain))
+                    already_found.update(chain)
 
     return branches
 
