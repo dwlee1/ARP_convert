@@ -57,6 +57,7 @@ def _reload():
     import importlib
 
     for mod_name in [
+        "skeleton_detection",
         "skeleton_analyzer",
         "weight_transfer_rules",
         "mcp_verify",
@@ -890,6 +891,7 @@ def mcp_reload_addon():
         # 애드온 오퍼레이터 내부에서 import되므로 반드시 같이 sync해야 한다.
         _ADDON_DEPS_EXTRA = {
             "skeleton_analyzer.py",
+            "skeleton_detection.py",
             "weight_transfer_rules.py",
         }
 
@@ -926,7 +928,11 @@ def mcp_reload_addon():
         # 3) sys.modules 캐시 제거 — 애드온 의존 모듈 전부 (arp_utils 포함 이번엔)
         purged = []
         for m in list(sys.modules.keys()):
-            if m.startswith("arp_") or m in ("skeleton_analyzer", "weight_transfer_rules"):
+            if m.startswith("arp_") or m in (
+                "skeleton_analyzer",
+                "skeleton_detection",
+                "weight_transfer_rules",
+            ):
                 del sys.modules[m]
                 purged.append(m)
 

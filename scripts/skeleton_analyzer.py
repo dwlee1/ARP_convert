@@ -106,16 +106,36 @@ def analyze_skeleton(armature_obj):
     root_name = root_result[0]
     root_confidence = root_result[1]
 
-    # 2.5. trajectory 감지: root의 부모가 deform 본이면 trajectory로 지정
+    # 2.5. trajectory 감지: root 위의 최상위 deform 본을 trajectory로 지정
     trajectory_name = None
     root_data = deform_bones.get(root_name)
+
+    # 패턴 1: deform_bones 계층에서 root의 부모가 최상위 deform 본
     if root_data and root_data["parent"]:
         parent_name = root_data["parent"]
         if parent_name in deform_bones:
             parent_data = deform_bones[parent_name]
-            # 부모가 root 위의 최상위 본(자식이 1~2개)이면 trajectory
             if parent_data["parent"] is None or parent_data["parent"] not in deform_bones:
                 trajectory_name = parent_name
+
+    # 패턴 2: flat 계층 — 같은 non-deform 부모를 공유하는 형제 중 ROOT_NAME_HINTS 본
+    if not trajectory_name and root_data:
+        orig_parent = all_bones.get(root_name, {}).get("parent")
+        if orig_parent and orig_parent not in deform_bones:
+            for sib_name, sib_all in all_bones.items():
+                if (
+                    sib_name != root_name
+                    and sib_name in deform_bones
+                    and sib_all.get("parent") == orig_parent
+                    and any(h in sib_name.lower() for h in ("root",))
+                    and sib_name not in (root_data.get("parent") or "")
+                ):
+                    # 형제 중 "root" 이름을 가진 본이 trajectory 후보
+                    sib_data = deform_bones[sib_name]
+                    # 후손이 없거나 적은 본만 (실제 root 역할이 아닌 trajectory 본)
+                    if len(sib_data.get("children", [])) <= 1:
+                        trajectory_name = sib_name
+                        break
 
     # 3. 스파인 체인 트레이싱
     spine_chain = trace_spine_chain(root_name, deform_bones)
