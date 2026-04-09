@@ -1112,14 +1112,16 @@ def find_tail_chain(root_name, spine_chain, deform_bones):
         anti_spine = -vec_dot(child["direction"], spine_dir)
         center_x = 1.0 - min(avg_x / 0.1, 1.0)
 
-        score = anti_spine * 0.6 + center_x * 0.4
+        chain = trace_chain(child_name, deform_bones, spine_set)
+        if len(chain) < 1:
+            continue
+        # 체인 길이 보너스: 더 긴 체인을 우선 (부모 본이 포함된 체인 선호)
+        chain_bonus = min(len(chain) / 5.0, 0.2)
+        score = anti_spine * 0.5 + center_x * 0.3 + chain_bonus
 
         if score > best_score:
-            chain = trace_chain(child_name, deform_bones, spine_set)
-            # 꼬리는 1본 이상 (일부 리그는 단일 본 tail)
-            if len(chain) >= 1:
-                best_score = score
-                best_chain = chain
+            best_score = score
+            best_chain = chain
 
     return best_chain
 
