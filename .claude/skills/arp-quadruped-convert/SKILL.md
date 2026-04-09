@@ -85,7 +85,7 @@ from mcp_bridge import <함수명>
 ```python
 import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
 from mcp_bridge import mcp_scene_summary
-mcp_scene_summary()
+mcp_scene_summary(brief=True)
 ```
 
 **자동 판단:**
@@ -120,7 +120,7 @@ mcp_create_preview()
 ```python
 import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
 from mcp_bridge import mcp_get_bone_roles
-mcp_get_bone_roles()
+mcp_get_bone_roles()  # 역할 편집 시에는 compact=False (전체 본 이름 필요)
 ```
 
 결과에서 `roles`와 `unmapped_bones`를 사용자에게 보여준다.
@@ -158,7 +158,7 @@ mcp_build_rig()
 ```python
 import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
 from mcp_bridge import mcp_validate_weights
-mcp_validate_weights()
+mcp_validate_weights(summary=True)
 ```
 
 **자동 판단:**

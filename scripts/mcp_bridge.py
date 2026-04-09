@@ -70,23 +70,35 @@ def _reload():
 # ═══════════════════════════════════════════════════════════════
 
 
-def mcp_scene_summary():
-    """현재 씬의 아마추어, 메시, 액션 요약을 JSON으로 출력."""
+def mcp_scene_summary(brief=False):
+    """현재 씬의 아마추어, 메시, 액션 요약을 JSON으로 출력.
+
+    Args:
+        brief: True면 개수만 반환 (이름/상세 리스트 생략).
+    """
     try:
         armatures = []
+        source_count = 0
+        arp_count = 0
         for obj in bpy.data.objects:
             if obj.type == "ARMATURE":
                 bone_count = len(obj.data.bones)
                 c_bones = len([b for b in obj.data.bones if b.name.startswith("c_")])
+                is_arp = c_bones > 5
+                if is_arp:
+                    arp_count += 1
+                else:
+                    source_count += 1
                 armatures.append(
                     {
                         "name": obj.name,
                         "bone_count": bone_count,
                         "c_bone_count": c_bones,
-                        "is_arp": c_bones > 5,
+                        "is_arp": is_arp,
                     }
                 )
 
+        bound_mesh_count = 0
         meshes = []
         for obj in bpy.data.objects:
             if obj.type == "MESH":
@@ -95,6 +107,8 @@ def mcp_scene_summary():
                     if mod.type == "ARMATURE" and mod.object:
                         arm_mod = mod.object.name
                         break
+                if arm_mod:
+                    bound_mesh_count += 1
                 meshes.append(
                     {
                         "name": obj.name,
@@ -103,6 +117,7 @@ def mcp_scene_summary():
                     }
                 )
 
+        action_count = len(bpy.data.actions)
         actions = []
         for action in bpy.data.actions:
             frame_range = (int(action.frame_range[0]), int(action.frame_range[1]))
@@ -114,16 +129,28 @@ def mcp_scene_summary():
                 }
             )
 
-        _result(
-            True,
-            {
-                "blend_file": bpy.data.filepath or "(unsaved)",
-                "armatures": armatures,
-                "meshes": meshes,
-                "actions": actions,
-                "frame_range": [bpy.context.scene.frame_start, bpy.context.scene.frame_end],
-            },
-        )
+        if brief:
+            _result(
+                True,
+                {
+                    "blend_file": bpy.data.filepath or "(unsaved)",
+                    "source_armatures": source_count,
+                    "arp_rigs": arp_count,
+                    "bound_meshes": bound_mesh_count,
+                    "actions": action_count,
+                },
+            )
+        else:
+            _result(
+                True,
+                {
+                    "blend_file": bpy.data.filepath or "(unsaved)",
+                    "armatures": armatures,
+                    "meshes": meshes,
+                    "actions": actions,
+                    "frame_range": [bpy.context.scene.frame_start, bpy.context.scene.frame_end],
+                },
+            )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
 
@@ -275,8 +302,12 @@ def mcp_run_regression(fixture_path):
 # ═══════════════════════════════════════════════════════════════
 
 
-def mcp_get_bone_roles():
-    """Preview Armature의 모든 본 역할 매핑을 JSON으로 반환."""
+def mcp_get_bone_roles(compact=False):
+    """Preview Armature의 모든 본 역할 매핑을 JSON으로 반환.
+
+    Args:
+        compact: True면 역할별 개수만 반환 (본 이름 리스트 생략).
+    """
     try:
         props = bpy.context.scene.arp_convert_props
         preview_name = props.preview_armature
@@ -298,16 +329,31 @@ def mcp_get_bone_roles():
             else:
                 unmapped.append(pbone.name)
 
-        _result(
-            True,
-            {
-                "preview_armature": preview_name,
-                "roles": roles,
-                "unmapped_bones": unmapped,
-                "total_bones": len(preview_obj.data.bones),
-                "mapped_count": len(roles),
-            },
-        )
+        if compact:
+            from collections import Counter
+
+            role_counts = dict(Counter(roles.values()))
+            _result(
+                True,
+                {
+                    "preview_armature": preview_name,
+                    "role_counts": role_counts,
+                    "unmapped_count": len(unmapped),
+                    "total_bones": len(preview_obj.data.bones),
+                    "mapped_count": len(roles),
+                },
+            )
+        else:
+            _result(
+                True,
+                {
+                    "preview_armature": preview_name,
+                    "roles": roles,
+                    "unmapped_bones": unmapped,
+                    "total_bones": len(preview_obj.data.bones),
+                    "mapped_count": len(roles),
+                },
+            )
     except Exception as e:
         _result(False, error=f"{e}\n{traceback.format_exc()}")
 
@@ -364,8 +410,12 @@ def mcp_set_bone_role(bone_name, role):
 # ═══════════════════════════════════════════════════════════════
 
 
-def mcp_validate_weights():
-    """ARP 리그에 바인딩된 메시의 웨이트 커버리지를 검증."""
+def mcp_validate_weights(summary=False):
+    """ARP 리그에 바인딩된 메시의 웨이트 커버리지를 검증.
+
+    Args:
+        summary: True면 메시별 요약만 반환 (vertex group 상세 생략).
+    """
     try:
         _reload()
         from arp_utils import find_arp_armature, find_mesh_objects, quiet_logs
@@ -383,25 +433,7 @@ def mcp_validate_weights():
 
         results = []
         for mesh_obj in meshes:
-            vgroup_info = []
             total_verts = len(mesh_obj.data.vertices)
-
-            for vg in mesh_obj.vertex_groups:
-                vg_idx = vg.index
-                weighted_count = 0
-                for vert in mesh_obj.data.vertices:
-                    for g in vert.groups:
-                        if g.group == vg_idx and g.weight > 0.001:
-                            weighted_count += 1
-                            break
-
-                vgroup_info.append(
-                    {
-                        "name": vg.name,
-                        "weighted_verts": weighted_count,
-                        "coverage": round(weighted_count / max(total_verts, 1), 4),
-                    }
-                )
 
             # 웨이트 없는 정점 체크
             unweighted = 0
@@ -414,14 +446,42 @@ def mcp_validate_weights():
                 if not has_weight:
                     unweighted += 1
 
-            results.append(
-                {
-                    "mesh": mesh_obj.name,
-                    "total_verts": total_verts,
-                    "unweighted_verts": unweighted,
-                    "vertex_groups": sorted(vgroup_info, key=lambda x: x["coverage"]),
-                }
-            )
+            if summary:
+                results.append(
+                    {
+                        "mesh": mesh_obj.name,
+                        "total_verts": total_verts,
+                        "unweighted_verts": unweighted,
+                        "total_groups": len(mesh_obj.vertex_groups),
+                    }
+                )
+            else:
+                vgroup_info = []
+                for vg in mesh_obj.vertex_groups:
+                    vg_idx = vg.index
+                    weighted_count = 0
+                    for vert in mesh_obj.data.vertices:
+                        for g in vert.groups:
+                            if g.group == vg_idx and g.weight > 0.001:
+                                weighted_count += 1
+                                break
+
+                    vgroup_info.append(
+                        {
+                            "name": vg.name,
+                            "weighted_verts": weighted_count,
+                            "coverage": round(weighted_count / max(total_verts, 1), 4),
+                        }
+                    )
+
+                results.append(
+                    {
+                        "mesh": mesh_obj.name,
+                        "total_verts": total_verts,
+                        "unweighted_verts": unweighted,
+                        "vertex_groups": sorted(vgroup_info, key=lambda x: x["coverage"]),
+                    }
+                )
 
         _result(
             True,
