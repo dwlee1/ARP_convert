@@ -29,6 +29,7 @@ CANONICAL_ROLES = {
     "ear_l",
     "ear_r",
     "tail",
+    "trajectory",
     "unmapped",
 }
 

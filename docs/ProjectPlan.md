@@ -79,6 +79,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - [x] 커스텀 본 DEF 소스 통일 — bone_pairs 소스가 전부 DEF 본
   - [x] 커스텀 본 스케일 fcurve 복사 — ARP 리타겟이 무시하는 스케일 보존
   - [ ] root(pelvis) 1.03° 회전 오차 — ARP 내부 offset, 허용 범위
+  - [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑, set_as_root=True
 - [ ] F8: 웨이트 전송 실제 검증
 
 ### 자동화 전략
@@ -114,6 +115,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 | `front_foot_l/r` | 앞발 |
 | `ear_l/r` | 귀 체인 |
 | `tail` | 꼬리 체인 |
+| `trajectory` | 궤적 본 (root 부모 → c_traj) |
 | `unmapped` | 미매핑 (cc_ 커스텀 본 후보) |
 
 ## 구현 기준 파일

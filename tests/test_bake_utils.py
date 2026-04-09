@@ -45,6 +45,13 @@ class TestClassifyCtrl:
         assert result["location"] is True
         assert result["ik"] is False
 
+    def test_traj_is_location_set_as_root(self):
+        result = _classify_ctrl("c_traj", False)
+        assert result["ctrl"] == "c_traj"
+        assert result["set_as_root"] is True
+        assert result["location"] is True
+        assert result["ik"] is False
+
     def test_foot_ik_is_ik_mode(self):
         result = _classify_ctrl("c_foot_ik.l", False)
         assert result["ctrl"] == "c_foot_ik.l"

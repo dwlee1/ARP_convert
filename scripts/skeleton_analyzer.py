@@ -106,6 +106,17 @@ def analyze_skeleton(armature_obj):
     root_name = root_result[0]
     root_confidence = root_result[1]
 
+    # 2.5. trajectory 감지: root의 부모가 deform 본이면 trajectory로 지정
+    trajectory_name = None
+    root_data = deform_bones.get(root_name)
+    if root_data and root_data["parent"]:
+        parent_name = root_data["parent"]
+        if parent_name in deform_bones:
+            parent_data = deform_bones[parent_name]
+            # 부모가 root 위의 최상위 본(자식이 1~2개)이면 trajectory
+            if parent_data["parent"] is None or parent_data["parent"] not in deform_bones:
+                trajectory_name = parent_name
+
     # 3. 스파인 체인 트레이싱
     spine_chain = trace_spine_chain(root_name, deform_bones)
 
@@ -201,10 +212,15 @@ def analyze_skeleton(armature_obj):
     mapped_bones.update(face_features.get("ear_l", []))
     mapped_bones.update(face_features.get("ear_r", []))
 
+    if trajectory_name:
+        mapped_bones.add(trajectory_name)
+
     unmapped = [name for name in deform_bones if name not in mapped_bones]
 
     # 8. 결과 구성
     chains = {}
+    if trajectory_name:
+        chains["trajectory"] = {"bones": [trajectory_name], "confidence": 0.9}
     chains["root"] = {"bones": [root_name], "confidence": root_confidence}
 
     if spine_only:

@@ -897,11 +897,13 @@ class ARPCONV_OT_BuildRig(Operator):
         from skeleton_analyzer import read_preview_roles
 
         roles = read_preview_roles(preview_obj)
+        trajectory_bones = set(roles.get("trajectory", []))
         custom_bones = [
             bone_name
             for bone_name in roles.get("unmapped", [])
             if not bone_name.endswith(GUIDE_SUFFIX_HEEL)
             and not bone_name.endswith(GUIDE_SUFFIX_BANK)
+            and bone_name not in trajectory_bones
         ]
 
         # 드라이버 컨트롤러 본 중 기존 커스텀 본/매핑 본에 없는 것 추가
@@ -1074,6 +1076,12 @@ class ARPCONV_OT_BuildRig(Operator):
         # back_leg의 마지막 본(foot)도 IK로 매핑 — deform_to_ref에서 foot 역할이
         # back_foot으로 분리되어 있으므로 위 _IK_FOOT_ROLES에서 처리됨.
         # front_leg의 마지막 본(hand)도 front_foot 역할에서 처리됨.
+
+        # trajectory 본 → c_traj 매핑
+        for traj_name in roles.get("trajectory", []):
+            if arp_obj.data.bones.get("c_traj"):
+                bone_pairs.append((_def_src(traj_name), "c_traj", False))
+                log(f"  trajectory: {_def_src(traj_name)} → c_traj")
 
         for cc_src in custom_bones:
             cc_name = _make_cc_bone_name(cc_src)

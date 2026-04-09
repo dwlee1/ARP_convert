@@ -111,6 +111,10 @@ def _classify_ctrl(ctrl_name, is_custom):
     if ctrl_name == "c_root_master.x":
         return {"ctrl": "c_root.x", "location": True, "ik": False, "set_as_root": True}
 
+    # trajectory: c_traj → set_as_root=True, location=True
+    if ctrl_name == "c_traj":
+        return {"ctrl": "c_traj", "location": True, "ik": False, "set_as_root": True}
+
     # root 외 모든 본: ik=True (월드 스페이스 매칭)
     return {"ctrl": ctrl_name, "location": False, "ik": True, "set_as_root": False}
 

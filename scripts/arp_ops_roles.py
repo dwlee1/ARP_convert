@@ -36,6 +36,7 @@ ROLE_ITEMS = [
     ("ear_l", "Ear L", "귀 좌"),
     ("ear_r", "Ear R", "귀 우"),
     ("tail", "Tail", "꼬리"),
+    ("trajectory", "Trajectory", "궤적 본 (Root→c_traj)"),
     ("unmapped", "Unmapped", "미매핑 (cc_ 커스텀 본)"),
 ]
 ROLE_IDS = {item[0] for item in ROLE_ITEMS}
