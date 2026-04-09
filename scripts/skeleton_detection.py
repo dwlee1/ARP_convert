@@ -1175,8 +1175,8 @@ def find_tail_chain(root_name, spine_chain, deform_bones):
         if len(chain) < 1:
             continue
         # 체인 길이 보너스: 더 긴 체인을 우선 (부모 본이 포함된 체인 선호)
-        chain_bonus = min(len(chain) / 5.0, 0.2)
-        score = anti_spine * 0.5 + center_x * 0.3 + chain_bonus
+        chain_bonus = len(chain) * 0.05
+        score = anti_spine * 0.4 + center_x * 0.3 + chain_bonus
 
         if score > best_score:
             best_score = score
