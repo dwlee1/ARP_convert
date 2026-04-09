@@ -237,6 +237,13 @@ def analyze_skeleton(armature_obj):
 
     unmapped = [name for name in deform_bones if name not in mapped_bones]
 
+    # 7b. 웨이트 0 제외 deform 본 → unmapped에 추가 (유틸리티 본: food, prop 등)
+    # 역할 분석에는 참여하지 않지만 cc_ 커스텀 본으로 ARP에 포함되어야 한다
+    for excl_info in excluded_zero_weight:
+        excl_name = excl_info["name"]
+        if excl_name not in mapped_bones:
+            unmapped.append(excl_name)
+
     # 8. 결과 구성
     chains = {}
     if trajectory_name:
