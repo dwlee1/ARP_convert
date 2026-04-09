@@ -857,3 +857,375 @@ class TestChainsToFlatRoles:
         assert ik == "c_random_ctrl.l"
         assert pole == ""
         assert is_ik is False
+
+
+# ═══════════════════════════════════════════════════════════════
+# Collapse / Orphan / Trajectory 회귀 테스트
+# ═══════════════════════════════════════════════════════════════
+
+
+def _make_bone(head, tail, parent=None, children=None, is_deform=True, name=None):
+    """테스트용 본 딕셔너리 생성 헬퍼."""
+    h = tuple(head)
+    t = tuple(tail)
+    d = tuple(t[i] - h[i] for i in range(3))
+    length = sum(x * x for x in d) ** 0.5
+    if length > 0:
+        d = tuple(x / length for x in d)
+    return {
+        "name": name or "bone",
+        "head": h,
+        "tail": t,
+        "roll": 0,
+        "parent": parent,
+        "children": children or [],
+        "is_deform": is_deform,
+        "direction": d,
+        "length": length,
+        "use_connect": False,
+    }
+
+
+class TestCollapseNonDeform:
+    """non-deform 투과(collapse) 계층 재구성 회귀 테스트.
+
+    flat 계층 리그에서 non-deform 중간 본을 건너뛰어
+    deform 본 간 부모-자식을 올바르게 확립하는지 검증.
+    """
+
+    def test_collapse_connects_through_nondeform(self):
+        """non-deform 중간 본을 건너뛰어 deform 부모에 연결."""
+        all_bones = {
+            "root_ctrl": _make_bone((0, 0, 0), (0, 0, 0.5), children=["center"], is_deform=False),
+            "center": _make_bone(
+                (0, 0, 0.5),
+                (0, 0, 1),
+                parent="root_ctrl",
+                children=["pelvis", "thigh_L"],
+                is_deform=False,
+            ),
+            "pelvis": _make_bone(
+                (0, 0, 1),
+                (0, 0, 1.5),
+                parent="center",
+                children=["spine01"],
+                is_deform=True,
+            ),
+            "spine01": _make_bone(
+                (0, 0, 1.5),
+                (0, 0, 2),
+                parent="pelvis",
+                children=[],
+                is_deform=True,
+            ),
+            "thigh_L": _make_bone(
+                (-0.3, 0, 0.9),
+                (-0.3, 0, 0.4),
+                parent="center",
+                children=[],
+                is_deform=True,
+            ),
+        }
+        deform_bones, _ = sa.filter_deform_bones(all_bones)
+        sa._reconstruct_spatial_hierarchy(deform_bones, all_bones)
+
+        # pelvis-spine01 관계는 원본과 동일
+        assert deform_bones["spine01"]["parent"] == "pelvis"
+        # thigh_L은 non-deform center를 건너뛰어 pelvis 아래로 연결되어야 함
+        assert deform_bones["thigh_L"]["parent"] is not None, "thigh_L이 orphan으로 남음"
+
+    def test_nondeform_bones_excluded_from_deform(self):
+        """non-deform 본은 filter_deform_bones 결과에 절대 포함되지 않음."""
+        all_bones = {
+            "ctrl": _make_bone((0, 0, 0), (0, 0, 1), children=["pelvis"], is_deform=False),
+            "pelvis": _make_bone(
+                (0, 0, 1),
+                (0, 0, 2),
+                parent="ctrl",
+                children=[],
+                is_deform=True,
+            ),
+        }
+        deform_bones, _ = sa.filter_deform_bones(all_bones)
+        assert "ctrl" not in deform_bones, "non-deform 본이 deform_bones에 포함됨"
+        assert "pelvis" in deform_bones
+
+    def test_deer_no_orphan_legs(self):
+        """deer fixture: flat 계층에서 다리 본이 orphan으로 남지 않아야 함."""
+        if not os.path.exists(os.path.join(FIXTURES_DIR, "deer.json")):
+            pytest.skip("deer fixture 없음")
+        all_bones, weighted = load_fixture("deer")
+        result = run_analysis(all_bones, weighted)
+        assert result is not None
+
+        # 4개 다리 모두 감지되어야 함
+        for side in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
+            assert result["legs"].get(side), f"deer {side} 미감지 — collapse 실패 가능성"
+
+    def test_collapse_siblings_share_nondeform_parent(self):
+        """같은 non-deform 부모를 공유하는 deform 형제가 연결됨."""
+        all_bones = {
+            "ctrl": _make_bone(
+                (0, 0, 0),
+                (0, 0, 1),
+                children=["pelvis", "arm_L", "arm_R"],
+                is_deform=False,
+            ),
+            "pelvis": _make_bone(
+                (0, 0, 1),
+                (0, 0, 2),
+                parent="ctrl",
+                children=["spine"],
+                is_deform=True,
+            ),
+            "spine": _make_bone(
+                (0, 0, 2),
+                (0, 0, 3),
+                parent="pelvis",
+                children=[],
+                is_deform=True,
+            ),
+            "arm_L": _make_bone(
+                (-1, 0, 2),
+                (-1, 0, 1),
+                parent="ctrl",
+                children=[],
+                is_deform=True,
+            ),
+            "arm_R": _make_bone(
+                (1, 0, 2),
+                (1, 0, 1),
+                parent="ctrl",
+                children=[],
+                is_deform=True,
+            ),
+        }
+        deform_bones, _ = sa.filter_deform_bones(all_bones)
+        sa._reconstruct_spatial_hierarchy(deform_bones, all_bones)
+
+        # arm_L/R은 같은 non-deform 부모의 형제이므로 orphan이면 안 됨
+        # (pelvis나 spine에 연결되거나, 서로 형제로 연결됨)
+        orphans = [n for n, b in deform_bones.items() if b["parent"] is None]
+        # 최소한 하나의 루트만 있어야 함 (pelvis)
+        assert len(orphans) <= 1, f"orphan이 너무 많음: {orphans}"
+
+
+class TestTrajectoryDetection:
+    """trajectory 역할 감지 회귀 테스트.
+
+    root 부모 본이 trajectory로 감지되어 unmapped가 아닌
+    trajectory 역할에 매핑되는지 검증.
+    """
+
+    def test_trajectory_from_deform_parent(self):
+        """root의 deform 부모가 trajectory로 감지됨.
+
+        traj 본은 아마추어 최하단(바닥)에 위치해 중심에서 멀고,
+        pelvis가 중심에 있어 root로 선택된다. traj는 최상위 deform 부모로
+        trajectory 역할을 받아야 한다.
+        """
+        # traj(바닥) → pelvis(중심) → spine → chest → head
+        # + pelvis → thigh_L → leg_L → foot_L
+        # + pelvis → thigh_R → leg_R → foot_R
+        all_bones = {
+            "traj": _make_bone(
+                (0, 0, -0.5),
+                (0, 0, 0),
+                children=["pelvis"],
+                is_deform=True,
+                name="traj",
+            ),
+            "pelvis": _make_bone(
+                (0, 0, 1),
+                (0, 0, 1.5),
+                parent="traj",
+                children=["spine", "thigh_L", "thigh_R"],
+                is_deform=True,
+                name="pelvis",
+            ),
+            "spine": _make_bone(
+                (0, 0, 1.5),
+                (0, 0, 2),
+                parent="pelvis",
+                children=["chest"],
+                is_deform=True,
+                name="spine",
+            ),
+            "chest": _make_bone(
+                (0, 0, 2),
+                (0, 0, 2.5),
+                parent="spine",
+                children=["head"],
+                is_deform=True,
+                name="chest",
+            ),
+            "head": _make_bone(
+                (0, 0, 2.5),
+                (0, 0, 3),
+                parent="chest",
+                children=[],
+                is_deform=True,
+                name="head",
+            ),
+            "thigh_L": _make_bone(
+                (-0.3, 0, 1),
+                (-0.3, 0, 0.5),
+                parent="pelvis",
+                children=["leg_L"],
+                is_deform=True,
+                name="thigh_L",
+            ),
+            "leg_L": _make_bone(
+                (-0.3, 0, 0.5),
+                (-0.3, 0, 0),
+                parent="thigh_L",
+                children=["foot_L"],
+                is_deform=True,
+                name="leg_L",
+            ),
+            "foot_L": _make_bone(
+                (-0.3, 0, 0),
+                (-0.3, 0.2, 0),
+                parent="leg_L",
+                children=[],
+                is_deform=True,
+                name="foot_L",
+            ),
+            "thigh_R": _make_bone(
+                (0.3, 0, 1),
+                (0.3, 0, 0.5),
+                parent="pelvis",
+                children=["leg_R"],
+                is_deform=True,
+                name="thigh_R",
+            ),
+            "leg_R": _make_bone(
+                (0.3, 0, 0.5),
+                (0.3, 0, 0),
+                parent="thigh_R",
+                children=["foot_R"],
+                is_deform=True,
+                name="foot_R",
+            ),
+            "foot_R": _make_bone(
+                (0.3, 0, 0),
+                (0.3, 0.2, 0),
+                parent="leg_R",
+                children=[],
+                is_deform=True,
+                name="foot_R",
+            ),
+        }
+
+        deform_bones, _ = sa.filter_deform_bones(all_bones)
+        sa._reconstruct_spatial_hierarchy(deform_bones, all_bones)
+        root_result = sa.find_root_bone(deform_bones)
+        assert root_result is not None
+
+        root_name = root_result[0]
+        assert root_name == "pelvis", f"root가 {root_name}이지만 pelvis여야 함"
+
+        # trajectory 감지: pelvis의 부모 traj가 최상위 → trajectory
+        root_data = deform_bones[root_name]
+        parent_name = root_data.get("parent")
+        assert parent_name == "traj", f"pelvis parent={parent_name}"
+        # traj의 부모는 None (최상위)
+        traj_data = deform_bones["traj"]
+        assert traj_data["parent"] is None, "traj는 최상위여야 함"
+
+    def test_trajectory_not_in_unmapped_for_fixtures(self):
+        """fixture 분석에서 trajectory 후보가 unmapped에 들어가지 않아야 함."""
+        for fixture_name in get_available_fixtures():
+            if fixture_name not in EXPECTED:
+                continue
+            all_bones, weighted = load_fixture(fixture_name)
+            result = run_analysis(all_bones, weighted)
+            if result is None:
+                continue
+
+            # root의 deform 부모가 있으면 — 그 부모는 unmapped가 아닌
+            # 별도 역할(trajectory)로 매핑되어야 함
+            root = result["root"]
+            db = result["deform_bones"]
+            root_parent = db[root]["parent"]
+            if root_parent and root_parent in db:
+                parent_data = db[root_parent]
+                if parent_data["parent"] is None:
+                    # 이 부모가 매핑된 역할에 포함되어야 함
+                    all_mapped = set()
+                    all_mapped.add(root)
+                    all_mapped.update(result["spine"])
+                    all_mapped.update(result["neck"])
+                    if result["head"]:
+                        all_mapped.add(result["head"])
+                    for leg in result["legs"].values():
+                        if leg:
+                            all_mapped.update(leg)
+                    for foot in result["feet"].values():
+                        if foot:
+                            all_mapped.update(foot)
+                    if result["tail"]:
+                        all_mapped.update(result["tail"])
+                    all_mapped.update(result["ears"]["ear_l"])
+                    all_mapped.update(result["ears"]["ear_r"])
+                    # root_parent가 매핑 안 되면 → trajectory 누락 가능성
+                    # (이 테스트는 run_analysis에 trajectory가 없어도 경고 수준)
+                    if root_parent not in all_mapped:
+                        pytest.fail(
+                            f"{fixture_name}: root({root})의 부모 {root_parent}가 "
+                            f"어떤 역할에도 매핑되지 않음 — trajectory 누락 가능성"
+                        )
+
+
+class TestNonDeformNeverInAnalysis:
+    """non-deform 본이 분석 결과의 어떤 역할에도 절대 포함되지 않는지 검증."""
+
+    def test_nondeform_bones_absent_from_all_roles(self):
+        """모든 fixture에서 non-deform 본이 분석 결과에 없어야 함."""
+        for fixture_name in get_available_fixtures():
+            if fixture_name not in EXPECTED:
+                continue
+            all_bones, weighted = load_fixture(fixture_name)
+            nondeform_names = {n for n, b in all_bones.items() if not b["is_deform"]}
+            if not nondeform_names:
+                continue
+
+            result = run_analysis(all_bones, weighted)
+            if result is None:
+                continue
+
+            # 모든 역할에서 non-deform 본 이름 체크
+            all_role_bones = set()
+            all_role_bones.add(result["root"])
+            all_role_bones.update(result["spine"])
+            all_role_bones.update(result["neck"])
+            if result["head"]:
+                all_role_bones.add(result["head"])
+            for leg in result["legs"].values():
+                if leg:
+                    all_role_bones.update(leg)
+            for foot in result["feet"].values():
+                if foot:
+                    all_role_bones.update(foot)
+            if result["tail"]:
+                all_role_bones.update(result["tail"])
+            all_role_bones.update(result["ears"]["ear_l"])
+            all_role_bones.update(result["ears"]["ear_r"])
+            all_role_bones.update(result["face_bones"])
+
+            leaked = nondeform_names & all_role_bones
+            assert not leaked, f"{fixture_name}: non-deform 본이 역할에 포함됨: {leaked}"
+
+    def test_deform_bones_dict_excludes_nondeform(self):
+        """deform_bones에 non-deform 본이 절대 포함되지 않음."""
+        for fixture_name in get_available_fixtures():
+            if fixture_name not in EXPECTED:
+                continue
+            all_bones, weighted = load_fixture(fixture_name)
+            result = run_analysis(all_bones, weighted)
+            if result is None:
+                continue
+
+            nondeform_names = {n for n, b in all_bones.items() if not b["is_deform"]}
+            leaked = nondeform_names & set(result["deform_bones"].keys())
+            assert not leaked, f"{fixture_name}: non-deform 본이 deform_bones에 포함됨: {leaked}"

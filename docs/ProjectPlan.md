@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-04-02 (리타게팅 코드 전면 삭제, Build Rig까지만 유지)
+> 최종 수정: 2026-04-09 (F8 stretch/twist 분배, collapse/orphan 감지, trajectory 역할 추가)
 
 ## 문서 목적
 
@@ -64,6 +64,8 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] Preview 가이드, `virtual neck`, `virtual toe`, `cc_` 커스텀 본 생성이 구현되었다
 - [x] spine / neck / tail / ear 체인 개수 동적 매칭 구현
 - [x] 자동 추론 개선: spine 추적 + neck 다중 본 + 다리/발 자동 분리 + 구조적 귀 감지
+- [x] non-deform 투과(collapse) 계층 재구성 — flat 계층 리그 대응
+- [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑
 - [x] bank / heel ref 본 자동 배치: foot.head 기준 Z=0, foot+toe 합산 길이 비례
 - [x] face/skull 비활성화: append_arp 후 set_facial(enable=False) 호출
 - [x] pytest 기반 fixture 테스트 95개 통과
@@ -80,7 +82,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - [x] 커스텀 본 스케일 fcurve 복사 — ARP 리타겟이 무시하는 스케일 보존
   - [ ] root(pelvis) 1.03° 회전 오차 — ARP 내부 offset, 허용 범위
   - [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑, set_as_root=True
-- [ ] F8: 웨이트 전송 실제 검증
+- [ ] F8: 웨이트 전송 실제 검증 (stretch/twist proximity 분배 구현 완료, weight paint 검증 필요)
 
 ### 자동화 전략
 
@@ -199,7 +201,10 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ### F8. 전체 웨이트 전송
 
-구현은 완료됐다. 위치 기반 매칭 + 사이드 필터 + 본 길이 비율 분할을 실제 여우 리그 weight paint 모드에서 검증해야 한다.
+구현은 완료됐다. 위치 기반 매칭 + 사이드 필터 + 본 길이 비율 분할 + stretch/twist 정점별 proximity 분배까지 구현. 실제 여우/너구리 리그 weight paint 모드에서 검증해야 한다.
+
+- stretch/twist 본은 proximity 기반으로 정점별 웨이트를 분배 (2026-04-09)
+- 비-다리 역할 본(ear/spine/neck 등) deform_to_ref 직접 매핑 수정 완료
 
 ### F6. bank / heel 자동 배치 보정
 
