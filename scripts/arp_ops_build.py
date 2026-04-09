@@ -848,19 +848,14 @@ class ARPCONV_OT_BuildRig(Operator):
             elif role_key in _foot_keys:
                 pole_feet[role_key] = bone_names
         pole_vectors = find_pole_vectors(src_all_bones, pole_legs, pole_feet)
-        _ARP_POLE_MAP = {
-            "back_leg_l": "c_leg_pole.l",
-            "back_leg_r": "c_leg_pole.r",
-            "front_leg_l": "c_leg_pole_dupli_001.l",
-            "front_leg_r": "c_leg_pole_dupli_001.r",
-        }
         if pole_vectors:
-            geo_count = sum(1 for p in pole_vectors.values() if p.get("source") == "geometric")
-            src_count = len(pole_vectors) - geo_count
-            log(
-                f"IK pole vector 위치 매칭: {len(pole_vectors)}개 "
-                f"(소스 {src_count}, 기하학적 {geo_count})"
-            )
+            log(f"IK pole vector 위치 매칭: {len(pole_vectors)}개")
+            _ARP_POLE_MAP = {
+                "back_leg_l": "c_leg_pole.l",
+                "back_leg_r": "c_leg_pole.r",
+                "front_leg_l": "c_leg_pole_dupli_001.l",
+                "front_leg_r": "c_leg_pole_dupli_001.r",
+            }
             ensure_object_mode()
             select_only(arp_obj)
             bpy.ops.object.mode_set(mode="EDIT")
@@ -880,8 +875,7 @@ class ARPCONV_OT_BuildRig(Operator):
                 offset = local_pos - pole_eb.head
                 pole_eb.head += offset
                 pole_eb.tail += offset
-                source_tag = f"[{pole_info.get('source', '?')}]"
-                log(f"  {arp_pole_name} <- {pole_info['name']} {source_tag}")
+                log(f"  {arp_pole_name} <- {pole_info['name']} ({pole_info['head']})")
 
             bpy.ops.object.mode_set(mode="OBJECT")
 
