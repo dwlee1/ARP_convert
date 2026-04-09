@@ -6,6 +6,39 @@ Build Rig의 Step 7(전체 웨이트 전송) 단계에서 사용된다.
 """
 
 import bpy
+from mathutils import Vector
+
+
+def _closest_point_on_segment(point, seg_a, seg_b):
+    """점에서 선분(seg_a→seg_b)까지 가장 가까운 점을 반환."""
+    ab = seg_b - seg_a
+    ab_sq = ab.dot(ab)
+    if ab_sq < 1e-12:
+        return seg_a.copy()
+    t = max(0.0, min(1.0, (point - seg_a).dot(ab) / ab_sq))
+    return seg_a + ab * t
+
+
+def _compute_proximity_ratios(vertex_co, bone_infos):
+    """정점 좌표와 본 정보로 proximity 기반 ratio 계산.
+
+    각 본의 closest point까지 거리의 역수 비율로 분배.
+
+    Args:
+        vertex_co: Vector — 정점의 월드 좌표
+        bone_infos: [(name, head_vec, tail_vec), ...]
+
+    Returns:
+        [(name, ratio), ...] — ratio 합 = 1.0
+    """
+    inv_distances = []
+    for name, head, tail in bone_infos:
+        closest = _closest_point_on_segment(vertex_co, head, tail)
+        dist = max((vertex_co - closest).length, 0.0001)
+        inv_distances.append((name, 1.0 / dist))
+
+    total = sum(d for _, d in inv_distances)
+    return [(name, d / total) for name, d in inv_distances]
 
 
 def _build_position_weight_map(
@@ -91,21 +124,67 @@ def _transfer_all_weights(source_obj, arp_obj, weight_map, log):
             if existing:
                 mesh_obj.vertex_groups.remove(existing)
 
+        # stretch/twist proximity 분배를 위한 본 위치 캐시
+        arp_mw = arp_obj.matrix_world
+        bone_pos_cache = {}
+        for b in arp_obj.data.bones:
+            bone_pos_cache[b.name] = (arp_mw @ b.head_local, arp_mw @ b.tail_local)
+
+        mesh_mw = mesh_obj.matrix_world
+
         for src_name, mappings in weight_map.items():
             src_vg = mesh_obj.vertex_groups.get(src_name)
             if not src_vg:
                 continue
 
-            for arp_name, ratio in mappings:
-                arp_vg = mesh_obj.vertex_groups.get(arp_name)
-                if not arp_vg:
-                    arp_vg = mesh_obj.vertex_groups.new(name=arp_name)
+            # stretch/twist 포함 여부 판단
+            has_twist_stretch = len(mappings) > 1 and any(
+                "twist" in name or "stretch" in name for name, _ in mappings
+            )
 
-                for v in mesh_obj.data.vertices:
-                    for g in v.groups:
-                        if g.group == src_vg.index:
-                            arp_vg.add([v.index], g.weight * ratio, "REPLACE")
-                            break
+            if has_twist_stretch:
+                # proximity 기반 per-vertex ratio
+                bone_infos = []
+                for arp_name, _ in mappings:
+                    pos = bone_pos_cache.get(arp_name)
+                    if pos:
+                        bone_infos.append((arp_name, pos[0], pos[1]))
+
+                # ARP VG 준비
+                arp_vgs = {}
+                for arp_name, _ in mappings:
+                    vg = mesh_obj.vertex_groups.get(arp_name)
+                    if not vg:
+                        vg = mesh_obj.vertex_groups.new(name=arp_name)
+                    arp_vgs[arp_name] = vg
+
+                if bone_infos:
+                    for v in mesh_obj.data.vertices:
+                        src_weight = 0.0
+                        for g in v.groups:
+                            if g.group == src_vg.index:
+                                src_weight = g.weight
+                                break
+                        if src_weight < 0.0001:
+                            continue
+
+                        vert_co = mesh_mw @ v.co
+                        prox_ratios = _compute_proximity_ratios(vert_co, bone_infos)
+                        for arp_name, ratio in prox_ratios:
+                            if arp_name in arp_vgs:
+                                arp_vgs[arp_name].add([v.index], src_weight * ratio, "REPLACE")
+            else:
+                # 기존 고정 ratio 방식
+                for arp_name, ratio in mappings:
+                    arp_vg = mesh_obj.vertex_groups.get(arp_name)
+                    if not arp_vg:
+                        arp_vg = mesh_obj.vertex_groups.new(name=arp_name)
+
+                    for v in mesh_obj.data.vertices:
+                        for g in v.groups:
+                            if g.group == src_vg.index:
+                                arp_vg.add([v.index], g.weight * ratio, "REPLACE")
+                                break
 
             total_groups += 1
 
