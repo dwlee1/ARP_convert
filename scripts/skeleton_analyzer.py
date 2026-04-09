@@ -557,6 +557,17 @@ def create_preview_from_def_bones(source_obj, analysis):
 
     created_bones = {}
 
+    # non-deform armature root → trajectory 역할 보강
+    # analyze_skeleton은 deform 본만 처리하므로 non-deform root를
+    # 감지하지 못한다. DEF separator가 생성한 DEF-root가 preview에 들어올 때
+    # trajectory로 태깅하여 cc_ 커스텀 본 대신 c_traj 매핑으로 처리한다.
+    if "trajectory" not in chains:
+        for src_bone in source_obj.data.bones:
+            if src_bone.parent is None and not src_bone.use_deform:
+                if src_bone.name in def_bone_data:
+                    bone_to_role[src_bone.name] = "trajectory"
+                break
+
     # DEF 기반 본 생성 (원본 이름으로)
     for bone_name, binfo in def_bone_data.items():
         ebone = edit_bones.new(bone_name)
