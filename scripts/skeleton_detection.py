@@ -1283,7 +1283,9 @@ def scan_shape_key_drivers(armature_obj):
 POLE_KEYWORDS = ["pole", "knee", "elbow"]
 
 # 기하학적 pole vector에서 직선 판별 임계값 (체인 길이 대비 비율)
-_POLE_COLLINEAR_RATIO = 0.02  # 체인 길이의 2% 미만이면 직선으로 간주
+# rest pose에서 거의 직선인 다리는 미세 오프셋이 잘못된 방향을 가리킬 수 있다.
+# 15% 미만이면 직선으로 간주하고 다리 유형별 기본 방향을 사용한다.
+_POLE_COLLINEAR_RATIO = 0.15
 
 
 def compute_geometric_pole(bone_data_list, leg_key=None):
