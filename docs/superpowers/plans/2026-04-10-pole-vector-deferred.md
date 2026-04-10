@@ -21,8 +21,10 @@ ARP `match_to_rig`가 자동 결정하는 IK pole vector(`c_leg_pole.l/r`,
 
 ### Step 3.5 — `thigh_ref` roll 보정
 
-`scripts/arp_ops_build.py` line 808-885에 현재도 남아 있는 코드 블록.
-재검토 시 참고용으로 유지하되, 상단에 보류 주석이 있음.
+`scripts/arp_ops_build.py`에 잠시 commit됐다가(5f9ac5e) 제거된 코드 블록.
+현재 master에는 없고 reflog `5f9ac5e` 커밋에서만 참조 가능.
+2026-04-10 Capybara 재현 테스트(0ff67cf 직전)에서 이 코드가 ARP 내부
+`_align_leg_limbs`의 knee 재정렬을 유발한 원인으로 확정되어 최종 제거됨.
 
 ```python
 # ARP의 auto_ik_roll=True 기본 경로가 앞다리에서 pole을 몸통 쪽으로 밀어내는
@@ -101,10 +103,10 @@ Build Rig Step 4c에서 가이드 위치를 `c_leg_pole`에 직접 적용하는 
 
 ## 관련 파일 (재검토 시 참조)
 
-- `scripts/arp_ops_build.py`
-  - Step 3.5 실패 코드: line 808-885 (보류 주석 상단에 있음)
-  - Step 4c 기존 로직: line 913-959 (`find_pole_vectors` 기반)
-  - custom bone 필터: line 980-986
+- `scripts/arp_ops_build.py` (1a19ebd 기준)
+  - Step 3.5 실패 코드는 reflog `5f9ac5e`에만 존재 (current master에는 없음)
+  - Step 4c 기존 로직: `find_pole_vectors` 기반 pole vector 매칭
+  - custom bone 필터: `GUIDE_SUFFIX_HEEL/BANK` 제외 로직
 - `scripts/arp_foot_guides.py` — foot guide(heel/bank) 패턴 (pole guide 설계 시 기준)
 - `scripts/skeleton_detection.py`
   - `compute_geometric_pole`은 commit `9899da4`에서 revert됨

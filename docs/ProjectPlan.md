@@ -65,7 +65,9 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
     경우 발생 (너구리 리그 관찰)
   - 시도한 접근:
     1. `thigh_ref` roll 보정 + `leg_auto_ik_roll=0` (Step 3.5) → 앞다리에서 실패.
-       코드는 `scripts/arp_ops_build.py` line 808-885에 보류 주석과 함께 유지
+       코드는 master에 merge되지 않았고 reflog `5f9ac5e` 커밋에서만 참조 가능.
+       이후 Capybara 재현 테스트(0ff67cf)에서 이 코드가 ARP `_align_leg_limbs`
+       knee 재정렬을 유발한 원인으로 확정됨
     2. Preview `_pole` 가이드 본 + Build Rig Step 4c 직접 적용 → 설계 완료,
        저장소 선택 risk로 미구현
   - 검토한 저장소 옵션 4가지 (모두 trade-off 있음):
