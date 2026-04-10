@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-04-09 (F8 stretch/twist 분배, collapse/orphan 감지, trajectory 역할 추가)
+> 최종 수정: 2026-04-10 (IK pole vector 문제 보류 기록 추가)
 
 ## 문서 목적
 
@@ -55,6 +55,24 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - **addon Step 3.5 (Remap Setup)** 오퍼레이터 및 UI
 - `arp_utils.py`의 clean source 관련 함수 전체 (export/import_clean_fbx, create/cleanup_clean_source 등)
 - `skeleton_analyzer.py`의 generate_bmap_content, populate_bone_map
+
+### 보류된 작업
+
+아래 작업은 구조적 risk가 확인되어 아키텍처 재검토 후 진행한다.
+
+- **IK pole vector 위치 문제 — 보류 (2026-04-10)**
+  - 증상: 사족보행 앞다리에서 `c_leg_pole_dupli_001.l/r`가 몸통 쪽으로 배치되는
+    경우 발생 (너구리 리그 관찰)
+  - 시도한 접근:
+    1. `thigh_ref` roll 보정 + `leg_auto_ik_roll=0` (Step 3.5) → 앞다리에서 실패.
+       코드는 `scripts/arp_ops_build.py` line 808-885에 보류 주석과 함께 유지
+    2. Preview `_pole` 가이드 본 + Build Rig Step 4c 직접 적용 → 설계 완료,
+       저장소 선택 risk로 미구현
+  - 검토한 저장소 옵션 4가지 (모두 trade-off 있음):
+    Preview guide / ARP 커스텀 프로퍼티 / 하이브리드 / Source armature 저장
+  - 상세 기록: `docs/superpowers/plans/2026-04-10-pole-vector-deferred.md`
+  - 재검토 트리거: 사용자 재리포트 / 사례 누적 2건 / ARP API 개선 /
+    리타게팅 재설계 시
 
 ### 현재 상태 요약
 
