@@ -1229,3 +1229,174 @@ class TestNonDeformNeverInAnalysis:
             nondeform_names = {n for n, b in all_bones.items() if not b["is_deform"]}
             leaked = nondeform_names & set(result["deform_bones"].keys())
             assert not leaked, f"{fixture_name}: non-deform 본이 deform_bones에 포함됨: {leaked}"
+
+
+class TestMirrorPairCollapse:
+    """대칭 쌍 본이 non-deform parent를 공유할 때 collapse에서 엮이지 않는지 검증.
+
+    Fox 회귀: shoulder_L/R이 chest_fk(non-deform)를 공유하면 이전에는 collapse
+    sibling 로직이 둘 중 하나를 다른 하나의 parent로 만들었고, 그 결과
+    find_downward_branches가 체인을 1개만 찾아 classify_legs의 L/R 판별이
+    avg_x ≈ 0 으로 실패했다. 수정 후에는 collapse가 skip되고 RECON-4 broad가
+    각 본을 가장 가까운 deform 조상(chest)에 연결해야 한다.
+    """
+
+    def _build_fox_shoulder_scene(self):
+        """Fox 실제 좌표 기반 시나리오. spine 체인을 포함해야 chest가 이미
+        tree에 연결된 상태에서 shoulder만 parentless로 남는 현실적 상황을
+        재현할 수 있다."""
+        return {
+            "root": {
+                "head": (0, 0, 0),
+                "tail": (0, 0, 0.5),
+                "parent": None,
+                "children": ["pelvis"],
+                "is_deform": False,
+                "direction": (0, 0, 1),
+                "length": 0.5,
+            },
+            "pelvis": {
+                "head": (0, 0.314, 1.100),
+                "tail": (0, 0.314, 1.200),
+                "parent": "root",
+                "children": ["spine01"],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 0.1,
+            },
+            "spine01": {
+                "head": (0, 0.314, 1.200),
+                "tail": (0, 0.314, 1.289),
+                "parent": "pelvis",
+                "children": ["spine02"],
+                "is_deform": True,
+                "direction": (0, 0, 1),
+                "length": 0.089,
+            },
+            "spine02": {
+                "head": (0, 0.314, 1.289),
+                "tail": (0, -0.084, 1.379),
+                "parent": "spine01",
+                "children": ["chest"],
+                "is_deform": True,
+                "direction": (0, -0.975, 0.22),
+                "length": 0.408,
+            },
+            "chest": {
+                "head": (0, -0.084, 1.379),
+                "tail": (0, -0.783, 1.570),
+                "parent": "spine02",
+                "children": [],
+                "is_deform": True,
+                "direction": (0, -0.965, 0.264),
+                "length": 0.725,
+            },
+            # FK 체인 (non-deform) — 원본 parent로 사용됨
+            "spine01_fk": {
+                "head": (0, 0.314, 1.200),
+                "tail": (0, 0.314, 1.289),
+                "parent": "root",
+                "children": ["spine02_fk"],
+                "is_deform": False,
+                "direction": (0, 0, 1),
+                "length": 0.089,
+            },
+            "spine02_fk": {
+                "head": (0, 0.314, 1.289),
+                "tail": (0, -0.084, 1.379),
+                "parent": "spine01_fk",
+                "children": ["chest_fk"],
+                "is_deform": False,
+                "direction": (0, -0.975, 0.22),
+                "length": 0.408,
+            },
+            "chest_fk": {
+                "head": (0, -0.084, 1.379),
+                "tail": (0, -0.783, 1.570),
+                "parent": "spine02_fk",
+                "children": ["shoulder_L", "shoulder_R"],
+                "is_deform": False,
+                "direction": (0, -0.965, 0.264),
+                "length": 0.725,
+            },
+            "shoulder_L": {
+                "head": (0.201, -0.448, 1.540),
+                "tail": (0.340, -0.484, 1.062),
+                "parent": "chest_fk",
+                "children": ["upperarm_L"],
+                "is_deform": True,
+                "direction": (0.279, -0.072, -0.958),
+                "length": 0.499,
+            },
+            "upperarm_L": {
+                "head": (0.340, -0.484, 1.062),
+                "tail": (0.247, -0.449, 0.645),
+                "parent": "shoulder_L",
+                "children": [],
+                "is_deform": True,
+                "direction": (-0.217, 0.082, -0.973),
+                "length": 0.429,
+            },
+            "shoulder_R": {
+                "head": (-0.201, -0.448, 1.540),
+                "tail": (-0.340, -0.484, 1.062),
+                "parent": "chest_fk",
+                "children": ["upperarm_R"],
+                "is_deform": True,
+                "direction": (-0.279, -0.072, -0.958),
+                "length": 0.499,
+            },
+            "upperarm_R": {
+                "head": (-0.340, -0.484, 1.062),
+                "tail": (-0.247, -0.449, 0.645),
+                "parent": "shoulder_R",
+                "children": [],
+                "is_deform": True,
+                "direction": (0.217, 0.082, -0.973),
+                "length": 0.429,
+            },
+        }
+
+    def _filter_and_reconstruct(self, all_bones):
+        """filter_deform_bones 시뮬 + _reconstruct_spatial_hierarchy 실행."""
+        deform_bones = {}
+        for name, info in all_bones.items():
+            if info["is_deform"]:
+                deform_bones[name] = dict(info, children=list(info["children"]))
+
+        # non-deform parent는 None으로 (filter_deform_bones 동작)
+        for bone in deform_bones.values():
+            if bone["parent"] and bone["parent"] not in deform_bones:
+                bone["parent"] = None
+            bone["children"] = [c for c in bone["children"] if c in deform_bones]
+
+        sa._reconstruct_spatial_hierarchy(deform_bones, all_bones)
+        return deform_bones
+
+    def test_shoulders_not_mutually_parented(self):
+        """shoulder_L이 shoulder_R의 자식이 되지 않아야 함 (반대도 동일)."""
+        all_bones = self._build_fox_shoulder_scene()
+        deform_bones = self._filter_and_reconstruct(all_bones)
+
+        assert deform_bones["shoulder_L"]["parent"] != "shoulder_R", (
+            "collapse sibling이 대칭 쌍을 parent-child로 엮음 (Fox 앞다리 회귀)"
+        )
+        assert deform_bones["shoulder_R"]["parent"] != "shoulder_L"
+
+    def test_shoulders_connect_to_chest(self):
+        """RECON-4 broad가 shoulder_L/R를 가장 가까운 deform 본(chest)에 연결."""
+        all_bones = self._build_fox_shoulder_scene()
+        deform_bones = self._filter_and_reconstruct(all_bones)
+
+        assert deform_bones["shoulder_L"]["parent"] == "chest", (
+            f"shoulder_L.parent={deform_bones['shoulder_L']['parent']} (chest 기대)"
+        )
+        assert deform_bones["shoulder_R"]["parent"] == "chest"
+
+    def test_front_leg_chain_preserved(self):
+        """upperarm 체인이 각 shoulder를 타고 정상 계층 유지."""
+        all_bones = self._build_fox_shoulder_scene()
+        deform_bones = self._filter_and_reconstruct(all_bones)
+
+        assert deform_bones["upperarm_L"]["parent"] == "shoulder_L"
+        assert deform_bones["upperarm_R"]["parent"] == "shoulder_R"

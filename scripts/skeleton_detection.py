@@ -481,7 +481,14 @@ def _reconstruct_spatial_hierarchy(deform_bones, all_bones, original_hierarchy=N
 
             # 이미 트리에 연결된 형제 우선 (RECON-1/2/3 후이므로 spine 트리 확립됨)
             connected_sibs = [s for s in siblings if deform_bones[s]["parent"] is not None]
-            pool = connected_sibs if connected_sibs else siblings
+            if not connected_sibs:
+                # 아직 아무 형제도 tree에 연결되지 않음 → collapse를 skip하고 RECON-4에 맡김.
+                # 대칭 쌍(L/R suffix) 본들끼리 collapse로 parent-child가 되는 것을 방지.
+                # 예: Fox의 shoulder_L/R이 chest_fk(non-deform)를 공유할 때,
+                #     둘 중 하나가 다른 하나의 parent가 되면 앞다리 분기가 1개로 줄어
+                #     classify_legs가 front_leg_l/r 모두를 감지하지 못한다.
+                continue
+            pool = connected_sibs
 
             best_sib, best_dist = None, float("inf")
             for sib_name in pool:
