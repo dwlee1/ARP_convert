@@ -64,13 +64,19 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
         source_bones = roles.get(chain_role, [])
         arp_refs = arp_chains.get(chain_role, [])
 
-        if not source_bones or not arp_refs:
+        # ARP에 ref 본이 없으면 조정 불가 (이미 0)
+        if not arp_refs:
             continue
 
         src_count = len(source_bones)
         arp_count = len(arp_refs)
 
         if src_count == arp_count:
+            continue
+
+        # spine/neck은 최소 1본 필요 (ARP dog preset 제약) — 0이면 skip
+        if src_count == 0 and chain_role in ("spine", "neck"):
+            log(f"  [체인 매칭] {chain_role}: 소스 없음 — 최소 1본 필요, 기본값 유지")
             continue
 
         log(f"  [체인 매칭] {chain_role}: 소스 {src_count} vs ARP {arp_count}")
@@ -104,7 +110,8 @@ def _adjust_chain_counts(arp_obj, roles, arp_chains, log):
             source_bones = roles.get(side_key, [])
             arp_refs = arp_chains.get(side_key, [])
 
-            if not source_bones or not arp_refs:
+            # ARP ref 본이 없으면 조정 불가
+            if not arp_refs:
                 continue
 
             src_count = len(source_bones)
