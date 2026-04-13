@@ -84,6 +84,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] Preview 가이드, `virtual neck`, `virtual toe`, `cc_` 커스텀 본 생성이 구현되었다
 - [x] spine / neck / tail / ear 체인 개수 동적 매칭 구현
 - [x] 자동 추론 개선: spine 추적 + neck 다중 본 + 다리/발 자동 분리 + 구조적 귀 감지
+- [x] 자동 추론 개선: all-downward 앞발 5본 체인에서 `hand + finger`를 2본 foot 역할로 분리 (deer)
 - [x] non-deform 투과(collapse) 계층 재구성 — flat 계층 리그 대응
 - [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑
 - [x] bank / heel ref 본 자동 배치: foot.head 기준 Z=0, foot+toe 합산 길이 비례

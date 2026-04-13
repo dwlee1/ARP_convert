@@ -151,6 +151,8 @@ EXPECTED = {
         "back_leg_r_contains": ["thigh_R", "leg_R"],
         "front_leg_l_min_count": 2,
         "front_leg_r_min_count": 2,
+        "front_foot_l_contains": ["hand_L", "finger_L"],
+        "front_foot_r_contains": ["hand_R", "finger_R"],
     },
     "fox": {
         "root": "pelvis",
@@ -353,6 +355,26 @@ class TestTail:
         expected = EXPECTED[animal_name]
         if expected.get("has_tail"):
             assert analysis["tail"] is not None and len(analysis["tail"]) >= 1, "tail 미감지"
+
+
+class TestFeet:
+    """발 체인 분리 테스트"""
+
+    def test_front_foot_l_contains(self, animal_name, analysis):
+        expected = EXPECTED[animal_name]
+        if "front_foot_l_contains" not in expected:
+            pytest.skip("front_foot_l 본 목록 미정의")
+        foot = analysis["feet"].get("front_foot_l", [])
+        for bone in expected["front_foot_l_contains"]:
+            assert bone in foot, f"front_foot_l에 {bone} 없음. 실제: {foot}"
+
+    def test_front_foot_r_contains(self, animal_name, analysis):
+        expected = EXPECTED[animal_name]
+        if "front_foot_r_contains" not in expected:
+            pytest.skip("front_foot_r 본 목록 미정의")
+        foot = analysis["feet"].get("front_foot_r", [])
+        for bone in expected["front_foot_r_contains"]:
+            assert bone in foot, f"front_foot_r에 {bone} 없음. 실제: {foot}"
 
 
 class TestEars:

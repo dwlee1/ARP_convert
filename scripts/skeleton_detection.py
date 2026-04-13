@@ -1118,7 +1118,13 @@ def split_leg_foot(chain, deform_bones):
 
     if foot_start >= len(chain):
         # 모든 본이 아래로 향함 → 마지막 1본을 foot으로 분리
-        foot_start = len(chain) - 1
+        foot_bone_count = 1
+        if len(chain) >= 5:
+            penultimate = chain[-2].lower()
+            last = chain[-1].lower()
+            if "hand" in penultimate and "finger" in last:
+                foot_bone_count = 2
+        foot_start = len(chain) - foot_bone_count
 
     leg = chain[:foot_start]
     foot = chain[foot_start:]
