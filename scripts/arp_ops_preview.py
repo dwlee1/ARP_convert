@@ -160,6 +160,9 @@ class ARPCONV_OT_CreatePreview(Operator):
         # 하이어라키 트리 데이터 채우기
         _populate_hierarchy_collection(context, analysis)
 
+        # 소스 아마추어 숨기기 (Preview 편집 중 겹침 방지)
+        source_obj.hide_set(True)
+
         # Preview 선택
         bpy.ops.object.select_all(action="DESELECT")
         preview_obj.select_set(True)

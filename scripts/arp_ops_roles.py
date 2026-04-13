@@ -43,13 +43,18 @@ ROLE_IDS = {item[0] for item in ROLE_ITEMS}
 
 
 class ARPCONV_OT_SelectBone(Operator):
-    """하이어라키 트리에서 본 클릭 시 Preview armature에서 선택"""
+    """하이어라키 트리에서 본 클릭 시 Preview armature에서 선택 (Shift=추가 선택)"""
 
     bl_idname = "arp_convert.select_bone"
     bl_label = "본 선택"
     bl_options = {"REGISTER", "UNDO"}
 
     bone_name: StringProperty()
+    extend: bpy.props.BoolProperty(default=False, options={"SKIP_SAVE"})
+
+    def invoke(self, context, event):
+        self.extend = event.shift
+        return self.execute(context)
 
     def execute(self, context):
         props = context.scene.arp_convert_props
@@ -63,7 +68,8 @@ class ARPCONV_OT_SelectBone(Operator):
         preview_obj.select_set(True)
         if context.mode != "POSE":
             bpy.ops.object.mode_set(mode="POSE")
-        bpy.ops.pose.select_all(action="DESELECT")
+        if not self.extend:
+            bpy.ops.pose.select_all(action="DESELECT")
         bone = preview_obj.data.bones.get(self.bone_name)
         if bone:
             bone.select = True
@@ -74,7 +80,7 @@ class ARPCONV_OT_SelectBone(Operator):
 
 
 class ARPCONV_OT_SetParent(Operator):
-    """선택된 본의 부모를 변경"""
+    """선택된 본(복수 가능)의 부모를 일괄 변경"""
 
     bl_idname = "arp_convert.set_parent"
     bl_label = "부모 변경"
@@ -87,51 +93,57 @@ class ARPCONV_OT_SetParent(Operator):
             self.report({"ERROR"}, "Preview armature 없음")
             return {"CANCELLED"}
 
-        # 활성 본 확인
-        active_bone = preview_obj.data.bones.active
-        if not active_bone:
+        # 선택 상태 저장 (모드 전환 후 복원용)
+        selected_names = [b.name for b in preview_obj.data.bones if b.select]
+        active_name = preview_obj.data.bones.active.name if preview_obj.data.bones.active else None
+        if not selected_names:
             self.report({"WARNING"}, "본을 먼저 선택하세요")
             return {"CANCELLED"}
 
-        bone_name = active_bone.name
         new_parent_name = props.pending_parent.strip()
 
-        # 자기 자신을 부모로 설정 방지
-        if new_parent_name == bone_name:
-            self.report({"WARNING"}, "자기 자신을 부모로 설정할 수 없습니다")
+        # 자기 자신은 대상에서 제외 (전체 취소가 아닌 스킵)
+        target_names = [n for n in selected_names if n != new_parent_name]
+        if not target_names:
+            self.report({"WARNING"}, "부모로 변경할 본이 없습니다")
             return {"CANCELLED"}
 
-        # Edit Mode 진입
-        if context.mode != "OBJECT":
-            bpy.ops.object.mode_set(mode="OBJECT")
+        # Preview 활성 확보 + Edit Mode 직행 (OBJECT 경유 없음)
         context.view_layer.objects.active = preview_obj
         preview_obj.select_set(True)
         bpy.ops.object.mode_set(mode="EDIT")
 
         edit_bones = preview_obj.data.edit_bones
-        eb = edit_bones.get(bone_name)
-        if not eb:
-            bpy.ops.object.mode_set(mode="OBJECT")
-            self.report({"ERROR"}, f"'{bone_name}' edit bone을 찾을 수 없습니다")
-            return {"CANCELLED"}
 
-        # 부모 변경
+        # 부모 본 찾기
+        new_parent_eb = None
         if new_parent_name:
             new_parent_eb = edit_bones.get(new_parent_name)
             if not new_parent_eb:
-                bpy.ops.object.mode_set(mode="OBJECT")
+                bpy.ops.object.mode_set(mode="POSE")
                 self.report({"ERROR"}, f"부모 '{new_parent_name}'를 찾을 수 없습니다")
                 return {"CANCELLED"}
-            eb.parent = new_parent_eb
-        else:
-            eb.parent = None
-        eb.use_connect = False
 
-        old_parent = active_bone.parent.name if active_bone.parent else "(없음)"
-        new_parent_display = new_parent_name if new_parent_name else "(없음)"
+        # 선택된 본 일괄 부모 변경
+        changed = 0
+        for bone_name in target_names:
+            eb = edit_bones.get(bone_name)
+            if not eb:
+                continue
+            eb.parent = new_parent_eb
+            eb.use_connect = False
+            changed += 1
 
         # Pose Mode 복귀
         bpy.ops.object.mode_set(mode="POSE")
+
+        # 선택 상태 복원
+        for bone in preview_obj.data.bones:
+            bone.select = bone.name in selected_names
+        if active_name:
+            ab = preview_obj.data.bones.get(active_name)
+            if ab:
+                preview_obj.data.bones.active = ab
 
         # 하이어라키 트리 갱신
         from arp_convert_addon import _ensure_scripts_path
@@ -150,10 +162,8 @@ class ARPCONV_OT_SetParent(Operator):
         # pending_parent 초기화
         props.pending_parent = ""
 
-        self.report(
-            {"INFO"},
-            f"{bone_name}: 부모 {old_parent} → {new_parent_display}",
-        )
+        new_parent_display = new_parent_name if new_parent_name else "(없음)"
+        self.report({"INFO"}, f"{changed}개 본 → 부모: {new_parent_display}")
         return {"FINISHED"}
 
 

@@ -21,6 +21,37 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 
+def _deferred_apply_parent():
+    """타이머 콜백: 3D View temp_override 안에서 set_parent 실행 후 POSE 복원"""
+    for area in bpy.context.screen.areas:
+        if area.type == "VIEW_3D":
+            for region in area.regions:
+                if region.type == "WINDOW":
+                    with bpy.context.temp_override(area=area, region=region):
+                        bpy.ops.arp_convert.set_parent()
+                    # 타이머 컨텍스트에서 오퍼레이터가 POSE 복원에 실패할 수 있음
+                    with bpy.context.temp_override(area=area, region=region):
+                        if bpy.context.mode != "POSE":
+                            bpy.ops.object.mode_set(mode="POSE")
+                    return None
+    return None
+
+
+def _on_pending_parent_changed(self, context):
+    """pending_parent가 유효한 본 이름으로 설정되면 즉시 부모 변경 적용"""
+    name = self.pending_parent.strip()
+    if not name:
+        return
+    preview_obj = bpy.data.objects.get(self.preview_armature)
+    if not preview_obj or name not in preview_obj.data.bones:
+        return
+    # 선택된 본이 있어야 적용 (자기 자신 제외)
+    has_target = any(b.select for b in preview_obj.data.bones if b.name != name)
+    if not has_target:
+        return
+    bpy.app.timers.register(_deferred_apply_parent, first_interval=0.01)
+
+
 class ARPCONV_HierarchyBoneItem(PropertyGroup):
     """하이어라키 트리 아이템 (name은 PropertyGroup에서 상속)"""
 
@@ -58,6 +89,7 @@ class ARPCONV_Props(PropertyGroup):
     )
     pending_parent: StringProperty(
         name="Parent",
-        description="선택한 본의 새 부모 (빈 문자열 = 루트)",
+        description="선택한 본의 새 부모 — 선택 시 자동 적용",
         default="",
+        update=_on_pending_parent_changed,
     )

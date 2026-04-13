@@ -176,37 +176,48 @@ class ARPCONV_PT_MainPanel(Panel):
 
         # 현재 선택된 본의 역할 표시
         if context.active_object and context.active_object.type == "ARMATURE":
-            active_bone = context.active_bone
-            if active_bone:
-                pbone = context.active_object.pose.bones.get(active_bone.name)
-                if pbone:
-                    _ensure_scripts_path()
-                    from skeleton_analyzer import ROLE_PROP_KEY
+            arm_obj = context.active_object
+            # 선택된 본 목록
+            selected_bones = [b for b in arm_obj.data.bones if b.select]
 
-                    current_role = pbone.get(ROLE_PROP_KEY, "unmapped")
-                    box.separator()
-                    box.label(text=f"선택: {active_bone.name}", icon="BONE_DATA")
+            if selected_bones:
+                _ensure_scripts_path()
+                from skeleton_analyzer import ROLE_PROP_KEY
+
+                box.separator()
+                if len(selected_bones) == 1:
+                    bone = selected_bones[0]
+                    pbone = arm_obj.pose.bones.get(bone.name)
+                    current_role = pbone.get(ROLE_PROP_KEY, "unmapped") if pbone else "?"
+                    box.label(text=f"선택: {bone.name}", icon="BONE_DATA")
                     box.label(text=f"현재 역할: {current_role}")
-
-                    # 부모 표시 + 변경
-                    parent_name = active_bone.parent.name if active_bone.parent else "(없음)"
+                    parent_name = bone.parent.name if bone.parent else "(없음)"
                     box.label(text=f"부모: {parent_name}", icon="LINKED")
-                    preview_obj = bpy.data.objects.get(props.preview_armature)
-                    if preview_obj:
-                        row2 = box.row(align=True)
-                        row2.prop_search(
-                            props,
-                            "pending_parent",
-                            preview_obj.data,
-                            "bones",
-                            text="새 부모",
-                        )
-                        row3 = box.row()
-                        row3.operator(
-                            "arp_convert.set_parent",
-                            text="부모 변경",
-                            icon="FILE_PARENT",
-                        )
+                else:
+                    box.label(
+                        text=f"선택: {len(selected_bones)}개 본",
+                        icon="BONE_DATA",
+                    )
+                    names = ", ".join(b.name for b in selected_bones[:4])
+                    if len(selected_bones) > 4:
+                        names += f" 외 {len(selected_bones) - 4}개"
+                    box.label(text=names)
+
+                # 부모 변경 UI — 선택 시 자동 적용
+                preview_obj = bpy.data.objects.get(props.preview_armature)
+                if preview_obj:
+                    row2 = box.row(align=True)
+                    row2.prop_search(
+                        props,
+                        "pending_parent",
+                        preview_obj.data,
+                        "bones",
+                        text="새 부모",
+                    )
+
+            if not selected_bones:
+                box.separator()
+                box.label(text="Shift+클릭으로 복수 선택 가능", icon="INFO")
 
         layout.separator()
 
