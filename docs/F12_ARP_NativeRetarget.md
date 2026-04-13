@@ -65,10 +65,15 @@ def execute(self, context):
 
 | 조건 | target (name) | location | ik | set_as_root |
 |------|---------------|----------|-----|-------------|
-| root | `c_root.x` | True | False | True |
+| root only (trajectory 없음) | `c_root.x` | True | False | True |
+| trajectory present | `c_traj` | True | False | True |
 | root 외 모든 매핑 본 | 해당 컨트롤러 | False | **True** | False |
 | 다리 중간 (leg role, idx > 0) | `""` (빈 매핑) | - | - | - |
 | bone_pairs에 없는 본 | `""` (빈 매핑) | - | - | - |
+
+> ARP는 `set_as_root`를 하나만 허용한다.
+> trajectory 역할이 있으면 `c_traj` 행이 root 슬롯을 가져가고,
+> `c_root.x`는 location 유지용 매핑으로 남는다.
 
 > **ik=True는 월드 스페이스 매칭**: rest-pose 차이와 무관하게 소스 본의 월드 위치/회전을
 > 직접 매칭한다. `location=True`(rest-relative)보다 정확하며, 여우 리그 walk 검증에서
@@ -113,7 +118,7 @@ def _override_bones_map(bone_pairs):
             entry.name = mapping["ctrl"]
             entry.location = ...   # 역할별 규칙
             entry.ik = ...         # 역할별 규칙
-            entry.set_as_root = ... # root만 True
+            entry.set_as_root = ... # ARP 단일 root 슬롯 규칙에 따라 한 행만 True
 ```
 
 ## 4. Cleanup 오퍼레이터

@@ -1,6 +1,6 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-04-10 (IK pole vector 문제 보류 기록 추가)
+> 최종 수정: 2026-04-13 (F12 root-slot 수정/검증 반영)
 
 ## 문서 목적
 
@@ -100,9 +100,9 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - [x] tail_master COPY_ROTATION constraint mute — tail 오차 해결
   - [x] 커스텀 본 DEF 소스 통일 — bone_pairs 소스가 전부 DEF 본
   - [x] 커스텀 본 스케일 fcurve 복사 — ARP 리타겟이 무시하는 스케일 보존
-  - [ ] root(pelvis) 1.03° 회전 오차 — ARP 내부 offset, 허용 범위
-  - [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑, set_as_root=True
-- [ ] F8: 웨이트 전송 실제 검증 (stretch/twist proximity 분배 구현 완료, weight paint 검증 필요)
+  - [x] root 매핑 보정 — `c_root_master.x` → `c_root.x`, `set_as_root=True`
+- [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑, trajectory가 있으면 ARP 단일 root 슬롯을 이 행에 할당
+- [x] F8: 웨이트 전송 실제 검증 — 여우/너구리 리그 weight paint 검증 문제없음
 
 ### 자동화 전략
 
@@ -157,37 +157,34 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 |------|------|
 | `docs/FoxTestChecklist.md` | 여우 파일 Build Rig 검증 계획 + Preview bake 실험 기록 |
 | `docs/RegressionRunner.md` | 대표 샘플 GUI 회귀 테스트 운영 |
-| `docs/F12_ExactMatch.md` | rest-delta offset 기반 애니메이션 베이크 설계 (F12) |
+| `docs/F12_ARP_NativeRetarget.md` | 현행 F12 설계: ARP 네이티브 리타겟 위임 방식 |
+| `docs/F12_ExactMatch.md` | 폐기된 rest-delta offset bake 기록 (참고용) |
 
 ## 후속 기능
 
-### F12. 애니메이션 베이크 (rest-delta offset 방식)
+### F12. 애니메이션 베이크 (ARP 네이티브 리타겟 위임 방식)
 
-2026-04-02 재설계 완료, 2026-04-03 grill-me 세션으로 보강. 상세 설계: `docs/F12_ExactMatch.md`.
+2026-04-06 설계 확정. 현행 기준 문서는 `docs/F12_ARP_NativeRetarget.md`이며,
+`docs/F12_ExactMatch.md`의 rest-delta offset bake 방식은 폐기되었다.
 
-**현재 방식**: `delta = source_rest^-1 * source_pose`, `target_pose = controller_rest * delta`
+**현재 방식**: Build Rig까지만 우리 애드온이 담당하고, 애니메이션 베이크는 ARP 리타겟 UI에 위임한다.
 
 - Build Rig 시 `arp_obj["arpconv_bone_pairs"]`에 매핑 저장 (역할 본 + cc_ 커스텀 본, `is_custom` 플래그 포함)
-- ARP 컨트롤러 본에 직접 keyframe insert (rotation mode 유지, Euler 연속성 보정)
-- 액션 순회: 임시 NLA strip + 기존 NLA mute (Action Slot 호환, 직접 할당 금지)
-- 오브젝트 transform preflight: hard check, 실패 시 중단
-- 역할 본은 Loc/Rot만 유지 (Scale FCurve 삭제), cc_ 본은 Scale 포함
-- MCP 비교는 위치 + 회전 오차를 함께 집계
-- addon UI "Step 4: Bake Animation" 버튼, pipeline_runner는 `--bake` 플래그 제어
+- `Setup Retarget`이 bone_pairs를 `bones_map_v2`로 변환하고 리타겟 씬 설정을 자동 구성
+- 베이크 자체는 사용자가 ARP Remap 패널에서 확인 후 `Re-Retarget`으로 실행
+- `Cleanup`은 소스/프리뷰 삭제 + `_remap` 액션 rename 담당
+- `Copy Custom Scale`은 ARP 리타겟이 무시하는 커스텀 본 스케일 fcurve를 후처리로 복사
+- pipeline_runner는 `--retarget` 플래그로 setup → ARP retarget → scale copy → cleanup 경로를 실행
 
 **구현 상태**:
-- 초기 COPY_TRANSFORMS 기반 베이크는 front_foot 매핑, back_foot toe 누락, root 180도 뒤집힘, IK→FK 전환, NLA auto-push, PoseBone 순회 문제를 해결했음
-- FK→IK 전환 완료 (2026-04-05):
-  - `_ensure_ik_mode()` 구현 (ik_fk_switch = 0.0)
-  - bone_pairs IK 매핑 로직 구현 (다리 중간 본 제거, foot→IK foot)
-  - back_leg shoulder 매핑 블로커 해결: `_CTRL_SEARCH_PATTERNS["back_leg_l/r"]`와 `ARP_REF_MAP`이 불일치했던 근본 원인 수정. `c_foot_fk`가 `back_leg`에 잘못 들어가 있고 원래 있어야 할 `back_foot`에서 빠져 있던 이중 버그였음. 회귀 테스트 4개 추가(TestRoleMapConsistency).
-  - 여우 리그 MCP 검증 결과 (walk 액션): leg 최대 오차 0.186m → **0.00000m** (뒷다리), 전체 최대 오차 3.64mm (앞다리 dupli 잔여). **F12 블로커 완전 해결.**
-  - 관련 커밋: 2a07d78 (test), 8dce2a0 (fix patterns), 5d6b301 (fix toe name)
-  - 참고: 앞다리 dupli 3-4mm 잔여 오차는 별개 이슈 (rest pose 정렬)로 추정, 이 스펙 범위 밖.
-- 후속 수정 (2026-04-06):
-  - `c_foot_ik` 계열의 rest 축 차이 때문에 source 회전을 그대로 복사하면 Y축 180° 뒤집힘이 발생하는 문제 확인
-  - 베이크 엔진을 COPY_TRANSFORMS에서 **rest-delta offset bake**로 전환해 source/controller 축 차이를 bake 시점에 반영
-  - `mcp_compare_frames()`에 회전 오차(deg) 집계 추가
+- [x] Setup Retarget + Cleanup + Copy Custom Scale 오퍼레이터 구현
+- [x] root 매핑 보정: `c_root_master.x` 대신 `c_root.x`, `set_as_root=True`
+- [x] root 외 매핑 본 `ik=True` 월드 스페이스 매칭 적용
+- [x] tail master COPY_ROTATION constraint mute 적용
+- [x] 커스텀 본 DEF 소스 통일 및 scale fcurve 후처리 구현
+- [x] 여우 리그 수동 검증에서 FK/IK/root/pole/batch_retarget 정상 확인
+- [x] ARP 단일 root 슬롯 대응 — trajectory가 있으면 `c_traj` 행만 `set_as_root=True`
+- [x] 여우 Round 6 기준 전체 흐름 재검증 및 체크리스트 반영
 
 ### MCP 피드백 루프 확장 완료 (2026-04-05)
 
@@ -221,7 +218,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ### F8. 전체 웨이트 전송
 
-구현은 완료됐다. 위치 기반 매칭 + 사이드 필터 + 본 길이 비율 분할 + stretch/twist 정점별 proximity 분배까지 구현. 실제 여우/너구리 리그 weight paint 모드에서 검증해야 한다.
+구현과 실제 검증이 완료됐다. 위치 기반 매칭 + 사이드 필터 + 본 길이 비율 분할 + stretch/twist 정점별 proximity 분배까지 구현했고, 여우/너구리 리그 weight paint 검증에서 문제없음을 확인했다.
 
 - stretch/twist 본은 proximity 기반으로 정점별 웨이트를 분배 (2026-04-09)
 - 비-다리 역할 본(ear/spine/neck 등) deform_to_ref 직접 매핑 수정 완료
@@ -232,6 +229,4 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ## 우선순위
 
-1. **F12 애니메이션 베이크 검증** — rest-delta offset bake 기준으로 재검증, `docs/F12_ExactMatch.md` 참조
-2. **F8 실제 weight 검증** — 여우 리그 weight paint 검증
-3. **자동 역할 추론 정확도 개선** — 새 동물 리그 대응
+1. **자동 역할 추론 정확도 개선** — 새 동물 리그 대응

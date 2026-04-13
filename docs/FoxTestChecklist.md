@@ -1,11 +1,11 @@
 # Fox 전체 흐름 테스트 체크리스트
 
 > 파일: `Asset/latest_blends_by_animal/fox_AllAni_240311.blend`
-> 현재 활성 라운드: Round 6 — Build Rig 검증 (리타게팅 삭제 후)
+> 현재 활성 라운드: Round 6 — Build Rig 검증 완료 (2026-04-13)
 
 ---
 
-## Round 6 — Build Rig 검증 (계획)
+## Round 6 — Build Rig 검증 (완료, 2026-04-13)
 
 > 목적: 리타게팅 코드 전면 삭제(2026-04-02) 후 Build Rig까지의 흐름이 정상 동작하는지 확인한다.
 
@@ -13,41 +13,40 @@
 
 ### 사전 준비
 
-- [ ] **Blender 재시작** — 애드온 교체 후 캐시 영향을 줄이기 위해 새 세션에서 시작
-- [ ] **.blend 파일 새로 열기** — `fox_AllAni_240311.blend`
-- [ ] **콘솔 창 열기** — 로그 확인용
+- [x] **Blender 재시작** — 애드온 교체 후 캐시 영향을 줄이기 위해 새 세션에서 시작
+- [x] **.blend 파일 새로 열기** — `fox_AllAni_240311.blend`
+- [x] **콘솔 창 열기** — 로그 확인용
 
 ### Step 1: 분석 (Analyze)
 
-- [ ] **소스 아마추어 선택**
-- [ ] **"1. 분석" 버튼 클릭**
-- [ ] **분석 완료 메시지 확인** — Python traceback 없이 완료
+- [x] **소스 아마추어 선택**
+- [x] **"1. 분석" 버튼 클릭**
+- [x] **분석 완료 메시지 확인** — Python traceback 없이 완료
 
 ### Step 2: 역할 확인 (Preview)
 
-- [ ] **Preview 아마추어 생성됨**
-- [ ] **역할 색상 표시 정상**
-- [ ] **자동 추론 결과 확인** — 수정이 필요하면 최소 범위만 보정
+- [x] **Preview 아마추어 생성됨**
+- [x] **역할 색상 표시 정상**
+- [x] **자동 추론 결과 확인** — 추가 수정 없이 진행 가능
 
 ### Step 3: ARP 리그 생성 (Build Rig)
 
-- [ ] **"3. Build Rig" 버튼 클릭**
-- [ ] **ARP 리그 생성 완료**
-- [ ] **소스와 ARP 리그 크기 정상**
-- [ ] **에러 없음** — Python traceback 없음
+- [x] **"3. Build Rig" 버튼 클릭**
+- [x] **ARP 리그 생성 완료**
+- [x] **소스와 ARP 리그 크기 정상**
+- [x] **에러 없음** — Python traceback 없음
 
 ### 결과
 
 | 항목 | Pass / Fail | 메모 |
 |------|-------------|------|
-| Step 1 분석 | | |
-| Step 2 역할 | | |
-| Step 3 Build Rig | | |
+| Step 1 분석 | Pass | Python traceback 없음 |
+| Step 2 역할 | Pass | 자동 추론/역할 색상 정상 |
+| Step 3 Build Rig | Pass | ARP 리그 생성 및 스케일 정상 |
 
 **발견된 이슈:**
 
-1.
-2.
+없음
 
 ---
 

@@ -2,9 +2,11 @@
 
 import json
 
+import arp_utils
 from arp_utils import (
     _POLE_CTRL_PATTERN,
     _classify_ctrl,
+    _override_bones_map,
     deserialize_bone_pairs,
     serialize_bone_pairs,
 )
@@ -40,6 +42,13 @@ class TestBonePairsSerialization:
 class TestClassifyCtrl:
     def test_root_master_converts_to_root(self):
         result = _classify_ctrl("c_root_master.x", False)
+        assert result["ctrl"] == "c_root.x"
+        assert result["set_as_root"] is True
+        assert result["location"] is True
+        assert result["ik"] is False
+
+    def test_root_direct_keeps_set_as_root(self):
+        result = _classify_ctrl("c_root.x", False)
         assert result["ctrl"] == "c_root.x"
         assert result["set_as_root"] is True
         assert result["location"] is True
@@ -113,3 +122,59 @@ class TestPoleFiltering:
         assert not _POLE_CTRL_PATTERN.match("c_foot_ik.l")
         assert not _POLE_CTRL_PATTERN.match("c_thigh_b.l")
         assert not _POLE_CTRL_PATTERN.match("c_spine_01.x")
+
+
+class DummyBonesMapEntry:
+    def __init__(self, source_bone, name=""):
+        self.source_bone = source_bone
+        self.name = name
+        self.location = False
+        self.ik = False
+        self.set_as_root = False
+
+
+class DummyScene:
+    def __init__(self, entries, bones_map_index=0):
+        self.bones_map_v2 = entries
+        self.bones_map_index = bones_map_index
+        self.arp_remap_allow_root_update = True
+
+
+class TestOverrideBonesMap:
+    def test_traj_wins_single_root_slot(self):
+        entries = [
+            DummyBonesMapEntry("DEF-pelvis"),
+            DummyBonesMapEntry("DEF-root"),
+        ]
+        scene = DummyScene(entries, bones_map_index=0)
+        arp_utils.bpy.context.scene = scene
+
+        _override_bones_map(
+            [
+                ("DEF-pelvis", "c_root.x", False),
+                ("DEF-root", "c_traj", False),
+            ]
+        )
+
+        assert entries[0].name == "c_root.x"
+        assert entries[0].set_as_root is False
+        assert entries[1].name == "c_traj"
+        assert entries[1].set_as_root is True
+        assert scene.bones_map_index == 1
+
+    def test_root_becomes_root_when_traj_absent(self):
+        entries = [
+            DummyBonesMapEntry("DEF-pelvis"),
+        ]
+        scene = DummyScene(entries, bones_map_index=0)
+        arp_utils.bpy.context.scene = scene
+
+        _override_bones_map(
+            [
+                ("DEF-pelvis", "c_root.x", False),
+            ]
+        )
+
+        assert entries[0].name == "c_root.x"
+        assert entries[0].set_as_root is True
+        assert scene.bones_map_index == 0

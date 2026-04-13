@@ -110,6 +110,15 @@ pytest tests/ -v
 ```
 `.blend` 기준 검증 항목이 있으면 커밋 메시지에 명시한다.
 
+Blender 연동 변경이 있으면 추가로 확인:
+```
+ruff check scripts/ tests/
+```
+
+애드온/리타겟/MCP 경로를 건드렸다면 가능하면 아래까지 이어서 검증한다:
+- `mcp_reload_addon()`으로 전체 애드온 재등록 후 관련 MCP 스모크 실행
+- 관련 변경 기준: `mcp_build_rig`, `mcp_setup_retarget`, `mcp_inspect_bone_pairs`, `mcp_compare_frames`
+
 ## blender-mcp 연동
 
 Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에서 직접 Blender를 제어할 수 있다.
@@ -121,6 +130,12 @@ import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\script
 from mcp_bridge import mcp_scene_summary
 mcp_scene_summary()
 ```
+
+## 애드온 반영 / Blender 동기화
+
+- `arp_utils.py` 또는 재수출 경로(`arp_retarget.py` 포함)를 수정했을 때는 일반 module reload만으로 현재 Blender 세션에 반영되지 않을 수 있다
+- 이 경우 `mcp_reload_addon()` 기준으로 전체 애드온 재등록 후 확인하거나 Blender를 재시작한다
+- addons 폴더를 하드링크로 운영 중이면 파일 수정 후 링크가 끊길 수 있으므로 필요 시 `.claude/skills/sync-addon/skill.md` 절차에 따라 다시 동기화한다
 
 ## 작업 원칙
 

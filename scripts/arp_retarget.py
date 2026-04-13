@@ -107,8 +107,9 @@ def _classify_ctrl(ctrl_name, is_custom):
     Returns:
         dict: {"location": bool, "ik": bool, "set_as_root": bool, "ctrl": str}
     """
-    # root: c_root_master.x → c_root.x로 교체, set_as_root=True
-    if ctrl_name == "c_root_master.x":
+    # root: c_root_master.x는 c_root.x로 교체하고,
+    # 이미 c_root.x로 들어온 경우도 root 플래그를 유지한다.
+    if ctrl_name in {"c_root_master.x", "c_root.x"}:
         return {"ctrl": "c_root.x", "location": True, "ik": False, "set_as_root": True}
 
     # trajectory: c_traj → set_as_root=True, location=True
@@ -130,6 +131,17 @@ def _override_bones_map(bone_pairs):
 
     scn = bpy.context.scene
 
+    preferred_root_ctrl = None
+    normalized_ctrls = []
+    for _, ctrl_name, is_custom in bone_pairs:
+        if _POLE_CTRL_PATTERN.match(ctrl_name):
+            continue
+        normalized_ctrls.append(_classify_ctrl(ctrl_name, is_custom)["ctrl"])
+    if "c_traj" in normalized_ctrls:
+        preferred_root_ctrl = "c_traj"
+    elif "c_root.x" in normalized_ctrls:
+        preferred_root_ctrl = "c_root.x"
+
     # bone_pairs → 룩업 테이블 (src_name → 매핑 정보)
     # pole vector 본은 제외 (pole_parent=1로 ARP가 자동 처리)
     lookup = {}
@@ -137,25 +149,42 @@ def _override_bones_map(bone_pairs):
         if _POLE_CTRL_PATTERN.match(ctrl_name):
             continue
         classified = _classify_ctrl(ctrl_name, is_custom)
+        classified["set_as_root"] = classified["ctrl"] == preferred_root_ctrl
         lookup[src_name] = classified
 
     overridden = 0
     cleared = 0
-    for entry in scn.bones_map_v2:
-        if entry.source_bone in lookup:
-            info = lookup[entry.source_bone]
-            entry.name = info["ctrl"]
-            entry.location = info["location"]
-            entry.ik = info["ik"]
-            entry.set_as_root = info["set_as_root"]
-            overridden += 1
-        elif entry.name:
-            # bone_pairs에 없는 본: ARP 자동 추측 제거
-            entry.name = ""
-            entry.location = False
-            entry.ik = False
-            entry.set_as_root = False
-            cleared += 1
+    root_index = None
+    prev_root_update = getattr(scn, "arp_remap_allow_root_update", None)
+    if prev_root_update is not None:
+        scn.arp_remap_allow_root_update = False
+
+    try:
+        for idx, entry in enumerate(scn.bones_map_v2):
+            if entry.source_bone in lookup:
+                info = lookup[entry.source_bone]
+                entry.name = info["ctrl"]
+                entry.location = info["location"]
+                entry.ik = info["ik"]
+                entry.set_as_root = False
+                if info["set_as_root"]:
+                    root_index = idx
+                overridden += 1
+            elif entry.name:
+                # bone_pairs에 없는 본: ARP 자동 추측 제거
+                entry.name = ""
+                entry.location = False
+                entry.ik = False
+                entry.set_as_root = False
+                cleared += 1
+
+        if root_index is not None:
+            scn.bones_map_index = root_index
+            scn.bones_map_v2[root_index].ik = False
+            scn.bones_map_v2[root_index].set_as_root = True
+    finally:
+        if prev_root_update is not None:
+            scn.arp_remap_allow_root_update = prev_root_update
 
     log(f"  bones_map_v2 오버라이드: {overridden}/{len(lookup)}개, 추측 제거: {cleared}개")
     if overridden < len(lookup):
