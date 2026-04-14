@@ -102,6 +102,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - [x] 커스텀 본 DEF 소스 통일 — bone_pairs 소스가 전부 DEF 본
   - [x] 커스텀 본 스케일 fcurve 복사 — ARP 리타겟이 무시하는 스케일 보존
   - [x] root 매핑 보정 — `c_root_master.x` → `c_root.x`, `set_as_root=True`
+- [x] Build Rig post-process controller auto-size 적용 — spine 체인 전체 길이 기반 균일 절대 크기 방식 (v2): `target = spine_total × BODY_FRACTION(0.10)`, `scale = target / ctrl_bone_length`. head/neck/spine/ear 컨트롤러가 동일한 절대 표시 크기(~15cm)로 통일됨. ARP IK/FK driver가 있는 본(foot/leg)은 자동 제외.
 - [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑, trajectory가 있으면 ARP 단일 root 슬롯을 이 행에 할당
 - [x] F8: 웨이트 전송 실제 검증 — 여우/너구리 리그 weight paint 검증 문제없음
 

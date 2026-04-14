@@ -8,6 +8,38 @@ primary deform bone 탐색, cc parent 해결 등 Build Rig에서만 쓰이는
 
 import bpy
 
+try:
+    from mathutils import Vector
+except ImportError:
+
+    class Vector:
+        def __init__(self, values):
+            self.x, self.y, self.z = (float(value) for value in values[:3])
+
+        def __sub__(self, other):
+            return Vector((self.x - other.x, self.y - other.y, self.z - other.z))
+
+        @property
+        def length(self):
+            return (self.x * self.x + self.y * self.y + self.z * self.z) ** 0.5
+
+
+BODY_FRACTION = 0.10
+AUTO_SIZE_MIN = 0.05
+AUTO_SIZE_MAX = 2.0
+AUTO_SIZE_FALLBACK = 0.12
+AUTO_SIZE_SUPPORTED_ROLES = {
+    "spine",
+    "neck",
+    "head",
+    "ear_l",
+    "ear_r",
+    "back_foot_l",
+    "back_foot_r",
+    "front_foot_l",
+    "front_foot_r",
+}
+
 
 def _get_arp_set_functions():
     """ARP 내부 set_spine/set_neck/set_tail/set_ears 함수를 import."""
@@ -36,6 +68,130 @@ def _select_edit_bone(arp_obj, bone_name):
         arp_obj.data.edit_bones.active = eb
         return True
     return False
+
+
+def _preview_bone_length(preview_positions, bone_name):
+    data = (preview_positions or {}).get(bone_name)
+    if not data:
+        return 0.0
+
+    head, tail = data[:2]
+    return (Vector(tail) - Vector(head)).length
+
+
+def _clamp_controller_size(value, min_size=AUTO_SIZE_MIN, max_size=AUTO_SIZE_MAX):
+    return max(min_size, min(max_size, float(value)))
+
+
+def _compute_body_reference(roles, preview_positions):
+    """spine 체인 전체 길이를 body scale reference로 반환.
+
+    - spine 역할이 있으면 spine 본들의 길이 합계
+    - spine 없으면 할당된 모든 본의 평균 길이
+    - 본이 아예 없으면 AUTO_SIZE_FALLBACK
+    """
+    spine_bones = (roles or {}).get("spine", [])
+    if spine_bones:
+        total = sum(_preview_bone_length(preview_positions, b) for b in spine_bones)
+        if total > 1e-6:
+            return total
+
+    all_bones = [b for bones in (roles or {}).values() for b in bones]
+    if all_bones:
+        lengths = [_preview_bone_length(preview_positions, b) for b in all_bones]
+        valid = [length for length in lengths if length > 1e-6]
+        if valid:
+            return sum(valid) / len(valid)
+
+    return AUTO_SIZE_FALLBACK
+
+
+def _collect_arp_ctrl_bone_lengths(arp_obj, ctrl_names):
+    """ARP 컨트롤러 본의 실제 길이를 읽어 반환.
+
+    Returns:
+        {ctrl_name: float}  길이가 0이거나 본이 없으면 제외
+    """
+    result = {}
+    bones = getattr(getattr(arp_obj, "data", None), "bones", None)
+    if bones is None:
+        return result
+    for name in ctrl_names or []:
+        b = bones.get(name)
+        if b and b.length > 1e-6:
+            result[name] = b.length
+    return result
+
+
+def _build_controller_size_targets_per_bone(roles, ctrl_map, preview_positions, arp_bone_lengths):
+    """target = body_ref * BODY_FRACTION, scale = target / arp_ctrl_bone_length.
+
+    body_ref는 spine 체인 전체 길이 (없으면 평균).
+    모든 컨트롤러가 동일한 절대 표시 크기(target)로 수렴한다.
+
+    Returns:
+        {ctrl_name: scale}
+    """
+    body_ref = _compute_body_reference(roles, preview_positions)
+    target_size = body_ref * BODY_FRACTION
+
+    targets = {}
+    for role_key in AUTO_SIZE_SUPPORTED_ROLES:
+        ctrl_names = (ctrl_map or {}).get(role_key, [])
+        if not ctrl_names:
+            continue
+
+        for ctrl_name in ctrl_names:
+            ctrl_len = (arp_bone_lengths or {}).get(ctrl_name)
+            if ctrl_len:
+                scale = target_size / ctrl_len
+            else:
+                # ctrl_len 없음: target_size를 scale로 직접 사용 (근사값)
+                # ARP 컨트롤러 본은 항상 길이가 있어야 하므로 드문 케이스
+                scale = target_size
+
+            targets[ctrl_name] = _clamp_controller_size(scale)
+
+    return targets
+
+
+def _apply_controller_auto_size(arp_obj, size_targets, log):
+    applied_count = 0
+    pose_bones = getattr(getattr(arp_obj, "pose", None), "bones", None)
+    if pose_bones is None:
+        return applied_count
+
+    # ARP가 custom_shape_scale_xyz에 driver를 설치한 본은 건드리지 않는다.
+    # (IK/FK 전환 드라이버가 즉시 덮어씀)
+    driven_bones: set[str] = set()
+    anim_data = getattr(arp_obj, "animation_data", None)
+    if anim_data:
+        import re as _re
+
+        _pat = _re.compile(r'pose\.bones\["([^"]+)"\]\.custom_shape_scale_xyz')
+        for fcurve in anim_data.drivers or []:
+            m = _pat.search(fcurve.data_path)
+            if m:
+                driven_bones.add(m.group(1))
+
+    for ctrl_name, target_size in (size_targets or {}).items():
+        if ctrl_name in driven_bones:
+            if log:
+                log(f"  controller auto-size skip (driven): {ctrl_name}", "DEBUG")
+            continue
+
+        pose_bone = pose_bones.get(ctrl_name)
+        if pose_bone is None:
+            if log:
+                log(f"  controller auto-size skip: {ctrl_name} missing", "WARN")
+            continue
+
+        pose_bone.custom_shape_scale_xyz = (target_size, target_size, target_size)
+        applied_count += 1
+        if log:
+            log(f"  controller auto-size: {ctrl_name} -> {target_size:.4f}", "DEBUG")
+
+    return applied_count
 
 
 def _adjust_chain_counts(arp_obj, roles, arp_chains, log):

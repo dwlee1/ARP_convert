@@ -22,7 +22,12 @@ import bpy
 from bpy.types import Operator
 from mathutils import Vector
 
-from arp_build_helpers import _adjust_chain_counts
+from arp_build_helpers import (
+    _adjust_chain_counts,
+    _apply_controller_auto_size,
+    _build_controller_size_targets_per_bone,
+    _collect_arp_ctrl_bone_lengths,
+)
 from arp_cc_bones import (
     _copy_custom_bone_constraints,
     _create_cc_bones_from_preview,
@@ -119,7 +124,9 @@ class ARPCONV_OT_BuildRig(Operator):
             )
             from skeleton_analyzer import (
                 ROLE_PROP_KEY,
+                _apply_ik_to_foot_ctrl,
                 build_preview_to_ref_mapping,
+                discover_arp_ctrl_map,
                 preview_to_analysis,
             )
         except ImportError as e:
@@ -820,6 +827,37 @@ class ARPCONV_OT_BuildRig(Operator):
             return {"CANCELLED"}
 
         # Step 4b: 앞다리 3 Bones IK 값 설정
+        try:
+            ctrl_map = discover_arp_ctrl_map(arp_obj)
+            auto_size_ctrl_map = {role: list(ctrls or []) for role, ctrls in ctrl_map.items()}
+            for role_key in ("back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"):
+                resolved_ctrls = auto_size_ctrl_map.get(role_key)
+                if not resolved_ctrls:
+                    continue
+
+                for ctrl_name in list(resolved_ctrls):
+                    ik_ctrl_name, _pole_name, is_ik = _apply_ik_to_foot_ctrl(ctrl_name, role_key)
+                    if not is_ik:
+                        continue
+                    if arp_obj.pose.bones.get(ik_ctrl_name) is None:
+                        continue
+                    if ik_ctrl_name not in resolved_ctrls:
+                        resolved_ctrls.append(ik_ctrl_name)
+
+            all_ctrl_names = [c for ctrls in auto_size_ctrl_map.values() for c in (ctrls or [])]
+            arp_bone_lengths = _collect_arp_ctrl_bone_lengths(arp_obj, all_ctrl_names)
+            size_targets = _build_controller_size_targets_per_bone(
+                roles, auto_size_ctrl_map, preview_positions, arp_bone_lengths
+            )
+            if size_targets:
+                applied_count = _apply_controller_auto_size(arp_obj, size_targets, log)
+                log(f"controller auto-size ?꾨즺: {applied_count}媛?control")
+            else:
+                log("controller auto-size target??鍮꾩뼱?덉쓬", "WARN")
+        except Exception as e:
+            log(f"controller auto-size ?ㅽ뙣 (臾댁떆): {e}", "WARN")
+            log(traceback.format_exc(), "WARN")
+
         front_ik_val = props.front_3bones_ik
         log(f"앞다리 3 Bones IK 값 설정: {front_ik_val}")
         for side in (".l", ".r"):
@@ -954,8 +992,6 @@ class ARPCONV_OT_BuildRig(Operator):
                 # constraint subtarget 리매핑용 source→controller 매핑 구축
                 # deform_to_ref는 ref 본(edit-mode 전용)을 돌려주므로
                 # constraint에는 실제 controller 본 이름이 필요하다
-                from skeleton_analyzer import discover_arp_ctrl_map
-
                 _ctrl_map = discover_arp_ctrl_map(arp_obj)
                 _ref_to_role_idx = {}
                 for _role, _refs in arp_chains.items():
@@ -1039,8 +1075,6 @@ class ARPCONV_OT_BuildRig(Operator):
                 log(traceback.format_exc(), "WARN")
 
         # ── F12: bone_pairs 저장 ──
-        from skeleton_analyzer import _apply_ik_to_foot_ctrl, discover_arp_ctrl_map
-
         bone_pairs = []
         ctrl_map = discover_arp_ctrl_map(arp_obj)
         ref_to_role_idx = {}

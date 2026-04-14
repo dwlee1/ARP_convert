@@ -23,6 +23,7 @@ __pycache__/
 
 # 가상환경
 .venv/
+.worktrees/
 
 # 리팩터링 baseline 임시 파일
 docs/_scratch/
