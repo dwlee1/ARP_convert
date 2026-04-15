@@ -90,10 +90,16 @@ class TestClassifyCtrl:
         assert result["location"] is False
         assert result["ik"] is True
 
-    def test_custom_bone_is_ik_worldspace(self):
+    def test_custom_bone_uses_location_not_ik(self):
         result = _classify_ctrl("DEF-eye_L", True)
-        assert result["location"] is False
+        assert result["location"] is True
+        assert result["ik"] is False
+        assert result["set_as_root"] is False
+
+    def test_non_custom_bone_still_uses_ik(self):
+        result = _classify_ctrl("c_some_ctrl.x", False)
         assert result["ik"] is True
+        assert result["location"] is False
 
     def test_tail_is_ik_worldspace(self):
         result = _classify_ctrl("c_tail_01.x", False)

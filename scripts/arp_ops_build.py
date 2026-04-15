@@ -150,6 +150,7 @@ class ARPCONV_OT_BuildRig(Operator):
             self.report({"ERROR"}, f"소스 아마추어 '{props.source_armature}'를 찾을 수 없습니다.")
             return {"CANCELLED"}
 
+        source_obj.hide_set(False)
         select_only(source_obj)
         try:
             run_arp_operator(bpy.ops.arp.append_arp, rig_preset="dog")

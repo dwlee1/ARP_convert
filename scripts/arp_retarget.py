@@ -103,6 +103,7 @@ def _classify_ctrl(ctrl_name, is_custom):
 
     ik=True는 월드 스페이스 매칭으로, rest-pose 차이와 무관하게 정확한 위치/회전을
     보장한다. root만 location=True로 유지 (set_as_root 필요).
+    커스텀 본은 IK 솔버 대신 location=True로 로컬 트랜스폼을 직접 복사한다.
 
     Returns:
         dict: {"location": bool, "ik": bool, "set_as_root": bool, "ctrl": str}
@@ -116,7 +117,10 @@ def _classify_ctrl(ctrl_name, is_custom):
     if ctrl_name == "c_traj":
         return {"ctrl": "c_traj", "location": True, "ik": False, "set_as_root": True}
 
-    # root 외 모든 본: ik=True (월드 스페이스 매칭)
+    if is_custom:
+        return {"ctrl": ctrl_name, "location": True, "ik": False, "set_as_root": False}
+
+    # ARP 네이티브 컨트롤러: ik=True (월드 스페이스 매칭)
     return {"ctrl": ctrl_name, "location": False, "ik": True, "set_as_root": False}
 
 
