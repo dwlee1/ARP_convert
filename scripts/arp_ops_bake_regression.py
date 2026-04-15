@@ -101,6 +101,64 @@ class ARPCONV_OT_CopyCustomScale(Operator):
         return {"FINISHED"}
 
 
+def _deferred_execute_retarget():
+    """타이머 콜백: 3D View temp_override 안에서 ARP retarget 다이얼로그 실행"""
+    from arp_utils import ensure_object_mode, find_arp_armature, log, select_only
+
+    for area in bpy.context.screen.areas:
+        if area.type == "VIEW_3D":
+            for region in area.regions:
+                if region.type == "WINDOW":
+                    with bpy.context.temp_override(area=area, region=region):
+                        arp_obj = find_arp_armature()
+                        if arp_obj is None:
+                            log("Re-Retarget: ARP 아마추어를 찾을 수 없습니다.", "ERROR")
+                            return None
+                        ensure_object_mode()
+                        select_only(arp_obj)
+                        try:
+                            bpy.ops.arp.retarget("INVOKE_DEFAULT")
+                        except Exception as e:
+                            log(f"Re-Retarget: ARP retarget 실행 실패: {e}", "ERROR")
+                    return None
+    return None
+
+
+class ARPCONV_OT_ExecuteRetarget(Operator):
+    """ARP Re-Retarget 다이얼로그 실행"""
+
+    bl_idname = "arp_convert.execute_retarget"
+    bl_label = "Re-Retarget"
+    bl_description = "ARP 리타겟 다이얼로그를 열어 애니메이션 베이크를 실행합니다"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        from arp_utils import find_arp_armature, log
+
+        scn = context.scene
+
+        if not getattr(scn, "source_rig", ""):
+            self.report({"ERROR"}, "Setup Retarget을 먼저 실행하세요.")
+            return {"CANCELLED"}
+
+        if not getattr(scn, "target_rig", ""):
+            self.report({"ERROR"}, "Setup Retarget을 먼저 실행하세요.")
+            return {"CANCELLED"}
+
+        arp_obj = find_arp_armature()
+        if arp_obj is None:
+            self.report({"ERROR"}, "ARP 아마추어를 찾을 수 없습니다.")
+            return {"CANCELLED"}
+
+        if not hasattr(scn, "bones_map_v2") or len(scn.bones_map_v2) == 0:
+            self.report({"ERROR"}, "bones_map이 비어있습니다. Setup Retarget을 먼저 실행하세요.")
+            return {"CANCELLED"}
+
+        log("Re-Retarget 다이얼로그 실행 (deferred)")
+        bpy.app.timers.register(_deferred_execute_retarget, first_interval=0.01)
+        return {"FINISHED"}
+
+
 class ARPCONV_OT_Cleanup(Operator):
     """소스/프리뷰 삭제 및 액션 정리"""
 

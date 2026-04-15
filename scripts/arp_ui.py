@@ -231,13 +231,78 @@ class ARPCONV_PT_MainPanel(Panel):
 
         layout.separator()
 
-        # Step 4: 리타겟 설정
+        # Step 4: 리타겟
         box = layout.box()
-        box.label(text="Step 4: Setup Retarget", icon="ACTION")
+        box.label(text="Step 4: Retarget", icon="ACTION")
         row = box.row()
         row.scale_y = 1.3
         row.operator("arp_convert.setup_retarget", icon="LINKED")
-        box.label(text="ARP Remap 패널에서 매핑 확인 후 Re-Retarget 실행", icon="INFO")
+
+        scn = context.scene
+        has_bones_map = hasattr(scn, "bones_map_v2") and len(scn.bones_map_v2) > 0
+
+        if has_bones_map:
+            target_rig = bpy.data.objects.get(getattr(scn, "target_rig", ""))
+
+            box.separator()
+            row = box.row(align=True)
+            split = row.split(factor=0.5)
+            split.label(text="Source Bones:")
+            split.label(text="Target Bones:")
+
+            row = box.row(align=True)
+            try:
+                row.template_list(
+                    "ARP_UL_items",
+                    "",
+                    scn,
+                    "bones_map_v2",
+                    scn,
+                    "bones_map_index",
+                    rows=4,
+                )
+            except Exception:
+                row.label(text="ARP Remap UIList를 불러올 수 없습니다.", icon="ERROR")
+
+            idx = getattr(scn, "bones_map_index", -1)
+            if 0 <= idx < len(scn.bones_map_v2):
+                item = scn.bones_map_v2[idx]
+                prop_box = box.box()
+
+                row = prop_box.row(align=True)
+                row.label(text=item.source_bone + ":")
+                if target_rig and target_rig.type == "ARMATURE":
+                    row.prop_search(item, "name", target_rig.data, "bones", text="")
+                else:
+                    row.prop(item, "name", text="")
+
+                row = prop_box.row(align=True)
+                row.prop(item, "set_as_root", text="Set as Root")
+                sub = row.row()
+                sub.enabled = not item.ik and not item.set_as_root
+                sub.prop(item, "location", text="Location")
+
+                row = prop_box.row(align=True)
+                split = row.split(factor=0.2)
+                split.enabled = not item.set_as_root
+                split.prop(item, "ik", text="IK")
+                if item.ik and target_rig and target_rig.type == "ARMATURE":
+                    sub = split.split(factor=0.9, align=True)
+                    sub.prop_search(item, "ik_pole", target_rig.data, "bones", text="Pole")
+
+        box.separator()
+
+        if hasattr(scn, "batch_retarget"):
+            row = box.row(align=True)
+            row.prop(scn, "batch_retarget", text="Multiple Source Anim")
+            if getattr(scn, "batch_retarget", False):
+                marked = sum(1 for act in bpy.data.actions if act.get("arp_remap", False))
+                row.label(text=f"({marked}개 액션)")
+
+        row = box.row()
+        row.scale_y = 1.3
+        row.operator("arp_convert.execute_retarget", icon="PLAY")
+
         row = box.row()
         row.operator("arp_convert.copy_custom_scale", icon="CON_SIZELIKE")
 

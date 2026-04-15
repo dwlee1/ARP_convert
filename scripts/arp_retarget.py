@@ -322,9 +322,23 @@ def setup_arp_retarget(source_obj, arp_obj, bone_pairs):
     # 4. tail master constraint mute (COPY_ROTATION OFFSET이 리타겟 회전을 왜곡)
     _mute_master_rotation_constraints(arp_obj)
 
-    # 5. batch_retarget 활성화
+    # 5. batch_retarget 활성화 + 소스 액션에 arp_remap 플래그 설정
     scn.batch_retarget = True
-    log("  batch_retarget = True")
+    source_bone_names = {b.name for b in source_obj.data.bones}
+    marked_actions = 0
+    for act in bpy.data.actions:
+        is_source_action = any(
+            fc.data_path.startswith("pose.bones[")
+            and fc.data_path.split('"')[1] in source_bone_names
+            for fc in act.fcurves
+            if '"' in fc.data_path
+        )
+        if is_source_action:
+            act["arp_remap"] = True
+            marked_actions += 1
+        elif "arp_remap" not in act:
+            act["arp_remap"] = False
+    log(f"  batch_retarget = True, arp_remap 마킹: {marked_actions}개 액션")
 
     # 6. 기존 _remap 액션 삭제
     _delete_existing_remap_actions()

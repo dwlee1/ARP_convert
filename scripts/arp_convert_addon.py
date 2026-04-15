@@ -115,6 +115,7 @@ _ensure_scripts_path()
 from arp_ops_bake_regression import (
     ARPCONV_OT_Cleanup,
     ARPCONV_OT_CopyCustomScale,
+    ARPCONV_OT_ExecuteRetarget,
     ARPCONV_OT_RunRegression,
     ARPCONV_OT_SetupRetarget,
 )
@@ -144,6 +145,7 @@ classes = [
     ARPCONV_OT_BuildRig,
     ARPCONV_OT_SetupRetarget,
     ARPCONV_OT_CopyCustomScale,
+    ARPCONV_OT_ExecuteRetarget,
     ARPCONV_OT_Cleanup,
     ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,

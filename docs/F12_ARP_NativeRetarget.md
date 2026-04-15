@@ -25,16 +25,16 @@ FK/IK 모두 정확하게 베이크됨을 확인. 이에 따라:
 ```
 [Create Preview]      ← 기존 유지
 [Build Rig]           ← 기존 유지
-[Setup Retarget]      ← 신규: bone_pairs → bones_map_v2 변환
-                         사용자가 ARP Remap 패널에서 매핑 확인/수정
-                         사용자가 ARP "Re-Retarget" 버튼 클릭 (베이크)
-[Cleanup]             ← 신규: 소스/프리뷰 삭제 + 액션 rename
+[Setup Retarget]      ← bone_pairs → bones_map_v2 변환
+                         (필요시 ARP Remap 탭에서 매핑 수동 편집)
+[Re-Retarget]         ← ARP 네이티브 다이얼로그 호출 (INVOKE_DEFAULT)
+[Cleanup]             ← 소스/프리뷰 삭제 + 액션 rename
 ```
 
 ### 핵심 원칙
 
-- `bpy.ops.arp.retarget()`을 우리 코드에서 호출하지 않는다
-- 사용자가 ARP UI에서 매핑을 확인/수정할 수 있는 기회를 보장한다
+- `bpy.ops.arp.retarget('INVOKE_DEFAULT')`로 ARP 네이티브 다이얼로그를 호출한다 (사용자 확인 후 실행)
+- `EXEC_DEFAULT`로 직접 실행하지 않는다 — 사용자가 설정을 확인/수정할 기회를 보장한다
 - 다중 액션은 ARP의 `batch_retarget=True` (Multiple Source Anim) 사용
 
 ## 3. Setup Retarget 오퍼레이터
