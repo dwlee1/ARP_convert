@@ -1,8 +1,7 @@
 """
-arp_convert_addon에서 분리한 N-panel UI.
+ARP Convert N-panel UI.
 
-ARPCONV_PT_MainPanel만 담는다. 3D Viewport N-panel의 "ARP Convert"
-탭에 Step 1~4 버튼과 Source Hierarchy 트리를 표시한다.
+메인 패널 + 5개 서브패널 + 도구 패널로 구성.
 """
 
 import os
@@ -19,13 +18,10 @@ def _ensure_scripts_path():
         if script_dir not in sys.path:
             sys.path.insert(0, script_dir)
         return script_dir
-
-    # bpy.data가 restricted context (애드온 등록 중)면 filepath 접근 불가 → 조용히 skip
     try:
         blend_filepath = bpy.data.filepath
     except AttributeError:
         blend_filepath = ""
-
     if blend_filepath:
         d = os.path.dirname(blend_filepath)
         for _ in range(10):
@@ -41,6 +37,28 @@ def _ensure_scripts_path():
     return ""
 
 
+def _get_step_status(props):
+    """현재 워크플로 진행 상태 반환.
+
+    Returns dict: step_number → "done" | "current" | "pending"
+    """
+    status = {1: "pending", 2: "pending", 3: "pending", 4: "pending", 5: "pending"}
+    if props.is_analyzed:
+        status[1] = "done"
+        status[2] = "current"
+    if props.build_completed:
+        status[2] = "done"
+        status[3] = "done"
+        status[4] = "current"
+    if props.retarget_setup_done:
+        status[4] = "done"
+        status[5] = "current"
+    return status
+
+
+_STATUS_ICONS = {"done": "CHECKMARK", "current": "PLAY", "pending": "RADIOBUT_OFF"}
+
+
 class ARPCONV_PT_MainPanel(Panel):
     """ARP 리그 변환 메인 패널"""
 
@@ -52,161 +70,222 @@ class ARPCONV_PT_MainPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        props = context.scene.arp_convert_props
+        from arp_convert_addon import bl_info
 
-        # Step 1: 분석 + Preview
-        box = layout.box()
-        box.label(text="Step 1: 분석", icon="VIEWZOOM")
+        layout.label(text=f"v{'.'.join(str(v) for v in bl_info['version'])}")
+
+
+class ARPCONV_PT_Step1_Analysis(Panel):
+    """1. 분석"""
+
+    bl_label = "1. 분석"
+    bl_idname = "ARPCONV_PT_step1"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ARP Convert"
+    bl_parent_id = "ARPCONV_PT_main"
+
+    def draw_header(self, context):
+        props = context.scene.arp_convert_props
+        status = _get_step_status(props)
+        self.layout.label(text="", icon=_STATUS_ICONS[status[1]])
+        if props.is_analyzed:
+            self.layout.label(text=f"신뢰도 {props.confidence:.0%}")
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.arp_convert_props
         if props.source_armature:
-            box.label(text=f"소스: {props.source_armature}")
-        row = box.row()
+            layout.label(text=f"소스: {props.source_armature}")
+        row = layout.row()
         row.scale_y = 1.5
         row.operator("arp_convert.create_preview", icon="ARMATURE_DATA")
-
         if not props.is_analyzed:
-            layout.separator()
             layout.label(text="소스 아마추어를 선택하고 분석을 실행하세요.", icon="INFO")
-            return
+        elif props.preview_armature:
+            layout.label(text=f"프리뷰: {props.preview_armature}")
 
-        # 신뢰도
-        layout.label(text=f"신뢰도: {props.confidence:.0%}", icon="CHECKMARK")
-        if props.preview_armature:
-            layout.label(text=f"Preview: {props.preview_armature}")
 
-        layout.separator()
+class ARPCONV_PT_Step2_Roles(Panel):
+    """2. 역할 수정"""
 
-        # Step 2: 역할 수정
-        box = layout.box()
-        box.label(text="Step 2: 역할 수정", icon="BONE_DATA")
+    bl_label = "2. 역할 수정"
+    bl_idname = "ARPCONV_PT_step2"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ARP Convert"
+    bl_parent_id = "ARPCONV_PT_main"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.arp_convert_props.is_analyzed
+
+    def draw_header(self, context):
+        props = context.scene.arp_convert_props
+        status = _get_step_status(props)
+        self.layout.label(text="", icon=_STATUS_ICONS[status[2]])
+        if props.total_bone_count > 0:
+            self.layout.label(text=f"{props.mapped_bone_count}/{props.total_bone_count} 매핑됨")
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.arp_convert_props
+
+        _ensure_scripts_path()
+        from arp_role_icons import get_icon_id
+        from skeleton_analyzer import ROLE_PROP_KEY
+        from skeleton_detection import ROLE_LABELS
 
         # Source Hierarchy (접이식)
         hier_coll = getattr(context.scene, "arp_source_hierarchy", None)
         if hier_coll and len(hier_coll) > 0:
-            row = box.row()
+            row = layout.row()
             row.prop(
                 props,
                 "show_source_hierarchy",
                 icon="TRIA_DOWN" if props.show_source_hierarchy else "TRIA_RIGHT",
-                text=f"Source Hierarchy ({len(hier_coll)})",
+                text=f"소스 계층 트리 ({len(hier_coll)})",
                 emboss=False,
             )
             if props.show_source_hierarchy:
-                _ensure_scripts_path()
-                from skeleton_analyzer import ROLE_PROP_KEY
-
                 preview_obj = bpy.data.objects.get(props.preview_armature)
-                hier_box = box.box()
+                hier_box = layout.box()
                 col = hier_box.column(align=True)
                 for item in hier_coll:
                     row = col.row(align=True)
-                    # 들여쓰기
-                    if item.depth > 0:
-                        indent = row.row()
-                        indent.ui_units_x = item.depth * 0.8
-                        indent.label(text="")
-                    # 아이콘: Preview에 있으면 role 읽기, 없으면 제외 본
                     pbone = preview_obj.pose.bones.get(item.name) if preview_obj else None
                     if pbone is None:
-                        icon = "RADIOBUT_OFF"
-                        label = f"{item.name} (w=0)"
+                        icon_val = 0
+                        blender_icon = "RADIOBUT_OFF"
+                        role = "unmapped"
+                        label = f"{item.tree_prefix}{item.name} (w=0)"
                     else:
                         role = pbone.get(ROLE_PROP_KEY, "unmapped")
-                        icon = "CHECKMARK" if role != "unmapped" else "DOT"
-                        label = f"{item.name} [{role}]" if role != "unmapped" else item.name
-                    op = row.operator(
-                        "arp_convert.select_bone",
-                        text=label,
-                        icon=icon,
-                        emboss=False,
-                    )
+                        icon_val = get_icon_id(role)
+                        blender_icon = ""
+                        role_label = ROLE_LABELS.get(role, "")
+                        label = f"{item.tree_prefix}{item.name}"
+                        if role_label and role != "unmapped":
+                            label += f"  {role_label}"
+
+                    if icon_val:
+                        op = row.operator(
+                            "arp_convert.select_bone",
+                            text=label,
+                            icon_value=icon_val,
+                            emboss=False,
+                        )
+                    else:
+                        op = row.operator(
+                            "arp_convert.select_bone",
+                            text=label,
+                            icon=blender_icon or "DOT",
+                            emboss=False,
+                        )
                     op.bone_name = item.name
 
-        box.label(text="본 선택 후 역할을 변경하세요:")
+        layout.label(text="본 선택 후 역할을 변경하세요:")
 
-        # 역할 버튼 — 카테고리별 정리
-        # Body
-        sub = box.column(align=True)
-        sub.label(text="Body:")
+        # 역할 버튼 — 카테고리별
+        # 몸통
+        sub = layout.column(align=True)
+        sub.label(text="몸통:")
         grid = sub.grid_flow(columns=3, align=True)
         for role_id in ["root", "spine", "neck", "head", "tail"]:
-            op = grid.operator("arp_convert.set_role", text=role_id.capitalize())
+            icon_val = get_icon_id(role_id)
+            label = ROLE_LABELS.get(role_id, role_id)
+            if icon_val:
+                op = grid.operator("arp_convert.set_role", text=label, icon_value=icon_val)
+            else:
+                op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
-        # Legs
-        sub = box.column(align=True)
-        sub.label(text="Legs:")
+        # 다리
+        sub = layout.column(align=True)
+        sub.label(text="다리:")
         grid = sub.grid_flow(columns=2, align=True)
         for role_id in ["back_leg_l", "back_leg_r", "front_leg_l", "front_leg_r"]:
-            label = (
-                role_id.replace("_", " ")
-                .title()
-                .replace("Back Leg", "BLeg")
-                .replace("Front Leg", "FLeg")
-            )
-            op = grid.operator("arp_convert.set_role", text=label)
+            icon_val = get_icon_id(role_id)
+            label = ROLE_LABELS.get(role_id, role_id)
+            if icon_val:
+                op = grid.operator("arp_convert.set_role", text=label, icon_value=icon_val)
+            else:
+                op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
-        # Feet (★)
-        sub = box.column(align=True)
-        sub.label(text="Feet (★ bank/heel 자동 생성):")
+        # 발
+        sub = layout.column(align=True)
+        sub.label(text="발:")
+        sub.label(text="(bank/heel 가이드 자동 생성)", icon="INFO")
         grid = sub.grid_flow(columns=2, align=True)
-        for role_id in ["back_foot_l", "back_foot_r", "front_foot_l", "front_foot_r"]:
-            label = (
-                role_id.replace("_", " ")
-                .title()
-                .replace("Back Foot", "BFoot")
-                .replace("Front Foot", "FFoot")
-            )
-            op = grid.operator("arp_convert.set_role", text=label)
+        for role_id in [
+            "back_foot_l",
+            "back_foot_r",
+            "front_foot_l",
+            "front_foot_r",
+        ]:
+            icon_val = get_icon_id(role_id)
+            label = ROLE_LABELS.get(role_id, role_id)
+            if icon_val:
+                op = grid.operator("arp_convert.set_role", text=label, icon_value=icon_val)
+            else:
+                op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
-        # Head features
-        sub = box.column(align=True)
-        sub.label(text="Head:")
+        # 머리 부속
+        sub = layout.column(align=True)
+        sub.label(text="머리 부속:")
         grid = sub.grid_flow(columns=2, align=True)
         for role_id in ["ear_l", "ear_r"]:
-            label = {"ear_l": "Ear L", "ear_r": "Ear R"}[role_id]
-            op = grid.operator("arp_convert.set_role", text=label)
+            icon_val = get_icon_id(role_id)
+            label = ROLE_LABELS.get(role_id, role_id)
+            if icon_val:
+                op = grid.operator("arp_convert.set_role", text=label, icon_value=icon_val)
+            else:
+                op = grid.operator("arp_convert.set_role", text=label)
             op.role = role_id
 
-        # Unmapped (cc_ custom bones)
-        row = box.row()
-        op = row.operator("arp_convert.set_role", text="Unmapped (cc_)")
-        op.role = "unmapped"
+        # 기타
+        sub = layout.column(align=True)
+        grid = sub.grid_flow(columns=2, align=True)
+        for role_id in ["trajectory", "unmapped"]:
+            icon_val = get_icon_id(role_id)
+            label = ROLE_LABELS.get(role_id, role_id)
+            if icon_val:
+                op = grid.operator("arp_convert.set_role", text=label, icon_value=icon_val)
+            else:
+                op = grid.operator("arp_convert.set_role", text=label)
+            op.role = role_id
 
-        # 현재 선택된 본의 역할 표시
+        # 선택 본 정보
         if context.active_object and context.active_object.type == "ARMATURE":
             arm_obj = context.active_object
-            # 선택된 본 목록
             selected_bones = [b for b in arm_obj.data.bones if b.select]
 
             if selected_bones:
-                _ensure_scripts_path()
-                from skeleton_analyzer import ROLE_PROP_KEY
-
-                box.separator()
+                layout.separator()
                 if len(selected_bones) == 1:
                     bone = selected_bones[0]
                     pbone = arm_obj.pose.bones.get(bone.name)
                     current_role = pbone.get(ROLE_PROP_KEY, "unmapped") if pbone else "?"
-                    box.label(text=f"선택: {bone.name}", icon="BONE_DATA")
-                    box.label(text=f"현재 역할: {current_role}")
+                    role_label = ROLE_LABELS.get(current_role, current_role)
+                    layout.label(text=f"선택: {bone.name}", icon="BONE_DATA")
+                    layout.label(text=f"현재 역할: {role_label}")
                     parent_name = bone.parent.name if bone.parent else "(없음)"
-                    box.label(text=f"부모: {parent_name}", icon="LINKED")
+                    layout.label(text=f"부모: {parent_name}", icon="LINKED")
                 else:
-                    box.label(
+                    layout.label(
                         text=f"선택: {len(selected_bones)}개 본",
                         icon="BONE_DATA",
                     )
                     names = ", ".join(b.name for b in selected_bones[:4])
                     if len(selected_bones) > 4:
                         names += f" 외 {len(selected_bones) - 4}개"
-                    box.label(text=names)
+                    layout.label(text=names)
 
-                # 부모 변경 UI — 선택 시 자동 적용
                 preview_obj = bpy.data.objects.get(props.preview_armature)
                 if preview_obj:
-                    row2 = box.row(align=True)
+                    row2 = layout.row(align=True)
                     row2.prop_search(
                         props,
                         "pending_parent",
@@ -216,41 +295,79 @@ class ARPCONV_PT_MainPanel(Panel):
                     )
 
             if not selected_bones:
-                box.separator()
-                box.label(text="Shift+클릭으로 복수 선택 가능", icon="INFO")
+                layout.separator()
+                layout.label(text="Shift+클릭으로 복수 선택 가능", icon="INFO")
 
-        layout.separator()
 
-        # Step 3: 리그 생성
-        box = layout.box()
-        box.label(text="Step 3: Build Rig", icon="MOD_ARMATURE")
-        box.prop(props, "front_3bones_ik", slider=True)
-        row = box.row()
+class ARPCONV_PT_Step3_Build(Panel):
+    """3. 리그 생성"""
+
+    bl_label = "3. 리그 생성"
+    bl_idname = "ARPCONV_PT_step3"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ARP Convert"
+    bl_parent_id = "ARPCONV_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.arp_convert_props.is_analyzed
+
+    def draw_header(self, context):
+        props = context.scene.arp_convert_props
+        status = _get_step_status(props)
+        self.layout.label(text="", icon=_STATUS_ICONS[status[3]])
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.arp_convert_props
+        layout.prop(props, "front_3bones_ik", slider=True)
+        row = layout.row()
         row.scale_y = 1.3
         row.operator("arp_convert.build_rig", icon="MOD_ARMATURE")
 
-        layout.separator()
 
-        # Step 4: 리타겟
-        box = layout.box()
-        box.label(text="Step 4: Retarget", icon="ACTION")
-        row = box.row()
+class ARPCONV_PT_Step4_Retarget(Panel):
+    """4. 리타겟"""
+
+    bl_label = "4. 리타겟"
+    bl_idname = "ARPCONV_PT_step4"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ARP Convert"
+    bl_parent_id = "ARPCONV_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.arp_convert_props.is_analyzed
+
+    def draw_header(self, context):
+        props = context.scene.arp_convert_props
+        status = _get_step_status(props)
+        self.layout.label(text="", icon=_STATUS_ICONS[status[4]])
+
+    def draw(self, context):
+        layout = self.layout
+        scn = context.scene
+
+        row = layout.row()
         row.scale_y = 1.3
         row.operator("arp_convert.setup_retarget", icon="LINKED")
 
-        scn = context.scene
         has_bones_map = hasattr(scn, "bones_map_v2") and len(scn.bones_map_v2) > 0
 
         if has_bones_map:
             target_rig = bpy.data.objects.get(getattr(scn, "target_rig", ""))
 
-            box.separator()
-            row = box.row(align=True)
+            layout.separator()
+            row = layout.row(align=True)
             split = row.split(factor=0.5)
-            split.label(text="Source Bones:")
-            split.label(text="Target Bones:")
+            split.label(text="소스 본:")
+            split.label(text="타겟 본:")
 
-            row = box.row(align=True)
+            row = layout.row(align=True)
             try:
                 row.template_list(
                     "ARP_UL_items",
@@ -267,7 +384,7 @@ class ARPCONV_PT_MainPanel(Panel):
             idx = getattr(scn, "bones_map_index", -1)
             if 0 <= idx < len(scn.bones_map_v2):
                 item = scn.bones_map_v2[idx]
-                prop_box = box.box()
+                prop_box = layout.box()
 
                 row = prop_box.row(align=True)
                 row.label(text=item.source_bone + ":")
@@ -277,10 +394,10 @@ class ARPCONV_PT_MainPanel(Panel):
                     row.prop(item, "name", text="")
 
                 row = prop_box.row(align=True)
-                row.prop(item, "set_as_root", text="Set as Root")
+                row.prop(item, "set_as_root", text="루트 지정")
                 sub = row.row()
                 sub.enabled = not item.ik and not item.set_as_root
-                sub.prop(item, "location", text="Location")
+                sub.prop(item, "location", text="위치")
 
                 row = prop_box.row(align=True)
                 split = row.split(factor=0.2)
@@ -288,39 +405,68 @@ class ARPCONV_PT_MainPanel(Panel):
                 split.prop(item, "ik", text="IK")
                 if item.ik and target_rig and target_rig.type == "ARMATURE":
                     sub = split.split(factor=0.9, align=True)
-                    sub.prop_search(item, "ik_pole", target_rig.data, "bones", text="Pole")
+                    sub.prop_search(item, "ik_pole", target_rig.data, "bones", text="폴 벡터")
 
-        box.separator()
+        layout.separator()
 
         if hasattr(scn, "batch_retarget"):
-            row = box.row(align=True)
-            row.prop(scn, "batch_retarget", text="Multiple Source Anim")
+            row = layout.row(align=True)
+            row.prop(scn, "batch_retarget", text="다중 소스 애니메이션")
             if getattr(scn, "batch_retarget", False):
                 marked = sum(1 for act in bpy.data.actions if act.get("arp_remap", False))
                 row.label(text=f"({marked}개 액션)")
 
-        row = box.row()
+        row = layout.row()
         row.scale_y = 1.3
         row.operator("arp_convert.execute_retarget", icon="PLAY")
 
-        row = box.row()
+        row = layout.row()
         row.operator("arp_convert.copy_custom_scale", icon="CON_SIZELIKE")
 
-        layout.separator()
 
-        # Step 5: Cleanup
-        box = layout.box()
-        box.label(text="Step 5: Cleanup", icon="TRASH")
-        row = box.row()
+class ARPCONV_PT_Step5_Cleanup(Panel):
+    """5. 정리"""
+
+    bl_label = "5. 정리"
+    bl_idname = "ARPCONV_PT_step5"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ARP Convert"
+    bl_parent_id = "ARPCONV_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.arp_convert_props.is_analyzed
+
+    def draw_header(self, context):
+        props = context.scene.arp_convert_props
+        status = _get_step_status(props)
+        self.layout.label(text="", icon=_STATUS_ICONS[status[5]])
+
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row()
         row.scale_y = 1.3
         row.operator("arp_convert.cleanup", icon="TRASH")
 
-        layout.separator()
 
-        box = layout.box()
-        box.label(text="Regression", icon="FILE_TEXT")
-        box.prop(props, "regression_fixture", text="Fixture")
-        box.prop(props, "regression_report_dir", text="Report Dir")
-        row = box.row()
+class ARPCONV_PT_Tools(Panel):
+    """도구"""
+
+    bl_label = "도구"
+    bl_idname = "ARPCONV_PT_tools"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ARP Convert"
+    bl_parent_id = "ARPCONV_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.arp_convert_props
+        layout.prop(props, "regression_fixture", text="Fixture")
+        layout.prop(props, "regression_report_dir", text="리포트 폴더")
+        row = layout.row()
         row.scale_y = 1.2
         row.operator("arp_convert.run_regression", icon="CHECKMARK")
