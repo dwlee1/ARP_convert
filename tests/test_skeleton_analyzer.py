@@ -1422,3 +1422,38 @@ class TestMirrorPairCollapse:
 
         assert deform_bones["upperarm_L"]["parent"] == "shoulder_L"
         assert deform_bones["upperarm_R"]["parent"] == "shoulder_R"
+
+
+def test_role_colors_all_unique():
+    """각 역할의 색상이 고유한지 검증 (L/R 포함)."""
+    from skeleton_detection import ROLE_COLORS
+
+    colors = list(ROLE_COLORS.values())
+    color_set = set(colors)
+    assert len(color_set) == len(colors), (
+        f"중복 색상 발견: {len(colors)} 역할, {len(color_set)} 고유색"
+    )
+
+
+def test_role_colors_lr_differ():
+    """L/R 쌍의 색상이 서로 다른지 검증."""
+    from skeleton_detection import ROLE_COLORS
+
+    lr_pairs = [
+        ("back_leg_l", "back_leg_r"),
+        ("back_foot_l", "back_foot_r"),
+        ("front_leg_l", "front_leg_r"),
+        ("front_foot_l", "front_foot_r"),
+        ("ear_l", "ear_r"),
+    ]
+    for left, right in lr_pairs:
+        assert ROLE_COLORS[left] != ROLE_COLORS[right], (
+            f"{left}과 {right} 색상이 동일: {ROLE_COLORS[left]}"
+        )
+
+
+def test_role_labels_keys_match_colors():
+    """ROLE_LABELS와 ROLE_COLORS의 키가 동일한지 검증."""
+    from skeleton_detection import ROLE_COLORS, ROLE_LABELS
+
+    assert set(ROLE_LABELS.keys()) == set(ROLE_COLORS.keys())
