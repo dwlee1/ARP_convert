@@ -15,7 +15,7 @@ bl_info = {
     "version": (2, 0, 0),
     "blender": (4, 5, 0),
     "location": "View3D > Sidebar > ARP Convert",
-    "description": "Preview Armature 기반 ARP 리그 변환",
+    "description": "프리뷰 기반 ARP 리그 자동 변환",
     "category": "Rigging",
 }
 
@@ -104,6 +104,8 @@ def _reload_modules():
         "arp_ops_roles",
         "arp_ops_bake_regression",
         "arp_ops_build",
+        "arp_role_icons",
+        "arp_viewport_handler",
     ]:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
@@ -129,7 +131,15 @@ from arp_ops_roles import (
     ARPCONV_OT_SetRole,
 )
 from arp_props import ARPCONV_HierarchyBoneItem, ARPCONV_Props
-from arp_ui import ARPCONV_PT_MainPanel
+from arp_ui import (
+    ARPCONV_PT_MainPanel,
+    ARPCONV_PT_Step1_Analysis,
+    ARPCONV_PT_Step2_Roles,
+    ARPCONV_PT_Step3_Build,
+    ARPCONV_PT_Step4_Retarget,
+    ARPCONV_PT_Step5_Cleanup,
+    ARPCONV_PT_Tools,
+)
 
 # ═══════════════════════════════════════════════════════════════
 # 등록
@@ -149,6 +159,12 @@ classes = [
     ARPCONV_OT_Cleanup,
     ARPCONV_OT_RunRegression,
     ARPCONV_PT_MainPanel,
+    ARPCONV_PT_Step1_Analysis,
+    ARPCONV_PT_Step2_Roles,
+    ARPCONV_PT_Step3_Build,
+    ARPCONV_PT_Step4_Retarget,
+    ARPCONV_PT_Step5_Cleanup,
+    ARPCONV_PT_Tools,
 ]
 
 
@@ -157,9 +173,21 @@ def register():
         bpy.utils.register_class(cls)
     bpy.types.Scene.arp_convert_props = PointerProperty(type=ARPCONV_Props)
     bpy.types.Scene.arp_source_hierarchy = CollectionProperty(type=ARPCONV_HierarchyBoneItem)
+    import arp_role_icons
+
+    arp_role_icons.register()
+    import arp_viewport_handler
+
+    arp_viewport_handler.register()
 
 
 def unregister():
+    import arp_viewport_handler
+
+    arp_viewport_handler.unregister()
+    import arp_role_icons
+
+    arp_role_icons.unregister()
     if hasattr(bpy.types.Scene, "arp_source_hierarchy"):
         del bpy.types.Scene.arp_source_hierarchy
     del bpy.types.Scene.arp_convert_props
