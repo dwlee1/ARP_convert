@@ -226,6 +226,20 @@ class ARPCONV_OT_CreatePreview(Operator):
         # 하이어라키 트리 데이터 채우기
         _populate_hierarchy_collection(context, analysis)
 
+        # bone count 캐시 업데이트
+        _preview_for_count = bpy.data.objects.get(props.preview_armature)
+        if _preview_for_count:
+            from skeleton_analyzer import ROLE_PROP_KEY
+
+            total = len(_preview_for_count.pose.bones)
+            mapped = sum(
+                1
+                for pb in _preview_for_count.pose.bones
+                if pb.get(ROLE_PROP_KEY, "unmapped") != "unmapped"
+            )
+            props.total_bone_count = total
+            props.mapped_bone_count = mapped
+
         # 소스 아마추어 숨기기 (Preview 편집 중 겹침 방지)
         source_obj.hide_set(True)
 

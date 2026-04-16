@@ -212,6 +212,16 @@ class ARPCONV_OT_SetRole(Operator):
             self.report({"WARNING"}, "본이 선택되지 않았습니다.")
             return {"FINISHED"}
 
+        # mapped_bone_count 캐시 갱신
+        props = context.scene.arp_convert_props
+        preview_obj_cached = bpy.data.objects.get(props.preview_armature)
+        if preview_obj_cached:
+            props.mapped_bone_count = sum(
+                1
+                for pb in preview_obj_cached.pose.bones
+                if pb.get(ROLE_PROP_KEY, "unmapped") != "unmapped"
+            )
+
         # foot 역할이면 bank/heel 가이드 본 자동 생성
         if foot_bones:
             guide_count = _create_foot_guides_for_role(

@@ -1173,5 +1173,6 @@ class ARPCONV_OT_BuildRig(Operator):
         if pole_set:
             log(f"  pole_parent=1 활성화: {pole_set}개 다리 pole")
 
+        context.scene.arp_convert_props.build_completed = True
         self.report({"INFO"}, f"ARP 리그 생성 완료 ({aligned}개 ref 본 정렬)")
         return {"FINISHED"}
