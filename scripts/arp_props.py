@@ -56,40 +56,79 @@ class ARPCONV_HierarchyBoneItem(PropertyGroup):
     """하이어라키 트리 아이템 (name은 PropertyGroup에서 상속)"""
 
     depth: IntProperty(default=0)
+    tree_prefix: StringProperty(default="")
 
 
 class ARPCONV_Props(PropertyGroup):
     """전역 프로퍼티"""
 
-    preview_armature: StringProperty(name="Preview Armature", default="")
-    source_armature: StringProperty(name="소스 Armature", default="")
-    is_analyzed: BoolProperty(name="분석 완료", default=False)
-    confidence: FloatProperty(name="신뢰도", default=0.0)
+    preview_armature: StringProperty(
+        name="프리뷰 아마추어",
+        description="생성된 프리뷰 아마추어",
+        default="",
+    )
+    source_armature: StringProperty(
+        name="소스 아마추어",
+        description="변환할 원본 아마추어",
+        default="",
+    )
+    is_analyzed: BoolProperty(
+        name="분석 완료",
+        description="소스 아마추어 분석 완료 여부",
+        default=False,
+    )
+    confidence: FloatProperty(
+        name="신뢰도",
+        description="자동 역할 추론 신뢰도 (0~100%)",
+        default=0.0,
+    )
     regression_fixture: StringProperty(
         name="Fixture JSON",
+        description="회귀 테스트용 피처 파일 경로",
         default="",
         subtype="FILE_PATH",
     )
     regression_report_dir: StringProperty(
-        name="Report Dir",
+        name="리포트 폴더",
+        description="회귀 테스트 결과 저장 폴더",
         default="",
         subtype="DIR_PATH",
     )
     front_3bones_ik: FloatProperty(
-        name="앞다리 3 Bones IK",
-        description="앞다리 3 Bones IK 값. 0.0이면 shoulder 독립 회전, 1.0이면 foot IK에 반응",
+        name="앞다리 3본 IK",
+        description="앞다리 3본 IK 영향도. 0이면 어깨 독립 회전, 1이면 발 IK에 연동",
         default=0.0,
         min=0.0,
         max=1.0,
     )
     show_source_hierarchy: BoolProperty(
-        name="Source Hierarchy",
-        description="소스 본 하이어라키 트리 표시",
+        name="소스 계층 트리",
+        description="소스 본 계층 트리 표시/숨김",
         default=False,
     )
     pending_parent: StringProperty(
-        name="Parent",
+        name="새 부모",
         description="선택한 본의 새 부모 — 선택 시 자동 적용",
         default="",
         update=_on_pending_parent_changed,
+    )
+    build_completed: BoolProperty(
+        name="리그 생성 완료",
+        description="Build Rig 완료 여부",
+        default=False,
+    )
+    retarget_setup_done: BoolProperty(
+        name="리타겟 설정 완료",
+        description="Retarget Setup 완료 여부",
+        default=False,
+    )
+    mapped_bone_count: IntProperty(
+        name="매핑 본 수",
+        description="역할이 매핑된 본 수",
+        default=0,
+    )
+    total_bone_count: IntProperty(
+        name="전체 본 수",
+        description="프리뷰 아마추어의 전체 본 수",
+        default=0,
     )
