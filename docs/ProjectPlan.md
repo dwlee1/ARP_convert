@@ -229,6 +229,23 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 기본 위치 가이드는 foot 방향/길이 비율로 자동 보정하고, 사용자가 이동한 가이드는 유지한다.
 
+### UX 전면 개선 완료 (2026-04-16)
+
+프리뷰 본 시인성, 역할 UI 가독성, 패널 구조를 상용 애드온 수준으로 개선.
+스펙: `docs/superpowers/specs/2026-04-15-ux-overhaul-design.md`
+계획: `docs/superpowers/plans/2026-04-15-ux-overhaul.md`
+
+- [x] 색상 팔레트 재설계 — 17 역할 고유색, L/R 쌍 구분
+- [x] ROLE_LABELS 한국어 라벨 딕셔너리
+- [x] 프로퍼티 툴팁 한국어화 + 상태 추적 프로퍼티 (build_completed, mapped_bone_count 등)
+- [x] ROLE_ITEMS 라벨 한국어 풀네임
+- [x] 역할별 색상 아이콘 모듈 (`arp_role_icons.py`, `bpy.utils.previews` 기반)
+- [x] 계층 트리 연결선 접두사 (`compute_tree_prefixes`)
+- [x] 서브패널 구조 분리 — 단일 패널 → 7개 (MainPanel + Step 1~5 + 도구)
+- [x] 뷰포트 부모 체인 하이라이트 핸들러 (`arp_viewport_handler.py`)
+- [x] 애드온 등록 업데이트 (아이콘/핸들러 register/unregister)
+- [x] 오퍼레이터 상태 플래그 + bone count 캐시
+
 ## 우선순위
 
 1. **자동 역할 추론 정확도 개선** — 새 동물 리그 대응

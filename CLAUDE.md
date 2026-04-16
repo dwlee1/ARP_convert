@@ -21,7 +21,9 @@
 | `scripts/skeleton_analyzer.py` | 구조 분석, Preview Armature 생성, ref 체인 탐색 |
 | `scripts/arp_convert_addon.py` | Blender 애드온 엔트리 (bl_info, register/unregister) |
 | `scripts/arp_props.py` | PropertyGroup 정의 (Scene 레벨 addon state) |
-| `scripts/arp_ui.py` | N-panel UI (ARPCONV_PT_MainPanel) |
+| `scripts/arp_ui.py` | N-panel UI (7개 서브패널: MainPanel + Step1~5 + Tools) |
+| `scripts/arp_role_icons.py` | 역할별 색상 아이콘 (bpy.utils.previews) |
+| `scripts/arp_viewport_handler.py` | 뷰포트 부모 체인 하이라이트 핸들러 |
 | `scripts/arp_ops_preview.py` | CreatePreview 오퍼레이터 + hierarchy 헬퍼 |
 | `scripts/arp_ops_roles.py` | Role editing 오퍼레이터 (SelectBone/SetParent/SetRole) |
 | `scripts/arp_ops_build.py` | BuildRig 오퍼레이터 (가장 큰 execute 본문) |
