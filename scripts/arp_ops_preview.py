@@ -16,6 +16,66 @@ from arp_utils import log
 # ───────────────────────────────────────────────────────────────
 
 
+def compute_tree_prefixes(items):
+    """depth 기반 아이템 리스트로 트리 연결선 접두사를 계산한다.
+
+    Parameters
+    ----------
+    items : list[dict]
+        각 dict에 "name"(str), "depth"(int) 키 필요.
+
+    Returns
+    -------
+    list[str]
+        각 아이템의 트리 접두사 문자열.
+    """
+    n = len(items)
+    prefixes = [""] * n
+
+    def _has_next_sibling(idx):
+        """idx 아이템 뒤에 같은 depth의 형제가 있는지."""
+        my_depth = items[idx]["depth"]
+        for j in range(idx + 1, n):
+            d = items[j]["depth"]
+            if d == my_depth:
+                return True
+            if d < my_depth:
+                return False
+        return False
+
+    for i in range(n):
+        depth = items[i]["depth"]
+        if depth == 0:
+            prefixes[i] = ""
+            continue
+
+        parts = []
+        # 조상 레벨별로 수직선(│) 또는 공백 결정
+        for d in range(1, depth):
+            # depth=d인 조상이 다음 형제를 갖는지 확인
+            ancestor_idx = None
+            for k in range(i - 1, -1, -1):
+                if items[k]["depth"] == d:
+                    ancestor_idx = k
+                    break
+                if items[k]["depth"] < d:
+                    break
+            if ancestor_idx is not None and _has_next_sibling(ancestor_idx):
+                parts.append("│  ")
+            else:
+                parts.append("   ")
+
+        # 현재 아이템의 연결 문자
+        if _has_next_sibling(i):
+            parts.append("├─ ")
+        else:
+            parts.append("└─ ")
+
+        prefixes[i] = "".join(parts)
+
+    return prefixes
+
+
 def _populate_hierarchy_collection(context, analysis):
     """deform 본 + 제외 본을 depth-first 순서로 CollectionProperty에 저장."""
     coll = context.scene.arp_source_hierarchy
@@ -58,6 +118,12 @@ def _populate_hierarchy_collection(context, analysis):
         ei = coll.add()
         ei.name = excl_name
         ei.depth = 0
+
+    # tree_prefix 계산
+    items_for_prefix = [{"name": item.name, "depth": item.depth} for item in coll]
+    prefixes = compute_tree_prefixes(items_for_prefix)
+    for i, item in enumerate(coll):
+        item.tree_prefix = prefixes[i]
 
 
 def _build_preview_hierarchy(preview_obj):

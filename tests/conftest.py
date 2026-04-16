@@ -7,7 +7,10 @@ import sys
 from unittest.mock import MagicMock
 
 # bpy를 mock으로 등록 (skeleton_analyzer.py의 import bpy 대응)
-sys.modules["bpy"] = MagicMock()
+bpy_mock = MagicMock()
+sys.modules["bpy"] = bpy_mock
+sys.modules["bpy.types"] = bpy_mock.types
+sys.modules["bpy.props"] = bpy_mock.props
 
 # scripts/ 디렉토리를 import 경로에 추가
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
