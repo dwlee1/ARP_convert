@@ -1,20 +1,30 @@
 # BlenderRigConvert 사용 가이드
 
+> **대상 독자**: 아티스트 — 애드온을 직접 사용해 리그를 변환하는 분들을 위한 문서입니다.
+> 이 애드온을 왜 만들었는지는 [BlenderRigConvert 제작 배경](Background.md)을 참고하세요.
+
+> **문서 기준**: BlenderRigConvert 현재 버전 / Blender 4.5 LTS / Auto-Rig Pro (2026-04-16 기준)
+
+---
+
 ## 사전 요구사항
 
 - Blender **4.5 LTS**
-- **Auto-Rig Pro** 애드온 설치 및 활성화 (유료 애드온)
+- **Auto-Rig Pro** 애드온 설치 및 활성화 ([Blender Market에서 구매](https://blendermarket.com/products/auto-rig-pro))
 - BlenderRigConvert 애드온 설치 및 활성화
 
 ---
 
 ## 설치
 
-1. Blender → Edit → Preferences → Add-ons → Install
-2. `arp_convert_addon.py`가 포함된 `scripts/` 폴더를 zip으로 묶어 설치하거나,
-   팀에서 공유된 설치 파일을 사용한다
-3. 설치 후 "ARP Convert" 애드온이 활성화되어 있는지 확인한다
-4. Blender 3D 뷰포트 → N 패널 → **ARP Convert** 탭이 보이면 준비 완료
+1. 팀 공유 폴더에서 최신 `BlenderRigConvert_vX.X.zip` 파일을 받는다
+   <!-- TODO: 팀 공유 경로 또는 저장소 링크 추가 -->
+2. Blender → Edit → Preferences → Add-ons → **Install from Disk**
+3. 받은 zip 파일을 선택한다
+4. 설치 후 목록에서 "ARP Convert"를 찾아 체크박스를 켠다
+5. Blender 3D 뷰포트 → **N 패널** → **ARP Convert** 탭이 보이면 준비 완료
+
+<!-- TODO: Preferences Add-ons 화면 스크린샷 추가 -->
 
 ---
 
@@ -50,6 +60,8 @@
 - 패널 헤더에 **신뢰도 %** 가 표시된다 (예: "신뢰도 87%")
 - 신뢰도가 낮을수록 다음 단계에서 수동 수정이 많이 필요하다
 
+<!-- TODO: 프리뷰 아마추어 생성 후 뷰포트 스크린샷 추가 (색상별 역할 표시 예시) -->
+
 > **프리뷰 아마추어란?**
 > 원본 리그를 건드리지 않고 역할 정보를 시각화하기 위한 임시 아마추어다.
 > 본 색상으로 역할을 표시한다 (파랑 = 척추, 빨강 = 뒷다리, 초록 = 앞다리 등).
@@ -65,6 +77,8 @@
    - 트리의 연결선(`├─`, `└─`)으로 부모-자식 관계를 파악할 수 있다
    - 본 이름 옆에 현재 역할이 한국어로 표시된다
 3. 역할이 틀린 본을 선택한 뒤, 아래 **역할 버튼**에서 올바른 역할을 클릭한다
+
+<!-- TODO: 계층 트리 + 역할 버튼 패널 스크린샷 추가 -->
 
 ### 역할 목록
 
@@ -111,6 +125,8 @@
 - 씬에 ARP 아마추어가 생성된다
 - 웨이트가 원본 메시에서 ARP 리그로 자동 전송된다
 - 패널 헤더에 체크마크(✓)가 표시된다
+
+<!-- TODO: Build Rig 완료 후 씬 스크린샷 추가 (ARP 아마추어 생성된 상태) -->
 
 > **폴 벡터 위치에 대해**: 다리 IK의 폴 벡터(무릎 방향 가이드) 위치가 이상하게 보일 수 있다.
 > 이는 ARP의 기본 동작이며 이 애드온에서 수정할 수 없다.

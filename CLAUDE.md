@@ -1,7 +1,7 @@
 # BlenderRigConvert
 
 동물 캐릭터 리그를 Auto-Rig Pro 기반으로 통일하고, 리그 생성을 자동화한다.
-리타게팅은 2026-04-02 전면 삭제 후 재설계 예정.
+리타게팅은 ARP 네이티브 리타겟(`bpy.ops.arp.retarget`)에 위임하는 방식으로 2026-04-06 재설계 완료.
 
 ## 환경
 
@@ -27,7 +27,7 @@
 | `scripts/arp_ops_preview.py` | CreatePreview 오퍼레이터 + hierarchy 헬퍼 |
 | `scripts/arp_ops_roles.py` | Role editing 오퍼레이터 (SelectBone/SetParent/SetRole) |
 | `scripts/arp_ops_build.py` | BuildRig 오퍼레이터 (가장 큰 execute 본문) |
-| `scripts/arp_ops_bake_regression.py` | BakeAnimation + RunRegression 오퍼레이터 |
+| `scripts/arp_ops_bake_regression.py` | SetupRetarget / ExecuteRetarget / CopyCustomScale / Cleanup + RunRegression 오퍼레이터 |
 | `scripts/arp_build_helpers.py` | BuildRig 내부 헬퍼 (ref 메타데이터, deform 매핑) |
 | `scripts/arp_def_separator.py` | DEF 본 분리 (역할 기반 계층 + Copy Transforms) |
 | `scripts/arp_cc_bones.py` | cc bone 생성 + constraint 복사 |
@@ -49,6 +49,7 @@
 | Build Rig 파이프라인 | `arp_ops_build.py` | `skeleton_analyzer.py`, `arp_build_helpers.py`, `arp_def_separator.py`, `arp_cc_bones.py`, `arp_weight_xfer.py`, `arp_foot_guides.py` |
 | MCP 자동화 | `mcp_bridge.py` | `arp_utils.py`, `skeleton_analyzer.py` |
 | CLI/배치 실행 | `pipeline_runner.py`, `03_batch_convert.py` | `arp_utils.py`, `skeleton_analyzer.py` |
+| 리타게팅 | `arp_ops_bake_regression.py`, `arp_retarget.py` | `arp_utils.py` |
 | 회귀 테스트 | `arp_ops_bake_regression.py` | `arp_fixture_io.py` |
 
 ## 핵심 데이터 구조
@@ -101,8 +102,12 @@ Source → `analyze_skeleton()` → Analysis → `create_preview_armature()` →
 
 - Preview는 분석/역할 수정/UI용으로 유지한다
 - Build Rig까지 구현 완료 (분석 → Preview → 역할 수정 → ARP 리그 생성)
-- **리타게팅 코드는 2026-04-02 전면 삭제됨** — 깨끗한 상태에서 재설계 예정
-- 이전 리타게팅 구현(F10/F11)은 git history 참조 (`8d49a91` 커밋 이전)
+- **리타게팅 구현 완료** — ARP 네이티브 리타겟 위임 방식 (`arp_retarget.py`, `arp_ops_bake_regression.py`)
+  - Setup Retarget: bone_pairs → bones_map_v2 자동 변환
+  - Re-Retarget: `bpy.ops.arp.retarget('INVOKE_DEFAULT')` 호출
+  - Copy Custom Scale: cc_ 커스텀 본 스케일 fcurve 별도 복사
+  - Cleanup: 소스/프리뷰 삭제 + _remap 액션 rename
+- 이전 리타게팅 구현(F10/F11, rest-delta bake)은 git history 참조 (`8d49a91` 커밋 이전)
 
 ## 검증
 
