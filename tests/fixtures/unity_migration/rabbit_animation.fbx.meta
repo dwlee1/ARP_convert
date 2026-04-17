@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f01ef593d9cf73a4e94a2ab37b4745c1
+ModelImporter:
+  serializedVersion: 22200
+  internalIDToNameTable:
+  - first:
+      74: 7400000
+    second: Rabbit_idle
+  - first:
+      74: 7400002
+    second: Rabbit_walk
+  - first:
+      74: 7400004
+    second: Rabbit_run
+  animationType: 2
