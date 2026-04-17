@@ -232,15 +232,20 @@ A는 정화 단계로서 완결. **후속 작업: B-1만 먼저 시도(1일) →
 | `center` | custom | root~pelvis 사이 본, ARP 슬롯 없음 |
 | `eye_L/R`, `mouth` | custom | CLAUDE.md 규칙상 face 본은 cc_ 처리 (정상) |
 
-→ **모든 잔존 custom은 의도된 결과**. A+B-1 조합으로 Rabbit 케이스의
-구조적 결함 4가지 중 1, 2, 3번 해결. 4번(아키텍처 설계)은 결함이 아니라
-관점의 차이로 재정의됨 — 입력 정화 단계만 적절히 추가하면 기존
-파이프라인이 FBX 입력을 cover한다.
+→ **bone_pairs 메타데이터 기준으로는 회복**. 다만 이 측정은
+`mcp_inspect_bone_pairs` 수치 비교이지 GUI/Unity 품질 검증이 아니다.
 
-### 다음 권고
+## 사용자 GUI 검증 결과 (2026-04-17)
 
-- **Unity sandbox 반입 재시도**: 현 시점 Rabbit `arp.blend` 품질로 Task 14~17
-  재진행 가치가 있다. 다음 세션 후보로 우선순위 재검토.
-- **lopear 등 다른 동물 검증**: rabbit과 비슷한 패턴이면 A+B-1 그대로 적용 가능.
-- **B-2~B-4 (skeleton_analyzer 확장)**: 더 이상 Rabbit 기준으로 필요하지 않음.
-  다른 동물에서 새 결함 발견 시에만 추가 검토.
+A+B-1 적용 후 빌드된 Rabbit `.blend`를 사용자가 Blender GUI에서 직접 확인.
+**판정: 여전히 품질 미달**. bone_pair 수치 회복으로는 실사용 수준이 아님을
+실측으로 확인.
+
+### 결정: FBX 입력 경로 중단
+
+- **Phase 2 FBX 전처리 작업은 여기서 일단 보류**
+- **blend-first (후보 C) 경로로 전환** — 아트 팀 원본 `.blend` 사용
+- `tools/fbx_preprocess.py` + `_apply_preprocess`는 **코드로 보존** (삭제 금지)
+  — 원본 확보 불가한 동물이 나오면 재활용
+- B-2~B-4(skeleton_analyzer 확장)는 **blend-first로 다른 동물을 처리한 후에도
+  FBX 경로가 필요하다고 확인되면** 재개

@@ -248,29 +248,47 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ## Unity 프로젝트 이주
 
-사족보행 21마리 리그를 Unity FBX 원본에서 ARP로 변환해 재반입하는 별도 트랙.
+사족보행 21마리 리그를 ARP로 통일하는 별도 트랙.
+
+### 현재 상태 (2026-04-17 이후: FBX 경로 보류)
+
+사용자가 Rabbit `.blend` GUI 확인 결과 A+B-1 전처리 후에도 품질이 여전히
+미달이라고 판정. **FBX 입력 경로는 중단하고 원본 .blend 경로(후보 C)로 전환.**
+
+- `bone_pairs` 메타데이터 수치(role 21 / custom 6)는 복구됐으나 실제 rest pose /
+  애니메이션 품질은 실사용 수준이 아님 → 구조적 gap이 A+B-1로 완전 해결되지
+  않음을 의미
+- `tools/fbx_preprocess.py` + `tools/fbx_to_blend.py`의 `_apply_preprocess`는
+  **코드로 보존** (master에 merge됨, 삭제 금지) — 원본 .blend를 구할 수 없는
+  동물이 나오면 재활용
+
+### 재개 조건 (FBX 경로)
+
+아래 중 하나가 발생하면 FBX 경로 재검토:
+- 아트 팀에서 일부 동물의 원본 .blend를 확보 불가로 확인됨
+- 다른 동물(lopear 등)을 blend-first로 처리한 뒤 공통 패턴이 축적되어
+  FBX 전처리 B-2~B-4를 구체화할 수 있는 근거가 생김
+
+재개 시 참고 문서:
+- `docs/superpowers/pilot/rabbit_diagnosis.md` — 구조적 gap 4가지 + A/B-1/B-2~B-4 후보
+- `docs/superpowers/pilot/rabbit_report.md` — Phase 1 파일럿 종료 상태
+- `tools/fbx_preprocess.py` — 현재 구현된 A-1/A-2/A-3/B-1
+- `tests/test_fbx_preprocess.py` — 26 pytest 커버
+
+### 완료된 작업 (보존)
 
 - [x] 설계 (2026-04-16 `docs/superpowers/specs/2026-04-16-unity-migration-design.md`)
 - [x] Phase 0 인벤토리 — `docs/MigrationInventory.csv`, in_scope=22
 - [x] pre-pilot 도구 — `tools/build_migration_inventory.py`, `tools/fbx_to_blend.py`
-- [x] Phase 1 Rabbit 파일럿 — 리포트 `docs/superpowers/pilot/rabbit_report.md`
-  - 결과: **부분 통과** (파이프라인 자동 완료, Unity 반입 이전 품질 기준 미달로 중단)
-  - 4가지 구조적 gap 발견: FK 컨트롤러 잔재 유입 / leaf 본 tail 손실 / root 오배정 / .blend 원본 전제 설계
-  - 상세: `docs/superpowers/pilot/rabbit_diagnosis.md`
-- [x] **Phase 2 후보 A + B-1 구현** (2026-04-17)
-  - `tools/fbx_preprocess.py` 신규 (순수 helper, 26 pytest)
-    - A-1: 컨트롤러 본 자동 제거 (`_FK`, `_IK`, `_nomove`, `_ctrl`, `_pole` suffix)
-    - A-2: 고아 본 식별 (자동 삭제 금지 — `Food` 같은 어태치먼트 보존, 보고만)
-    - A-3: leaf 본 tail length 정규화 (parent length * 0.1)
-    - B-1: mirror deform 본 reparent (`chest_nomove` → `chest`로 자식 이동)
-  - `tools/fbx_to_blend.py`에 `_apply_preprocess` 통합
-  - Rabbit 재측정: role 21 / custom 6 (모든 다리 정상, FK 정화, Food 보존)
-  - 잔존 custom은 모두 의도된 결과 (root, Food, center, eye_L/R, mouth)
-- [ ] **다음 단계 후보** (다음 세션에서 선택)
-  - Unity sandbox 반입 재시도 — Task 14~17 (ARP 익스포트 → swap → play mode 검증)
-  - lopear 등 다른 동물 검증 (rabbit과 패턴 유사하면 A+B-1 그대로 적용)
-  - origin/master push (현재 25 commits ahead)
-- [ ] Phase 3 배치 20마리
+- [x] Phase 1 Rabbit 파일럿 (FBX 경로) — **중단**
+- [x] Phase 2 후보 A + B-1 구현 (FBX 전처리) — **코드 보존, 사용 보류**
+
+### 다음 트랙: blend-first (후보 C)
+
+- [ ] 아트 팀에 21마리 원본 `.blend` 확보 가능 여부 확인
+- [ ] 첫 blend-first 동물 선정 (Rabbit부터 재시도 or 다른 동물)
+- [ ] 기존 여우/너구리 workflow(.blend → Build Rig) 그대로 적용 가능 여부 측정
+- [ ] Phase 3 배치 20마리 (blend-first 기준)
 - [ ] Phase 4 마무리
 
 ## 우선순위

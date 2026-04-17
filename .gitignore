@@ -33,4 +33,5 @@ docs/_scratch/
 blender_mcp_addon.py
 
 # Unity 이주 파일럿 로컬 산출물 (blend/fbx/conversion_result.json/체크포인트 메모)
-pilot/
+# 루트의 /pilot/ 만 대상 — docs/superpowers/pilot/ 의 리포트는 추적됨
+/pilot/
