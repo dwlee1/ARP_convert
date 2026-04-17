@@ -20,3 +20,15 @@ def test_parse_meta_guid_returns_none_if_missing(tmp_path):
     bad_meta = tmp_path / "no_guid.meta"
     bad_meta.write_text("fileFormatVersion: 2\n", encoding="utf-8")
     assert bmi.parse_meta_guid(bad_meta) is None
+
+
+def test_parse_meta_clip_names_extracts_ordered_list():
+    meta_path = FIXTURE_DIR / "rabbit_animation.fbx.meta"
+    clips = bmi.parse_meta_clip_names(meta_path)
+    assert clips == ["Rabbit_idle", "Rabbit_walk", "Rabbit_run"]
+
+
+def test_parse_meta_clip_names_empty_when_no_table(tmp_path):
+    meta = tmp_path / "no_clips.fbx.meta"
+    meta.write_text("guid: abc\nModelImporter:\n  serializedVersion: 1\n", encoding="utf-8")
+    assert bmi.parse_meta_clip_names(meta) == []
