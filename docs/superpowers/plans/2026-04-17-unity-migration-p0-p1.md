@@ -437,41 +437,46 @@ git commit -m "feat(migration): prefab guid 참조 카운터 추가"
 ### Task 6: 한 animation FBX에 대한 row 조립 (TDD)
 
 **Files:**
-- Create: `tests/fixtures/unity_migration/Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx` (빈 파일)
-- Create: `tests/fixtures/unity_migration/Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx.meta` (기존 fixture 복사본 배치)
-- Create: `tests/fixtures/unity_migration/Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx` (빈 파일)
-- Create: `tests/fixtures/unity_migration/Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx.meta`
-- Create: `tests/fixtures/unity_migration/Assets/6_Animations/Animals/Controllers/Landmark/AnimalController_0_Rabbit.controller` (복사본)
-- Create: `tests/fixtures/unity_migration/Assets/3_Prefabs/Animals/Animal_0.prefab` (복사본)
-- Create: `tests/fixtures/unity_migration/Assets/3_Prefabs/Animals/Animal_1.prefab` (복사본)
+- Create: `tests/fixtures/mini_unity/Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx` (빈 파일)
+- Create: `tests/fixtures/mini_unity/Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx.meta` (기존 fixture 복사본 배치)
+- Create: `tests/fixtures/mini_unity/Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx` (빈 파일)
+- Create: `tests/fixtures/mini_unity/Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx.meta`
+- Create: `tests/fixtures/mini_unity/Assets/6_Animations/Animals/Controllers/Landmark/AnimalController_0_Rabbit.controller` (복사본)
+- Create: `tests/fixtures/mini_unity/Assets/3_Prefabs/Animals/Animal_0.prefab` (복사본)
+- Create: `tests/fixtures/mini_unity/Assets/3_Prefabs/Animals/Animal_1.prefab` (복사본)
 - Modify: `tests/test_build_migration_inventory.py`
 - Modify: `tools/build_migration_inventory.py`
+
+> **Note**: fixture 트리는 `tests/fixtures/mini_unity/`에 **별도로** 둔다. 기존 Tasks 2-5 테스트는 `FIXTURE_DIR = tests/fixtures/unity_migration/`를 `rglob`하므로, 같은 경로 아래 `Assets/`를 두면 컨트롤러/프리팹이 중복 수집되어 기존 테스트가 깨진다.
 
 - [ ] **Step 1: 미니 Unity 디렉터리 트리 구성**
 
 기존 fixture 파일들을 `Assets/...` 경로로 복제해 실제 프로젝트 배치를 흉내 낸다.
 
 ```bash
-cd tests/fixtures/unity_migration
-mkdir -p "Assets/5_Models/02. Animals/00.Rabbit"
-mkdir -p "Assets/6_Animations/Animals/Controllers/Landmark"
-mkdir -p "Assets/3_Prefabs/Animals"
+mkdir -p "tests/fixtures/mini_unity/Assets/5_Models/02. Animals/00.Rabbit"
+mkdir -p "tests/fixtures/mini_unity/Assets/6_Animations/Animals/Controllers/Landmark"
+mkdir -p "tests/fixtures/mini_unity/Assets/3_Prefabs/Animals"
 
-touch "Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx"
-cp rabbit_animation.fbx.meta "Assets/5_Models/02. Animals/00.Rabbit/"
+cd tests/fixtures
+touch "mini_unity/Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx"
+cp unity_migration/rabbit_animation.fbx.meta "mini_unity/Assets/5_Models/02. Animals/00.Rabbit/"
 
-touch "Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx"
-cat > "Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx.meta" <<'EOF'
+touch "mini_unity/Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx"
+cat > "mini_unity/Assets/5_Models/02. Animals/00.Rabbit/Rabbit_DutchBrown.fbx.meta" <<'EOF'
 fileFormatVersion: 2
 guid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ModelImporter:
   serializedVersion: 22200
 EOF
 
-cp AnimalController_0_Rabbit.controller "Assets/6_Animations/Animals/Controllers/Landmark/"
-cp Animal_0.prefab "Assets/3_Prefabs/Animals/"
-cp Animal_1.prefab "Assets/3_Prefabs/Animals/"
+cp unity_migration/AnimalController_0_Rabbit.controller "mini_unity/Assets/6_Animations/Animals/Controllers/Landmark/"
+cp unity_migration/Animal_0.prefab "mini_unity/Assets/3_Prefabs/Animals/"
+cp unity_migration/Animal_1.prefab "mini_unity/Assets/3_Prefabs/Animals/"
+cd ../..
 ```
+
+테스트 파일 상단에 `MINI_UNITY_DIR = PROJECT_ROOT / "tests" / "fixtures" / "mini_unity"` 추가.
 
 - [ ] **Step 2: 실패 테스트 추가**
 
@@ -479,7 +484,7 @@ cp Animal_1.prefab "Assets/3_Prefabs/Animals/"
 
 ```python
 def test_build_row_for_rabbit_animation_fbx():
-    unity_root = FIXTURE_DIR
+    unity_root = MINI_UNITY_DIR
     fbx = unity_root / "Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx"
     row = bmi.build_row(fbx, unity_root)
 
@@ -564,7 +569,7 @@ Expected: 9 passed
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add tests/fixtures/unity_migration/Assets \
+git add tests/fixtures/mini_unity \
         tests/test_build_migration_inventory.py \
         tools/build_migration_inventory.py
 git commit -m "feat(migration): animation FBX row 조립 함수 추가"
@@ -615,7 +620,7 @@ def test_write_csv_produces_expected_header_and_row(tmp_path):
 
 
 def test_collect_rows_scans_animation_fbxs_under_assets():
-    rows = bmi.collect_rows(FIXTURE_DIR)
+    rows = bmi.collect_rows(MINI_UNITY_DIR)
     assert len(rows) == 1
     assert rows[0]["id"] == "Rabbit"
 ```
