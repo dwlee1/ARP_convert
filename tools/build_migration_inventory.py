@@ -89,3 +89,19 @@ def find_controllers_referencing_guid(search_root: Path, target_guid: str) -> li
                 matches.append(ctrl)
                 break
     return matches
+
+
+def count_prefabs_referencing_guid(search_root: Path, target_guid: str) -> int:
+    """search_root 아래 *.prefab 중 m_SourcePrefab이 target_guid를 참조하는 파일 수."""
+    needle = f"guid: {target_guid.lower()}"
+    count = 0
+    for pf in search_root.rglob("*.prefab"):
+        try:
+            text = pf.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if "m_SourcePrefab" in line and needle in line:
+                count += 1
+                break
+    return count

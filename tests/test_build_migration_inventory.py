@@ -76,3 +76,24 @@ def test_find_controllers_referencing_guid_case_insensitive_on_guid():
     matches = bmi.find_controllers_referencing_guid(FIXTURE_DIR, rabbit_guid_upper)
     names = sorted(p.name for p in matches)
     assert names == ["AnimalController_0_Rabbit.controller"]
+
+
+def test_count_prefabs_referencing_guid_only_counts_matches():
+    rabbit_guid = "f01ef593d9cf73a4e94a2ab37b4745c1"
+    assert bmi.count_prefabs_referencing_guid(FIXTURE_DIR, rabbit_guid) == 2
+
+
+def test_count_prefabs_returns_zero_when_no_match():
+    assert bmi.count_prefabs_referencing_guid(FIXTURE_DIR, "0" * 32) == 0
+
+
+def test_count_prefabs_only_counts_m_source_prefab_field():
+    rabbit_guid = "f01ef593d9cf73a4e94a2ab37b4745c1"
+    # PrefabWithNonSourceGuid has rabbit guid in m_CorrespondingSourceObject (non-match)
+    # but m_SourcePrefab there points to a different guid, so total should still be 2.
+    assert bmi.count_prefabs_referencing_guid(FIXTURE_DIR, rabbit_guid) == 2
+
+
+def test_count_prefabs_case_insensitive_on_guid():
+    rabbit_guid_upper = "F01EF593D9CF73A4E94A2AB37B4745C1"
+    assert bmi.count_prefabs_referencing_guid(FIXTURE_DIR, rabbit_guid_upper) == 2

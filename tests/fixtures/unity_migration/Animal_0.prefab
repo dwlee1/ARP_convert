@@ -1,0 +1,5 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &1
+PrefabInstance:
+  m_SourcePrefab: {fileID: 100100000, guid: f01ef593d9cf73a4e94a2ab37b4745c1, type: 3}
