@@ -73,3 +73,16 @@ def parse_meta_clip_names(meta_path: Path) -> list[str]:
     if "internalIDToNameTable:" not in text:
         return []
     return _CLIP_NAME_RE.findall(_extract_table_block(text))
+
+
+def find_controllers_referencing_guid(search_root: Path, target_guid: str) -> list[Path]:
+    """search_root 아래 *.controller 파일 중 m_Motion에서 target_guid 참조하는 것."""
+    needle = f"guid: {target_guid}"
+    matches: list[Path] = []
+    for ctrl in search_root.rglob("*.controller"):
+        try:
+            if needle in ctrl.read_text(encoding="utf-8"):
+                matches.append(ctrl)
+        except OSError:
+            continue
+    return matches

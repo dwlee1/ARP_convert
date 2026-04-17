@@ -49,3 +49,15 @@ def test_parse_meta_clip_names_ignores_second_outside_table(tmp_path: Path) -> N
         encoding="utf-8",
     )
     assert bmi.parse_meta_clip_names(meta) == ["ClipA"]
+
+
+def test_find_controllers_referencing_guid_returns_matches_only():
+    rabbit_guid = "f01ef593d9cf73a4e94a2ab37b4745c1"
+    matches = bmi.find_controllers_referencing_guid(FIXTURE_DIR, rabbit_guid)
+    names = sorted(p.name for p in matches)
+    assert names == ["AnimalController_0_Rabbit.controller"]
+
+
+def test_find_controllers_referencing_guid_empty_when_no_match():
+    matches = bmi.find_controllers_referencing_guid(FIXTURE_DIR, "0" * 32)
+    assert matches == []
