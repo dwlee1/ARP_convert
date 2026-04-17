@@ -36,6 +36,23 @@ def is_controller_bone(name: str) -> bool:
     return base.endswith(CONTROLLER_SUFFIXES)
 
 
+def _mirror_deform_name(controller_name: str, deform_names: set[str]) -> str | None:
+    """컨트롤러 이름의 suffix를 벗긴 이름이 deform 본으로 존재하면 그 이름 반환.
+
+    side suffix(`.l/.r/_L/_R`)는 보존한다.
+    예: `chest_nomove` → `chest`, `leg_pole.l` → `leg.l`, `hand_IK_L` → `hand_L`.
+    """
+    side_match = _SIDE_SUFFIX_RE.search(controller_name)
+    side = side_match.group(0) if side_match else ""
+    base = controller_name[: -len(side)] if side else controller_name
+    for suffix in CONTROLLER_SUFFIXES:
+        if base.endswith(suffix):
+            candidate = base[: -len(suffix)] + side
+            if candidate in deform_names:
+                return candidate
+    return None
+
+
 def plan_controller_removal(bones: dict[str, dict]) -> dict:
     """컨트롤러 본 제거 + 자식 reparent 계획을 반환.
 
@@ -44,9 +61,14 @@ def plan_controller_removal(bones: dict[str, dict]) -> dict:
 
     Returns:
         `{"remove": [name, ...], "reparent": {child_name: new_parent | None}}`.
-        `new_parent`는 가장 가까운 비-컨트롤러 조상. 없으면 None (top-level).
+
+        `new_parent` 결정 우선순위:
+        1. 부모 컨트롤러의 mirror deform 본 (예: `chest_nomove` → `chest`)
+        2. 가장 가까운 비-컨트롤러 조상
+        3. 위 둘 다 없으면 None (top-level)
     """
     controllers = {n for n in bones if is_controller_bone(n)}
+    deform_names = set(bones) - controllers
     reparent: dict[str, str | None] = {}
 
     for name, info in bones.items():
@@ -54,6 +76,10 @@ def plan_controller_removal(bones: dict[str, dict]) -> dict:
             continue
         parent = info.get("parent")
         if parent is None or parent not in controllers:
+            continue
+        mirror = _mirror_deform_name(parent, deform_names)
+        if mirror is not None:
+            reparent[name] = mirror
             continue
         cur: str | None = parent
         while cur is not None and cur in controllers:

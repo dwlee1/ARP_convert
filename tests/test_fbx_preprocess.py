@@ -104,6 +104,70 @@ class TestPlanControllerRemoval:
         assert plan["reparent"] == {"child": None}
 
 
+class TestMirrorReparent:
+    """B-1: 컨트롤러의 mirror deform 본이 있으면 climb 대신 mirror로 reparent."""
+
+    def test_chest_nomove_reparents_head_to_chest_when_chest_exists(self):
+        """rabbit 핵심 케이스: chest 존재 시 head → chest (center가 아님)."""
+        bones = {
+            "root": {"parent": None},
+            "center": {"parent": "root"},
+            "spine01": {"parent": "center"},
+            "chest": {"parent": "spine01"},
+            "spine01_FK": {"parent": "center"},
+            "chest_FK": {"parent": "spine01_FK"},
+            "chest_nomove": {"parent": "chest_FK"},
+            "head": {"parent": "chest_nomove"},
+        }
+        plan = pre.plan_controller_removal(bones)
+        assert plan["reparent"] == {"head": "chest"}
+
+    def test_no_mirror_falls_back_to_ancestor_climb(self):
+        """mirror 본이 없으면 기존 동작(비-컨트롤러 조상으로 climb) 유지."""
+        bones = {
+            "root": {"parent": None},
+            "ctrl_FK": {"parent": "root"},
+            "child": {"parent": "ctrl_FK"},
+        }
+        plan = pre.plan_controller_removal(bones)
+        assert plan["reparent"] == {"child": "root"}
+
+    def test_mirror_preserves_side_suffix(self):
+        """`leg_pole.l` → mirror = `leg.l` (side suffix 보존)."""
+        bones = {
+            "root": {"parent": None},
+            "leg.l": {"parent": "root"},
+            "leg_pole.l": {"parent": "root"},
+            "child": {"parent": "leg_pole.l"},
+        }
+        plan = pre.plan_controller_removal(bones)
+        assert plan["reparent"] == {"child": "leg.l"}
+
+    def test_mirror_with_unity_side_suffix(self):
+        """`hand_IK_L` → mirror = `hand_L`."""
+        bones = {
+            "root": {"parent": None},
+            "hand_L": {"parent": "root"},
+            "hand_IK_L": {"parent": "root"},
+            "child": {"parent": "hand_IK_L"},
+        }
+        plan = pre.plan_controller_removal(bones)
+        assert plan["reparent"] == {"child": "hand_L"}
+
+    def test_mirror_target_must_be_non_controller(self):
+        """mirror 후보가 다른 컨트롤러면 사용하지 않고 climb."""
+        bones = {
+            "root": {"parent": None},
+            "chest_FK": {
+                "parent": "root"
+            },  # mirror 후보 'chest' = 컨트롤러 아님이지만 본 자체 없음
+            "head": {"parent": "chest_FK"},
+        }
+        plan = pre.plan_controller_removal(bones)
+        # chest 본 없음 → climb to root
+        assert plan["reparent"] == {"head": "root"}
+
+
 # ──────────────────────────────────────────────────────────────────────
 # A-2: 고아 본 감지 (parent=None인데 primary root가 아닌 본)
 # ──────────────────────────────────────────────────────────────────────
