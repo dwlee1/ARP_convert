@@ -246,6 +246,24 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] 애드온 등록 업데이트 (아이콘/핸들러 register/unregister)
 - [x] 오퍼레이터 상태 플래그 + bone count 캐시
 
+## Unity 프로젝트 이주
+
+사족보행 21마리 리그를 Unity FBX 원본에서 ARP로 변환해 재반입하는 별도 트랙.
+
+- [x] 설계 (2026-04-16 `docs/superpowers/specs/2026-04-16-unity-migration-design.md`)
+- [x] Phase 0 인벤토리 — `docs/MigrationInventory.csv`, in_scope=22
+- [x] pre-pilot 도구 — `tools/build_migration_inventory.py`, `tools/fbx_to_blend.py`
+- [x] Phase 1 Rabbit 파일럿 — 리포트 `docs/superpowers/pilot/rabbit_report.md`
+  - 결과: **부분 통과** (파이프라인 자동 완료, Unity 반입 이전 품질 기준 미달로 중단)
+  - 4가지 구조적 gap 발견: FK 컨트롤러 잔재 유입 / leaf 본 tail 손실 / root 오배정 / .blend 원본 전제 설계
+  - 상세: `docs/superpowers/pilot/rabbit_diagnosis.md`
+- [ ] **Phase 2 도구화 결정 게이트** (Task 18 권고 = b+c 혼합)
+  - 아트 팀 원본 .blend 확보 여부 조사 (C 경로 가능성)
+  - `tools/fbx_to_blend.py` 확장(컨트롤러 필터 + leaf tail 정규화) Tier 3 spec 분기
+  - 결과 재측정 후 skeleton_analyzer 확장(B) 필요성 판단
+- [ ] Phase 3 배치 20마리
+- [ ] Phase 4 마무리
+
 ## 우선순위
 
 1. **자동 역할 추론 정확도 개선** — 새 동물 리그 대응
