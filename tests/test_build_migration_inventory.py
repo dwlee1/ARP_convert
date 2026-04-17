@@ -61,3 +61,18 @@ def test_find_controllers_referencing_guid_returns_matches_only():
 def test_find_controllers_referencing_guid_empty_when_no_match():
     matches = bmi.find_controllers_referencing_guid(FIXTURE_DIR, "0" * 32)
     assert matches == []
+
+
+def test_find_controllers_referencing_guid_only_matches_m_motion():
+    rabbit_guid = "f01ef593d9cf73a4e94a2ab37b4745c1"
+    matches = bmi.find_controllers_referencing_guid(FIXTURE_DIR, rabbit_guid)
+    names = sorted(p.name for p in matches)
+    assert "ControllerWithNonMotionGuid.controller" not in names
+    assert names == ["AnimalController_0_Rabbit.controller"]
+
+
+def test_find_controllers_referencing_guid_case_insensitive_on_guid():
+    rabbit_guid_upper = "F01EF593D9CF73A4E94A2AB37B4745C1"
+    matches = bmi.find_controllers_referencing_guid(FIXTURE_DIR, rabbit_guid_upper)
+    names = sorted(p.name for p in matches)
+    assert names == ["AnimalController_0_Rabbit.controller"]

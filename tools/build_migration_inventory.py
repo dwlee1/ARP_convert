@@ -77,12 +77,15 @@ def parse_meta_clip_names(meta_path: Path) -> list[str]:
 
 def find_controllers_referencing_guid(search_root: Path, target_guid: str) -> list[Path]:
     """search_root 아래 *.controller 파일 중 m_Motion에서 target_guid 참조하는 것."""
-    needle = f"guid: {target_guid}"
+    needle = f"guid: {target_guid.lower()}"
     matches: list[Path] = []
     for ctrl in search_root.rglob("*.controller"):
         try:
-            if needle in ctrl.read_text(encoding="utf-8"):
-                matches.append(ctrl)
+            text = ctrl.read_text(encoding="utf-8")
         except OSError:
             continue
+        for line in text.splitlines():
+            if "m_Motion" in line and needle in line:
+                matches.append(ctrl)
+                break
     return matches
