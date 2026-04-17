@@ -42,7 +42,7 @@ def resolve_fbx_paths(row: dict, unity_root: Path) -> tuple[Path, list[Path]]:
 
 
 def _reconstruct_in_blender(anim_fbx: Path, model_fbxs: list[Path], output: Path) -> None:
-    """Blender 내부 전용 — factory reset → animation FBX import → model FBX import → mesh reparent → save."""
+    """Blender 내부 전용 — factory reset → animation FBX import → model FBX import → mesh reparent → preprocess → save."""
     import bpy  # Blender 런타임에만 존재
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -69,8 +69,66 @@ def _reconstruct_in_blender(anim_fbx: Path, model_fbxs: list[Path], output: Path
                     if mod.type == "ARMATURE":
                         mod.object = master_arm
 
+    stats = _apply_preprocess(master_arm)
+    print(f"[fbx_to_blend] preprocess: {stats}")
+
     output.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(output))
+
+
+def _apply_preprocess(armature) -> dict:
+    """armature에 fbx_preprocess 3단계(A-1/A-2/A-3) 적용. 통계 dict 반환."""
+    import bpy
+
+    tools_dir = str(Path(__file__).parent)
+    if tools_dir not in sys.path:
+        sys.path.insert(0, tools_dir)
+    import fbx_preprocess as pre
+
+    bones_data = {
+        b.name: {
+            "parent": b.parent.name if b.parent else None,
+            "length": b.length,
+        }
+        for b in armature.data.bones
+    }
+
+    a1_plan = pre.plan_controller_removal(bones_data)
+    a2_orphans = pre.find_orphan_bones(bones_data)
+    a3_shrink = pre.compute_leaf_tail_shrink(bones_data, ratio=0.1)
+
+    bpy.context.view_layer.objects.active = armature
+    bpy.ops.object.mode_set(mode="EDIT")
+    eb = armature.data.edit_bones
+
+    for child_name, new_parent_name in a1_plan["reparent"].items():
+        if child_name not in eb:
+            continue
+        eb[child_name].parent = eb.get(new_parent_name) if new_parent_name else None
+
+    for name in a1_plan["remove"]:
+        if name in eb:
+            eb.remove(eb[name])
+
+    for name in a2_orphans:
+        if name in eb:
+            eb.remove(eb[name])
+
+    for name, new_length in a3_shrink.items():
+        if name not in eb:
+            continue
+        b = eb[name]
+        direction = (b.tail - b.head).normalized()
+        b.tail = b.head + direction * new_length
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    return {
+        "controllers_removed": len(a1_plan["remove"]),
+        "controllers_reparented": len(a1_plan["reparent"]),
+        "orphans_removed": len(a2_orphans),
+        "leaves_shrunk": len(a3_shrink),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
