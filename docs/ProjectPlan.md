@@ -257,10 +257,19 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
   - 결과: **부분 통과** (파이프라인 자동 완료, Unity 반입 이전 품질 기준 미달로 중단)
   - 4가지 구조적 gap 발견: FK 컨트롤러 잔재 유입 / leaf 본 tail 손실 / root 오배정 / .blend 원본 전제 설계
   - 상세: `docs/superpowers/pilot/rabbit_diagnosis.md`
-- [ ] **Phase 2 도구화 결정 게이트** (Task 18 권고 = b+c 혼합)
-  - 아트 팀 원본 .blend 확보 여부 조사 (C 경로 가능성)
-  - `tools/fbx_to_blend.py` 확장(컨트롤러 필터 + leaf tail 정규화) Tier 3 spec 분기
-  - 결과 재측정 후 skeleton_analyzer 확장(B) 필요성 판단
+- [x] **Phase 2 후보 A + B-1 구현** (2026-04-17)
+  - `tools/fbx_preprocess.py` 신규 (순수 helper, 26 pytest)
+    - A-1: 컨트롤러 본 자동 제거 (`_FK`, `_IK`, `_nomove`, `_ctrl`, `_pole` suffix)
+    - A-2: 고아 본 식별 (자동 삭제 금지 — `Food` 같은 어태치먼트 보존, 보고만)
+    - A-3: leaf 본 tail length 정규화 (parent length * 0.1)
+    - B-1: mirror deform 본 reparent (`chest_nomove` → `chest`로 자식 이동)
+  - `tools/fbx_to_blend.py`에 `_apply_preprocess` 통합
+  - Rabbit 재측정: role 21 / custom 6 (모든 다리 정상, FK 정화, Food 보존)
+  - 잔존 custom은 모두 의도된 결과 (root, Food, center, eye_L/R, mouth)
+- [ ] **다음 단계 후보** (다음 세션에서 선택)
+  - Unity sandbox 반입 재시도 — Task 14~17 (ARP 익스포트 → swap → play mode 검증)
+  - lopear 등 다른 동물 검증 (rabbit과 패턴 유사하면 A+B-1 그대로 적용)
+  - origin/master push (현재 25 commits ahead)
 - [ ] Phase 3 배치 20마리
 - [ ] Phase 4 마무리
 
