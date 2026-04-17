@@ -76,8 +76,6 @@ def main() -> None:
     details: list[tuple[str, str, str]] = []  # (id, tag, path-or-message)
 
     for row in unity_rows:
-        if row.get("scope") != "in_scope":
-            continue
         uid = row["id"]
 
         hit = match_by_normalized(uid, blend_rows)
