@@ -154,5 +154,57 @@ Task 11에서 baseline 녹화 생략. 대신 Blender GUI 육안 기준.
 
 **Phase 2 결정 인풋**:
 1. 아트 팀 원본 .blend 확보 가능 여부 (C 가능성 판단)
-2. A만으로 재시도 시 나머지 문제(B 영역)가 얼마나 남는지 — A 구현 후 Rabbit 재실행으로 측정
+2. A만으로 재시도 시 나머지 문제(B 영역)가 얼마나 남는지 — A 구현 후 Rabbit 재실행으로 측정 → **아래 "A 재측정 결과" 참조**
 3. A+B 도구화 투자 3~5일 vs 21마리 수작업 ≒ ? (실측치 없어 Task 18 보류)
+
+## A 재측정 결과 (2026-04-17, commit `a620f3b`)
+
+후보 A(`tools/fbx_preprocess.py`) 구현 후 Rabbit 파이프라인 재실행.
+
+### 전처리 자체는 의도대로 동작
+
+| 항목 | 수치 | 비고 |
+|------|------|------|
+| controllers_removed | 3 | `spine01_FK`, `chest_FK`, `chest_nomove` (관찰 1 해결) |
+| controllers_reparented | 1 | `head` 부모를 `chest_nomove` → `center`로 이동 |
+| orphans_removed | 1 | `Food` (관찰 3 부분 해결) |
+| leaves_shrunk | 10 | `eye_L/R`, `mouth`, `toe_L/R`, `tail02`, `hand_L/R`, `ear03_L/R` (관찰 2 해결) |
+| 소스 본 개수 | 37 → 33 | 정화 성공 |
+
+### 그러나 ARP 매핑은 회귀 발생
+
+| 항목 | 전처리 전 (`0efe2c0`) | 전처리 후 (`a620f3b`) |
+|------|---------------------|---------------------|
+| bone_pairs 총 개수 | 30 | 30 |
+| 역할 매핑 | 21 | **16 (-5)** |
+| 커스텀 본 | 9 | **14 (+5)** |
+| 앞다리 매핑 | `c_thigh_b_dupli_001.l/r ← shoulder_L/R` ✓ | `c_thigh_b.l/r ← shoulder_L/R` (백다리 슬롯에 잘못 매핑) |
+| 뒷다리 매핑 | `c_thigh_b.l/r ← thigh_L/R` ✓ | **모두 custom으로 전락** (`thigh_L/leg_L/foot_L/toe_L`) |
+| spine_02 매핑 | `c_spine_02.x ← chest` ✓ | **누락** (chest가 custom으로 전락) |
+
+### 원인 분석
+
+전처리로 hierarchy가 정화되어 head가 `chest_nomove` 대신 `center`의 직접 자식이 됨.
+`skeleton_analyzer`의 leg/spine 추론 휴리스틱이 다음 가정에 의존:
+- 척추 체인의 끝에 head/neck 본이 연결되어 있어야 spine 길이 측정이 가능
+- 두 쌍의 다리(앞/뒤) 구분 시 척추 방향 + 본 위치를 사용
+
+전처리 후 `head`가 척추 끝이 아닌 `center`의 직접 자식 위치로 이동하면서 척추 구조 인식이 깨졌고, 결과적으로 다리 4본 체인 두 쌍 중 하나만 "leg" 역할로 잡히고 다른 하나는 unmapped.
+
+### 결론: 후보 B(skeleton_analyzer 확장) 필수
+
+A만으로는 Rabbit 케이스를 cover할 수 없음을 실측으로 확정. 후보 B 작업 항목:
+
+- **B-1**. `head` 본을 척추 체인 말단(`chest`)에 자동 reparent — 전처리에서 mirror chain 탐지 추가
+- **B-2**. 4본 다리(`thigh→leg→foot→toe`) 패턴을 quadruped 표준 leg로 직접 인식
+- **B-3**. shoulder→hand 5본 체인을 quadruped 앞다리(`thigh_b_dupli_001` 슬롯)로 명시 매핑
+- **B-4**. `DEF-` prefix를 deform 본 hint로 사용 (현재는 일반 이름 취급)
+
+추정 작업량: 2~3일. 후보 A와 합쳐서 총 3~5일 (원 추정과 일치).
+
+또는 B-1만 후보 A에 추가하는 작은 보완으로도 효과 검증 가능 (1일):
+- "FK 잔재 본을 제거할 때, 그 본의 자식이 갈 수 있는 mirror deform 본이 있으면 그쪽으로 reparent"
+
+### 권고 갱신
+
+A는 정화 단계로서 완결. **후속 작업: B-1만 먼저 시도(1일) → 재측정** 후 B 전체 필요성 판단.
