@@ -175,7 +175,7 @@ CSV_COLUMNS = [
 ]
 
 
-def _encode_list(v):
+def _encode_list(v: object) -> object:
     if isinstance(v, list):
         return ";".join(v)
     return v
