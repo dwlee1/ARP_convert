@@ -57,7 +57,7 @@ def _reconstruct_in_blender(anim_fbx: Path, model_fbxs: list[Path], output: Path
     for model_fbx in model_fbxs:
         before = set(bpy.data.objects)
         bpy.ops.import_scene.fbx(filepath=str(model_fbx))
-        added = [bpy.data.objects[n] for n in bpy.data.objects if n not in before]
+        added = [obj for obj in bpy.data.objects if obj not in before]
 
         # 중복 armature는 삭제, mesh는 master armature로 re-parent
         for obj in list(added):
