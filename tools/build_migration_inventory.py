@@ -8,7 +8,10 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
+import csv
 import re
+import sys
 from pathlib import Path
 
 _GUID_RE = re.compile(r"^guid:\s*([0-9a-f]{32})\s*$", re.MULTILINE)
@@ -153,3 +156,57 @@ def build_row(animation_fbx: Path, unity_root: Path) -> dict:
         "status": "not_started",
         "notes": "",
     }
+
+
+CSV_COLUMNS = [
+    "id",
+    "animation_fbx_path",
+    "animation_fbx_guid",
+    "model_fbx_paths",
+    "controller_paths",
+    "prefab_count",
+    "clip_count",
+    "clip_names",
+    "locomotion",
+    "scope",
+    "source_blend_hint",
+    "status",
+    "notes",
+]
+
+
+def _encode_list(v):
+    if isinstance(v, list):
+        return ";".join(v)
+    return v
+
+
+def write_csv(rows: list[dict], output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({col: _encode_list(row.get(col, "")) for col in CSV_COLUMNS})
+
+
+def collect_rows(unity_root: Path) -> list[dict]:
+    animals_root = unity_root / "Assets" / "5_Models" / "02. Animals"
+    animation_fbxs = sorted(p for p in animals_root.rglob("*.fbx") if "animation" in p.stem.lower())
+    return [build_row(fbx, unity_root) for fbx in animation_fbxs]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Unity 이주 인벤토리 CSV 생성")
+    parser.add_argument("--unity-root", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args(argv)
+
+    rows = collect_rows(args.unity_root)
+    write_csv(rows, args.output)
+    print(f"[inventory] {len(rows)} rows written to {args.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,3 +1,4 @@
+import csv
 import sys
 from pathlib import Path
 
@@ -116,3 +117,37 @@ def test_build_row_for_rabbit_animation_fbx():
     assert row["locomotion"] == "pending"
     assert row["scope"] == "pending"
     assert row["status"] == "not_started"
+
+
+def test_write_csv_produces_expected_header_and_row(tmp_path):
+    row = {
+        "id": "Rabbit",
+        "animation_fbx_path": "Assets/x.fbx",
+        "animation_fbx_guid": "g",
+        "model_fbx_paths": ["a.fbx", "b.fbx"],
+        "controller_paths": ["c.controller"],
+        "prefab_count": 2,
+        "clip_count": 3,
+        "clip_names": ["Rabbit_idle", "Rabbit_walk", "Rabbit_run"],
+        "locomotion": "pending",
+        "scope": "pending",
+        "source_blend_hint": "",
+        "status": "not_started",
+        "notes": "",
+    }
+    out = tmp_path / "inv.csv"
+    bmi.write_csv([row], out)
+
+    with out.open(encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        rows = list(reader)
+    assert rows[0]["id"] == "Rabbit"
+    assert rows[0]["model_fbx_paths"] == "a.fbx;b.fbx"
+    assert rows[0]["clip_names"] == "Rabbit_idle;Rabbit_walk;Rabbit_run"
+    assert rows[0]["prefab_count"] == "2"
+
+
+def test_collect_rows_scans_animation_fbxs_under_assets():
+    rows = bmi.collect_rows(MINI_UNITY_DIR)
+    assert len(rows) == 1
+    assert rows[0]["id"] == "Rabbit"
