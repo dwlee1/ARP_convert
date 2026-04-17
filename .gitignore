@@ -31,3 +31,7 @@ docs/_scratch/
 
 # 외부 다운로드 애드온 (사용자 로컬에 설치)
 blender_mcp_addon.py
+
+# Unity 이주 파일럿 중간 산출물 (binary blend/fbx)
+pilot/*.blend
+pilot/exports/
