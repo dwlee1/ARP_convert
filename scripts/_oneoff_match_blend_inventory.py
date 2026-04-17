@@ -12,8 +12,9 @@ import csv
 import re
 from pathlib import Path
 
-ASSET_ROOT = Path(r"C:\Users\manag\Desktop\BlenderRigConvert\Asset\Blender")
-MIGRATION_CSV = Path(r"C:\Users\manag\Desktop\BlenderRigConvert\docs\MigrationInventory.csv")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ASSET_ROOT = REPO_ROOT / "Asset" / "Blender"
+MIGRATION_CSV = REPO_ROOT / "docs" / "MigrationInventory.csv"
 BLEND_CSV = ASSET_ROOT / "animal_blend_inventory.csv"
 
 # Fill after 1st run as needed. Key = normalized Unity id, value = normalized Animal_EN.
