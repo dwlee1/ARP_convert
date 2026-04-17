@@ -32,3 +32,20 @@ def test_parse_meta_clip_names_empty_when_no_table(tmp_path):
     meta = tmp_path / "no_clips.fbx.meta"
     meta.write_text("guid: abc\nModelImporter:\n  serializedVersion: 1\n", encoding="utf-8")
     assert bmi.parse_meta_clip_names(meta) == []
+
+
+def test_parse_meta_clip_names_ignores_second_outside_table(tmp_path: Path) -> None:
+    meta = tmp_path / "mixed.fbx.meta"
+    meta.write_text(
+        "guid: abc\n"
+        "ModelImporter:\n"
+        "  internalIDToNameTable:\n"
+        "  - first:\n"
+        "      74: 7400000\n"
+        "    second: ClipA\n"
+        "  externalObjects:\n"
+        "  - first: {type: Mesh, assembly: a, ns: '', name: Mesh}\n"
+        "    second: should_not_appear\n",
+        encoding="utf-8",
+    )
+    assert bmi.parse_meta_clip_names(meta) == ["ClipA"]
