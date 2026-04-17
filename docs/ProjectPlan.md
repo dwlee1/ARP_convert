@@ -285,7 +285,8 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ### 다음 트랙: blend-first (후보 C)
 
-- [ ] 아트 팀에 21마리 원본 `.blend` 확보 가능 여부 확인
+- [x] 아트 팀에 21마리 원본 `.blend` 확보 가능 여부 확인 — `Asset/Blender/animal_blend_inventory.csv` (137행 수동 큐레이션)로 이미 확보됨
+- [x] Unity in_scope 22마리 ↔ 원본 `.blend` 1차 매핑 — `docs/MigrationInventory.csv` `source_blend_hint` 컬럼 22/22 채움 (normalized 20 + path fallback 2, unresolved 0). 매칭 스크립트: `scripts/_oneoff_match_blend_inventory.py`
 - [ ] 첫 blend-first 동물 선정 (Rabbit부터 재시도 or 다른 동물)
 - [ ] 기존 여우/너구리 workflow(.blend → Build Rig) 그대로 적용 가능 여부 측정
 - [ ] Phase 3 배치 20마리 (blend-first 기준)
