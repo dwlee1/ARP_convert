@@ -110,10 +110,6 @@ def _apply_preprocess(armature) -> dict:
         if name in eb:
             eb.remove(eb[name])
 
-    for name in a2_orphans:
-        if name in eb:
-            eb.remove(eb[name])
-
     for name, new_length in a3_shrink.items():
         if name not in eb:
             continue
@@ -123,10 +119,13 @@ def _apply_preprocess(armature) -> dict:
 
     bpy.ops.object.mode_set(mode="OBJECT")
 
+    if a2_orphans:
+        print(f"[fbx_to_blend] A-2 orphans (보존, 어태치먼트일 수 있음 — 수동 검토): {a2_orphans}")
+
     return {
         "controllers_removed": len(a1_plan["remove"]),
         "controllers_reparented": len(a1_plan["reparent"]),
-        "orphans_removed": len(a2_orphans),
+        "orphans_reported": len(a2_orphans),
         "leaves_shrunk": len(a3_shrink),
     }
 

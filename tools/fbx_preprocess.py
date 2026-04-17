@@ -3,7 +3,8 @@
 Phase 2 후보 A 구현. Blender 의존성 없이 단위 테스트 가능.
 
 A-1: 컨트롤러 본 식별 (suffix 기반) + 제거 계획 (자식 reparent)
-A-2: 고아 본(parent=None인데 primary root가 아닌 본) 감지
+A-2: 보조 root 본 식별 (primary root 외 parent=None 본). **자동 삭제 금지** —
+     Food처럼 의도된 어태치먼트 본일 수 있어 호출자가 보고만 받는다.
 A-3: leaf 본 tail 길이 정규화 (Blender FBX importer leaf bone tail 손실 보정)
 
 Blender 통합부는 `fbx_to_blend.py`의 `_reconstruct_in_blender`에서 호출.

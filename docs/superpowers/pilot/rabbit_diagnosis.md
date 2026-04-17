@@ -167,9 +167,9 @@ Task 11에서 baseline 녹화 생략. 대신 Blender GUI 육안 기준.
 |------|------|------|
 | controllers_removed | 3 | `spine01_FK`, `chest_FK`, `chest_nomove` (관찰 1 해결) |
 | controllers_reparented | 1 | `head` 부모를 `chest_nomove` → `center`로 이동 |
-| orphans_removed | 1 | `Food` (관찰 3 부분 해결) |
+| orphans_reported | 1 | `Food` 본 — **사용자 피드백으로 어태치먼트(먹이 오브젝트 부착점)임이 확인되어 자동 삭제 금지로 정책 변경. 보고만 함.** |
 | leaves_shrunk | 10 | `eye_L/R`, `mouth`, `toe_L/R`, `tail02`, `hand_L/R`, `ear03_L/R` (관찰 2 해결) |
-| 소스 본 개수 | 37 → 33 | 정화 성공 |
+| 소스 본 개수 | 37 → 34 | 컨트롤러 3개만 제거 (Food 보존) |
 
 ### 그러나 ARP 매핑은 회귀 발생
 
