@@ -7,6 +7,7 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "unity_migration"
+MINI_UNITY_DIR = PROJECT_ROOT / "tests" / "fixtures" / "mini_unity"
 
 import build_migration_inventory as bmi
 
@@ -97,3 +98,21 @@ def test_count_prefabs_only_counts_m_source_prefab_field():
 def test_count_prefabs_case_insensitive_on_guid():
     rabbit_guid_upper = "F01EF593D9CF73A4E94A2AB37B4745C1"
     assert bmi.count_prefabs_referencing_guid(FIXTURE_DIR, rabbit_guid_upper) == 2
+
+
+def test_build_row_for_rabbit_animation_fbx():
+    unity_root = MINI_UNITY_DIR
+    fbx = unity_root / "Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx"
+    row = bmi.build_row(fbx, unity_root)
+
+    assert row["id"] == "Rabbit"
+    assert row["animation_fbx_path"] == "Assets/5_Models/02. Animals/00.Rabbit/rabbit_animation.fbx"
+    assert row["animation_fbx_guid"] == "f01ef593d9cf73a4e94a2ab37b4745c1"
+    assert row["model_fbx_paths"] == ["Rabbit_DutchBrown.fbx"]
+    assert any("AnimalController_0_Rabbit" in p for p in row["controller_paths"])
+    assert row["prefab_count"] == 2
+    assert row["clip_count"] == 3
+    assert row["clip_names"] == ["Rabbit_idle", "Rabbit_walk", "Rabbit_run"]
+    assert row["locomotion"] == "pending"
+    assert row["scope"] == "pending"
+    assert row["status"] == "not_started"

@@ -105,3 +105,51 @@ def count_prefabs_referencing_guid(search_root: Path, target_guid: str) -> int:
                 count += 1
                 break
     return count
+
+
+def _derive_id_from_folder(animation_fbx_path: Path) -> str:
+    """부모 폴더명을 id로 사용. `00.Rabbit` → `Rabbit`."""
+    folder = animation_fbx_path.parent.name
+    if "." in folder:
+        folder = folder.split(".", 1)[1]
+    return folder
+
+
+def build_row(animation_fbx: Path, unity_root: Path) -> dict:
+    """animation FBX 1개에 대한 CSV row 조립. guid/클립/컨트롤러/프리팹 참조 계산."""
+    meta = animation_fbx.with_suffix(animation_fbx.suffix + ".meta")
+    guid = parse_meta_guid(meta) or ""
+    clip_names = parse_meta_clip_names(meta)
+
+    model_fbxs = sorted(
+        p.name for p in animation_fbx.parent.glob("*.fbx") if p.name != animation_fbx.name
+    )
+
+    controllers_root = unity_root / "Assets" / "6_Animations" / "Animals" / "Controllers"
+    prefabs_root = unity_root / "Assets" / "3_Prefabs" / "Animals"
+
+    controller_paths = (
+        [
+            str(p.relative_to(unity_root)).replace("\\", "/")
+            for p in find_controllers_referencing_guid(controllers_root, guid)
+        ]
+        if guid
+        else []
+    )
+    prefab_count = count_prefabs_referencing_guid(prefabs_root, guid) if guid else 0
+
+    return {
+        "id": _derive_id_from_folder(animation_fbx),
+        "animation_fbx_path": str(animation_fbx.relative_to(unity_root)).replace("\\", "/"),
+        "animation_fbx_guid": guid,
+        "model_fbx_paths": model_fbxs,
+        "controller_paths": controller_paths,
+        "prefab_count": prefab_count,
+        "clip_count": len(clip_names),
+        "clip_names": clip_names,
+        "locomotion": "pending",
+        "scope": "pending",
+        "source_blend_hint": "",
+        "status": "not_started",
+        "notes": "",
+    }
