@@ -39,6 +39,7 @@
 | `scripts/mcp_bridge.py` | blender-mcp 브릿지 (AI → Blender 자동화) |
 | `scripts/pipeline_runner.py` | 비대화형 단일 실행 경로 (Build Rig까지) |
 | `scripts/03_batch_convert.py` | 배치 실행 경로 |
+| `scripts/_oneoff_match_blend_inventory.py` | Unity MigrationInventory ↔ blend 인벤토리 자동 매칭 one-off 스크립트 |
 
 ## 작업별 참조 파일
 
@@ -107,7 +108,7 @@ Source → `analyze_skeleton()` → Analysis → `create_preview_armature()` →
   - Re-Retarget: `bpy.ops.arp.retarget('INVOKE_DEFAULT')` 호출
   - Copy Custom Scale: cc_ 커스텀 본 스케일 fcurve 별도 복사
   - Cleanup: 소스/프리뷰 삭제 + _remap 액션 rename
-- 이전 리타게팅 구현(F10/F11, rest-delta bake)은 git history 참조 (`8d49a91` 커밋 이전)
+- 이전 리타게팅 구현(F10/F11, rest-delta bake)은 git history 참조 (`8d49a91` 커밋 이전) — 폐기된 설계 문서는 `docs/archive/` 참조
 
 ## 검증
 

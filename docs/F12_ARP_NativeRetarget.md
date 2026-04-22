@@ -1,7 +1,7 @@
 # F12: ARP 네이티브 리타겟 위임 방식
 
 > 설계 확정: 2026-04-06
-> 이전 문서: `F12_ExactMatch.md` (rest-delta offset bake — 폐기)
+> 이전 문서: `archive/F12_ExactMatch.md` (rest-delta offset bake — 폐기)
 
 ## 1. 배경
 
@@ -184,8 +184,8 @@ def _override_bones_map(bone_pairs):
 
 ## 7. 이전 문서와의 관계
 
-- `F12_ExactMatch.md`: **폐기**. rest-delta offset bake 방식은 더 이상 사용하지 않는다.
-  git history 참조용으로 파일은 유지하되, 상단에 폐기 표시를 추가한다.
+- `archive/F12_ExactMatch.md`: **폐기**. rest-delta offset bake 방식은 더 이상 사용하지 않는다.
+  git history 참조용으로 `docs/archive/` 하위에 보존한다.
 - 이전 Plan B (2-pass ARP + worldspace): **폐기**. ARP 전면 위임으로 불필요.
 
 ## 8. 기존 rest-delta 접근과의 비교

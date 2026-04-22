@@ -1,6 +1,8 @@
 # BlenderRigConvert 통합 문서
 
-> 최종 수정: 2026-04-13 (F12 root-slot 수정/검증 반영)
+> 최종 수정: 2026-04-22 (blend-first Phase 3 진입 / 문서 정리 반영)
+>
+> 개발 워크플로(3-Tier, 브랜치 전략, 커밋 컨벤션, 완료 기준)는 `CLAUDE.md` 의 `## Workflow` 섹션이 단일 소스다.
 
 ## 문서 목적
 
@@ -16,14 +18,16 @@
 ### 프로젝트 목표
 
 동물 캐릭터 리그를 Auto-Rig Pro(`dog` preset) 기반으로 통일하고, 리그 생성을 자동화한다.
-리타게팅은 2026-04-02 전면 삭제 후 재설계 예정.
+리타게팅은 2026-04-02 전면 삭제 후 2026-04-06 ARP 네이티브 위임 방식으로 재설계 완료.
+현행 설계: `docs/F12_ARP_NativeRetarget.md`.
 
 ### 기준 날짜
 
-- 현재 구현 기준: 2026-04-02 HEAD
+- 현재 구현 기준: 2026-04-22 HEAD
 - 리타게팅 삭제 결정: 2026-04-02
+- 리타게팅 재설계 완료: 2026-04-06
 
-### 현재 구현 흐름 (2026-04-02 HEAD)
+### 현재 구현 흐름 (2026-04-22 HEAD)
 
 ```text
 Addon 경로
@@ -36,7 +40,7 @@ Addon 경로
 7. cc_ 커스텀 본 추가 (shape key 드라이버 컨트롤러 포함)
 8. 전체 웨이트 전송 (deform + cc_ → ARP)
 9. Shape key 드라이버 리맵
-10. 애니메이션 베이크 (F12, 별도 버튼 — rest-delta offset bake)
+10. 리타게팅 (Setup Retarget → ARP `bpy.ops.arp.retarget` → Copy Custom Scale → Cleanup)
 ```
 
 ```text
@@ -160,14 +164,14 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 | `docs/FoxTestChecklist.md` | 여우 파일 Build Rig 검증 계획 + Preview bake 실험 기록 |
 | `docs/RegressionRunner.md` | 대표 샘플 GUI 회귀 테스트 운영 |
 | `docs/F12_ARP_NativeRetarget.md` | 현행 F12 설계: ARP 네이티브 리타겟 위임 방식 |
-| `docs/F12_ExactMatch.md` | 폐기된 rest-delta offset bake 기록 (참고용) |
+| `docs/archive/` | 폐기된 설계/계획 문서 보존 (예: `F12_ExactMatch.md`) |
 
 ## 후속 기능
 
 ### F12. 애니메이션 베이크 (ARP 네이티브 리타겟 위임 방식)
 
 2026-04-06 설계 확정. 현행 기준 문서는 `docs/F12_ARP_NativeRetarget.md`이며,
-`docs/F12_ExactMatch.md`의 rest-delta offset bake 방식은 폐기되었다.
+`docs/archive/F12_ExactMatch.md` 의 rest-delta offset bake 방식은 폐기되었다.
 
 **현재 방식**: Build Rig까지만 우리 애드온이 담당하고, 애니메이션 베이크는 ARP 리타겟 UI에 위임한다.
 
@@ -294,4 +298,8 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ## 우선순위
 
-1. **자동 역할 추론 정확도 개선** — 새 동물 리그 대응
+1. **Unity 이주 Phase 3 (blend-first)** — 첫 동물 선정 후 기존 `.blend → Build Rig` 흐름을
+   in_scope 22마리에 순차 적용. 진행 상태는 위 "Unity 프로젝트 이주" 섹션 참조
+   (2026-04-17 blend 매칭 22/22 완료).
+2. **자동 역할 추론 정확도 개선** — 새 동물 리그에서 수동 수정 횟수 최소화
+3. **기타 UX/툴 개선** — 회귀 테스트, MCP 레시피, 파일 정리 등 부수 작업

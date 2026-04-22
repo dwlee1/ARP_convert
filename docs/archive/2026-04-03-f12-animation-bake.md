@@ -8,7 +8,7 @@
 
 **Tech Stack:** Blender 4.5 Python API (`bpy`), Auto-Rig Pro
 
-**설계 문서:** `docs/F12_ExactMatch.md`
+**설계 문서:** `docs/archive/F12_ExactMatch.md` (폐기)
 
 ---
 
