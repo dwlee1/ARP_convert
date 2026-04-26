@@ -4,7 +4,7 @@
 
 **Goal:** Build an MCP-first single-file harness so Codex, Claude, or another AI agent can convert the currently open quadruped `.blend` to ARP and retarget animations through one shared entrypoint.
 
-**Architecture:** Put all pure status/result/report contracts in `scripts/agent_convert_contract.py` and cover them with pytest. Keep Blender-dependent orchestration in `scripts/mcp_bridge.py` as one public `mcp_agent_convert_current_file()` function that calls existing ARP Convert operators and emits compact JSON while writing detailed reports to `agent_reports/`.
+**Architecture:** Put all pure status/result/report contracts in `scripts/agent_convert_contract.py` and cover them with pytest. Keep Blender-dependent orchestration in `scripts/mcp_bridge.py` as one public `mcp_agent_convert_current_file()` function that calls existing ARP Convert operators through return-value helpers and emits compact JSON while writing detailed reports to `agent_reports/`. Do not call existing public MCP functions from inside the harness when they print JSON through `_result()`; extract or share internal helpers instead.
 
 **Tech Stack:** Blender 4.5 Python, Auto-Rig Pro, existing ARP Convert addon operators, MCP bridge JSON stdout, pytest, ruff.
 
@@ -18,17 +18,67 @@
   - Unit tests for the pure helpers; no `bpy` import.
 - Modify `scripts/mcp_bridge.py`
   - Add `mcp_agent_convert_current_file()` and private stage helpers.
-  - Reuse existing `mcp_setup_retarget`, `mcp_validate_weights`, `mcp_compare_frames` logic where practical, but keep the public agent function as the single orchestration entrypoint.
+  - Reuse existing setup/weight/frame comparison logic where practical by extracting return-value helpers, but keep stdout-printing public MCP functions as wrappers only.
 - Modify `.gitignore`
   - Ignore `/agent_reports/`.
 - Modify `docs/MCP_Recipes.md`
   - Document the new entrypoint and status contract.
 - Modify `.claude/skills/arp-quadruped-convert/SKILL.md`
   - Replace the long raw-call flow with the single MCP entrypoint and blocked/failed handling.
+- Modify `.agents/skills/arp-quadruped-convert/SKILL.md`
+  - Keep Codex-facing conversion instructions in sync with the Claude skill.
 - Modify `AGENTS.md`
   - Add a short Codex/Claude common rule for actual conversion work.
 - Modify `docs/ProjectPlan.md`
   - Note Unity migration is paused and agent convert harness is the active priority.
+
+---
+
+### Task 0: Baseline Corrections Before Implementation
+
+**Files:**
+- Modify: `.gitignore`
+- Modify: `docs/ProjectPlan.md`
+- Modify: `docs/superpowers/specs/2026-04-26-agent-convert-harness-design.md`
+- Modify: `docs/superpowers/plans/2026-04-26-agent-convert-harness.md`
+
+- [x] **Step 1: Work from `feat/agent-convert-harness` based on `origin/master`**
+
+Do not implement harness code on `master`; keep unrelated local MCP environment changes out of this branch.
+
+- [x] **Step 2: Ignore generated agent reports**
+
+Add `/agent_reports/` to `.gitignore`.
+
+- [x] **Step 3: Align the active priority**
+
+Update `docs/ProjectPlan.md` so Agent Convert Harness is the active priority and Unity Phase 3 is explicitly paused until the harness is stable.
+
+- [x] **Step 4: Clarify retry behavior**
+
+Keep `retry_from` as a diagnostic label only for v1. After user fixes, rerun `mcp_agent_convert_current_file()` from the beginning. Do not add partial resume support in this implementation.
+
+- [x] **Step 5: Avoid stdout MCP function reuse**
+
+Plan implementation around return-value helpers. Existing public MCP functions that call `_result()` remain wrappers so the harness does not emit multiple JSON payloads.
+
+- [x] **Step 6: Keep agent instructions synchronized**
+
+When documenting the final flow, update both `.claude/skills/arp-quadruped-convert/SKILL.md` and `.agents/skills/arp-quadruped-convert/SKILL.md`.
+
+- [x] **Step 7: Provision Python 3.11 verification tooling**
+
+Use the project-local virtual environment when direct `pytest`/`ruff` commands are unavailable:
+
+```bash
+uv venv --python 3.11 .venv
+uv pip install --python .venv/Scripts/python.exe pytest ruff
+.venv/Scripts/python.exe -m pytest tests/ -v
+.venv/Scripts/python.exe -m ruff check scripts/ tests/
+```
+
+Baseline on 2026-04-26: Python 3.11.15, pytest 9.0.3, ruff 0.15.12;
+`262 passed, 2 skipped`; `All checks passed!`.
 
 ---
 
@@ -1477,7 +1527,9 @@ Blender에 대상 `.blend`가 열려 있고 BlenderMCP가 연결된 상태에서
 
 ```python
 import sys
-sys.path.insert(0, r"C:\Users\manag\Desktop\BlenderRigConvert\scripts")
+repo_scripts = r"<repo-root>\scripts"
+if repo_scripts not in sys.path:
+    sys.path.insert(0, repo_scripts)
 from mcp_bridge import mcp_agent_convert_current_file
 mcp_agent_convert_current_file(include_retarget=True)
 ```
@@ -1495,9 +1547,11 @@ mcp_agent_convert_current_file(include_retarget=True)
 `agent_reports/<blend>_<timestamp>.json`에 저장된다.
 ```
 
-- [ ] **Step 2: Collapse the Claude conversion skill to the shared entrypoint**
+- [ ] **Step 2: Collapse the conversion skills to the shared entrypoint**
 
-In `.claude/skills/arp-quadruped-convert/SKILL.md`, keep the front matter and replace the long phase-by-phase MCP snippets with this operational core:
+In both `.claude/skills/arp-quadruped-convert/SKILL.md` and
+`.agents/skills/arp-quadruped-convert/SKILL.md`, keep the front matter and replace the
+long phase-by-phase MCP snippets with this operational core:
 
 ```markdown
 ## 기본 실행
@@ -1506,7 +1560,9 @@ In `.claude/skills/arp-quadruped-convert/SKILL.md`, keep the front matter and re
 
 ```python
 import sys
-sys.path.insert(0, r"C:\Users\manag\Desktop\BlenderRigConvert\scripts")
+repo_scripts = r"<repo-root>\scripts"
+if repo_scripts not in sys.path:
+    sys.path.insert(0, repo_scripts)
 from mcp_bridge import mcp_agent_convert_current_file
 mcp_agent_convert_current_file(include_retarget=True)
 ```
@@ -1579,7 +1635,7 @@ Compileall should exit with code 0 and print no output.
 Run:
 
 ```bash
-git add docs/MCP_Recipes.md .claude/skills/arp-quadruped-convert/SKILL.md AGENTS.md docs/ProjectPlan.md .gitignore
+git add docs/MCP_Recipes.md .claude/skills/arp-quadruped-convert/SKILL.md .agents/skills/arp-quadruped-convert/SKILL.md AGENTS.md docs/ProjectPlan.md .gitignore
 git commit -m "docs(harness): document shared agent convert flow"
 ```
 
@@ -1594,12 +1650,12 @@ If the `AGENTS.md 하드링크 동기화` hook rewrites unrelated files, inspect
 
 - [ ] **Step 1: Check Python tool availability**
 
-Run in this order:
+Run in this order from the project-local Python 3.11 environment:
 
 ```bash
-pytest --version
-ruff --version
-python --version
+.venv/Scripts/python.exe --version
+.venv/Scripts/python.exe -m pytest --version
+.venv/Scripts/python.exe -m ruff --version
 ```
 
 Expected:
@@ -1617,7 +1673,7 @@ If these commands are unavailable in the current shell, use the project-approved
 Run:
 
 ```bash
-pytest tests/ -v
+.venv/Scripts/python.exe -m pytest tests/ -v
 ```
 
 Expected:
@@ -1631,7 +1687,7 @@ all tests pass
 Run:
 
 ```bash
-ruff check scripts/ tests/
+.venv/Scripts/python.exe -m ruff check scripts/ tests/
 ```
 
 Expected:
@@ -1646,7 +1702,9 @@ In BlenderMCP execute:
 
 ```python
 import sys
-sys.path.insert(0, r"C:\Users\manag\Desktop\BlenderRigConvert\.worktrees\codex-agent-convert-harness\scripts")
+repo_scripts = r"<repo-root>\scripts"
+if repo_scripts not in sys.path:
+    sys.path.insert(0, repo_scripts)
 from mcp_bridge import mcp_reload_addon
 mcp_reload_addon()
 ```
@@ -1665,7 +1723,9 @@ Open a known quadruped `.blend` in Blender. Then run:
 
 ```python
 import sys
-sys.path.insert(0, r"C:\Users\manag\Desktop\BlenderRigConvert\.worktrees\codex-agent-convert-harness\scripts")
+repo_scripts = r"<repo-root>\scripts"
+if repo_scripts not in sys.path:
+    sys.path.insert(0, repo_scripts)
 from mcp_bridge import mcp_agent_convert_current_file
 mcp_agent_convert_current_file(include_retarget=True)
 ```

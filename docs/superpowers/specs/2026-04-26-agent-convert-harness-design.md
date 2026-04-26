@@ -92,7 +92,7 @@ mcp_agent_convert_current_file()
 | 상태 | 의미 | 다음 행동 |
 |------|------|----------|
 | `complete` | 요청 범위 완료 | 결과 확인 |
-| `blocked` | 사용자가 고치면 재시도 가능한 상태 | `recommended_fix` 수행 후 `retry_from`부터 재시도 |
+| `blocked` | 사용자가 고치면 재시도 가능한 상태 | `recommended_fix` 수행 후 하네스 재실행 |
 | `failed` | 코드/환경/ARP 호출 실패 | 오류 로그 확인 또는 코드 수정 |
 | `partial` | Build Rig는 됐지만 Retarget은 진행하지 못함 | 중단 사유 확인 |
 
@@ -123,6 +123,10 @@ def mcp_agent_convert_current_file(
 | `report_dir` | `None` | None이면 repo 루트의 `agent_reports/` 사용 |
 
 Cleanup은 비가역성이 있으므로 기본 실행하지 않는다. 사용자가 명시적으로 원할 때만 `allow_cleanup=True`로 실행한다.
+
+`retry_from`은 v1에서 실제 부분 재시작 파라미터가 아니라 사용자가 어느 단계를
+수정해야 하는지 알려주는 진단 라벨이다. 수정 후에는
+`mcp_agent_convert_current_file()`을 다시 실행한다.
 
 ## 반환 JSON 계약
 
@@ -410,7 +414,9 @@ Claude/Codex 공통 지침은 다음 수준으로 줄인다.
 
 ```python
 import sys
-sys.path.insert(0, r"C:\Users\manag\Desktop\BlenderRigConvert\scripts")
+repo_scripts = r"<repo-root>\scripts"
+if repo_scripts not in sys.path:
+    sys.path.insert(0, repo_scripts)
 from mcp_bridge import mcp_agent_convert_current_file
 mcp_agent_convert_current_file(include_retarget=True)
 ```
@@ -464,8 +470,8 @@ mcp_agent_convert_current_file(include_retarget=True)
 코드 수정 완료 후 실행한다.
 
 ```bash
-pytest tests/ -v
-ruff check scripts/ tests/
+python -m pytest tests/ -v
+python -m ruff check scripts/ tests/
 ```
 
 현재 작업 환경에서 `pytest`, `ruff`, `uv`, `python`이 PATH에 없을 수 있으므로, 구현 계획에는 실행 가능한 Python 환경 확인 단계를 포함한다.
@@ -476,7 +482,8 @@ ruff check scripts/ tests/
 
 - `docs/MCP_Recipes.md`: 새 단일 함수 사용법과 반환 상태 해석 추가
 - `.claude/skills/arp-quadruped-convert/SKILL.md`: 기존 긴 단계별 raw MCP 호출을 단일 함수 중심으로 축소
-- `AGENTS.md` 또는 별도 Codex용 문서: Codex도 같은 MCP 진입점을 쓰도록 안내
+- `.agents/skills/arp-quadruped-convert/SKILL.md`: Codex가 같은 MCP 진입점을 쓰도록 Claude 스킬과 동기화
+- `AGENTS.md`: Codex/Claude 공통 MCP 진입점 규약 추가
 - `docs/ProjectPlan.md`: Unity 이주 보류와 agent convert harness 우선순위 반영
 
 ## 성공 기준

@@ -4,6 +4,9 @@ Asset/
 # 빌드 산출물
 dist/
 
+# MCP agent conversion reports
+/agent_reports/
+
 # Blender 자동 백업
 *.blend1
 *.blend2

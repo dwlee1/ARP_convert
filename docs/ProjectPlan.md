@@ -218,8 +218,10 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 
 ## 우선순위
 
-1. **Unity 이주 Phase 3 (blend-first)** — 첫 동물 선정 후 기존 `.blend → Build Rig` 흐름을
-   in_scope 22마리에 순차 적용. 진행 상태는 위 "Unity 프로젝트 이주" 섹션 참조
-   (2026-04-17 blend 매칭 22/22 완료).
+1. **Agent Convert Harness** — Blender에 열린 단일 사족보행 `.blend`를 AI 에이전트가
+   MCP 단일 진입점으로 Build Rig + Retarget까지 진행하고, 문제 발생 시 사용자가
+   수정 가능한 진단을 반환하도록 한다.
 2. **자동 역할 추론 정확도 개선** — 새 동물 리그에서 수동 수정 횟수 최소화
-3. **기타 UX/툴 개선** — 회귀 테스트, MCP 레시피, 파일 정리 등 부수 작업
+3. **Unity 이주 Phase 3 (blend-first)** — 현재 보류. 하네스 안정화 후 기존
+   `.blend → Build Rig` 흐름을 in_scope 22마리에 순차 적용한다.
+4. **기타 UX/툴 개선** — 회귀 테스트, MCP 레시피, 파일 정리 등 부수 작업
