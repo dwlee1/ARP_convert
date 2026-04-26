@@ -251,6 +251,6 @@ mcp_inspect_bone_pairs()
 이전에는 매번 raw `execute_blender_code`로 즉석 루프를 작성했다. 이제는 함수 호출 1~2줄로 같은 검증이 가능하다.
 
 관련 문서:
-- 스펙: `docs/superpowers/specs/2026-04-05-mcp-feedback-loop-design.md`
-- 플랜: `docs/superpowers/plans/2026-04-05-mcp-feedback-loop.md`
-- 이전 F12 작업: `docs/superpowers/specs/2026-04-05-f12-back-leg-shoulder-fix-design.md`
+- 스펙: `docs/superpowers/specs/archive/2026-04-05-mcp-feedback-loop-design.md`
+- 플랜: `docs/superpowers/plans/archive/2026-04-05-mcp-feedback-loop.md`
+- 이전 F12 작업: `docs/superpowers/specs/archive/2026-04-05-f12-back-leg-shoulder-fix-design.md`

@@ -8,11 +8,31 @@
 - Blender 4.5 LTS + Auto-Rig Pro
 - Python 3.11, Windows 11
 
+## 위반 금지 규칙 (HARD RULES)
+
+1. ARP ref 본 추가/삭제에 `edit_bones.new()` 사용 금지 → ARP 네이티브 `set_*` 함수 사용
+2. ARP 프리셋은 `dog` 고정
+3. face 역할은 unmapped에 통합, 커스텀 본으로 처리 (원본 이름 유지, `custom_bone` 프로퍼티 태깅)
+4. `leg` 역할 본이 3개면 ARP도 3본 다리 체인 (`thigh_b_ref` 포함)
+5. `foot` 역할 본이 1개면 `foot_ref + toes_ref`로 분할
+6. 코드 수정 시 addon / pipeline / batch 경로 모두 확인
+
 ## 기준 문서
 
 - **`docs/ProjectPlan.md`** — 단일 기준 문서 (상태, 체크리스트, 남은 기능). 작업 전 반드시 읽을 것
+- `docs/Architecture.md` — 데이터 구조 / 파이프라인 / ARP 내부 API 등 구현 레퍼런스
 - `docs/FoxTestChecklist.md` — 여우 파일 테스트 기록
 - `docs/RegressionRunner.md` — 대표 샘플 GUI 회귀 테스트 (대량 처리 전략 아님)
+
+## 핵심 규칙
+
+- ARP ref 본은 실제 리그에서 동적 탐색
+- `foot` 역할 본이 2개면 `foot_ref`, `toes_ref`에 1:1 매핑
+- toe 본이 없으면 `virtual toe` 사용
+- ear는 `ear_01_ref / ear_02_ref`에 직접 매핑
+- Preview Armature는 원본 이름 유지, 역할은 색상과 커스텀 프로퍼티로 표시
+- ARP 기본 face rig는 비활성화 — 얼굴 본(eye, jaw 등)은 cc_ 커스텀 본으로 처리 (ear는 전용 역할)
+- 3본 다리 ref 이름은 `_b_` 포함 필수: `thigh_b_ref.l`, 앞다리는 `thigh_b_ref_dupli_001.l`
 
 ## 파일 맵
 
@@ -53,62 +73,15 @@
 | 리타게팅 | `arp_ops_bake_regression.py`, `arp_retarget.py` | `arp_utils.py` |
 | 회귀 테스트 | `arp_ops_bake_regression.py` | `arp_fixture_io.py` |
 
-## 핵심 데이터 구조
+데이터 구조·파이프라인 흐름·ARP 내부 함수 디테일은 `docs/Architecture.md` 참조.
 
-- **analysis**: `analyze_skeleton(armature) → {bone_data, chains: {role: {bones, confidence}}, unmapped, confidence}`
-- **roles**: `read_preview_roles(preview) → {role: [bone_names]}`
-- **bone_pairs**: `[(src_bone, arp_ctrl, is_custom)]` — ARP 아마추어에 JSON 저장 (`arpconv_bone_pairs`)
-- **ref_meta**: `{ref_name: {head, tail, mid, length, side, role, segment_index}}`
+## 작업 원칙
 
-## 파이프라인 흐름
-
-Source → `analyze_skeleton()` → Analysis → `create_preview_armature()` → Preview
-→ 역할 편집 → `read_preview_roles()` → roles
-→ `BuildRig`: append ARP(dog) → `discover_arp_ref_chains()` → `_adjust_chain_counts()`
-→ `map_role_chain()` → `match_to_rig()` → cc bones → weight transfer → 완료
-
-## 위반 금지 규칙 (HARD RULES)
-
-1. ARP ref 본 추가/삭제에 `edit_bones.new()` 사용 금지 → ARP 네이티브 `set_*` 함수 사용
-2. ARP 프리셋은 `dog` 고정
-3. face 역할은 unmapped에 통합, 커스텀 본으로 처리 (원본 이름 유지, `custom_bone` 프로퍼티 태깅)
-4. `leg` 역할 본이 3개면 ARP도 3본 다리 체인 (`thigh_b_ref` 포함)
-5. `foot` 역할 본이 1개면 `foot_ref + toes_ref`로 분할
-6. 코드 수정 시 addon / pipeline / batch 경로 모두 확인
-
-## 핵심 규칙
-
-- ARP ref 본은 실제 리그에서 동적 탐색
-- `foot` 역할 본이 2개면 `foot_ref`, `toes_ref`에 1:1 매핑
-- toe 본이 없으면 `virtual toe` 사용
-- ear는 `ear_01_ref / ear_02_ref`에 직접 매핑
-- Preview Armature는 원본 이름 유지, 역할은 색상과 커스텀 프로퍼티로 표시
-- ARP 기본 face rig는 비활성화 — 얼굴 본(eye, jaw 등)은 cc_ 커스텀 본으로 처리 (ear는 전용 역할)
-- 3본 다리 ref 이름은 `_b_` 포함 필수: `thigh_b_ref.l`, 앞다리는 `thigh_b_ref_dupli_001.l`
-
-## ARP 네이티브 체인 조정 함수
-
-- **중요**: 체인 개수 매칭은 `edit_bones.new()` 방식이 아닌 ARP 내부 함수를 사용해야 함
-- 모듈: `bl_ext.user_default.auto_rig_pro.src.auto_rig`
-- `set_spine(count=N)` — spine ref 본 선택 필요
-- `set_neck(neck_count=N)` — neck ref 본 선택 필요
-- `set_tail(tail_count=N)` — tail ref 본 선택 필요
-- `set_ears(ears_amount=N, side_arg='.l'|'.r')` — L/R 개별 호출
-- 호출 조건: ARP 아마추어 활성 + Edit Mode + 해당 ref 본 선택
-- 호출 후 ref 본 위치 수정 가능, 이후 `match_to_rig` 호출
-
-## 현재 메인 구현 경로
-
-정확한 상태값과 우선순위는 항상 `docs/ProjectPlan.md`를 기준으로 본다.
-
-- Preview는 분석/역할 수정/UI용으로 유지한다
-- Build Rig까지 구현 완료 (분석 → Preview → 역할 수정 → ARP 리그 생성)
-- **리타게팅 구현 완료** — ARP 네이티브 리타겟 위임 방식 (`arp_retarget.py`, `arp_ops_bake_regression.py`)
-  - Setup Retarget: bone_pairs → bones_map_v2 자동 변환
-  - Re-Retarget: `bpy.ops.arp.retarget('INVOKE_DEFAULT')` 호출
-  - Copy Custom Scale: cc_ 커스텀 본 스케일 fcurve 별도 복사
-  - Cleanup: 소스/프리뷰 삭제 + _remap 액션 rename
-- 이전 리타게팅 구현(F10/F11, rest-delta bake)은 git history 참조 (`8d49a91` 커밋 이전) — 폐기된 설계 문서는 `docs/archive/` 참조
+- 별도 진단 스크립트 단계를 기본 경로로 가정하지 않는다
+- 우선순위 기능은 현재 메인 구현 경로를 직접 읽고 수정한다
+- ARP 내부 동작 확인이 꼭 필요한 항목만 최소 범위 실험으로 검증한다
+- 실행 경로가 여러 갈래이므로 한 경로만 고치고 끝내지 않는다
+- fixture/회귀 도구를 늘리는 것보다 자동 역할 추론 정확도 개선을 우선한다
 
 ## 검증
 
@@ -126,32 +99,6 @@ ruff check scripts/ tests/
 애드온/리타겟/MCP 경로를 건드렸다면 가능하면 아래까지 이어서 검증한다:
 - `mcp_reload_addon()`으로 전체 애드온 재등록 후 관련 MCP 스모크 실행
 - 관련 변경 기준: `mcp_build_rig`, `mcp_setup_retarget`, `mcp_inspect_bone_pairs`, `mcp_compare_frames`
-
-## blender-mcp 연동
-
-Blender가 실행 중이고 BlenderMCP 애드온이 연결되어 있으면 AI에서 직접 Blender를 제어할 수 있다.
-브릿지: `scripts/mcp_bridge.py` — 상세 함수 목록과 사용법은 `docs/MCP_Recipes.md` 참조.
-
-**호출 패턴 (execute_blender_code):**
-```python
-import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
-from mcp_bridge import mcp_scene_summary
-mcp_scene_summary()
-```
-
-## 애드온 반영 / Blender 동기화
-
-- `arp_utils.py` 또는 재수출 경로(`arp_retarget.py` 포함)를 수정했을 때는 일반 module reload만으로 현재 Blender 세션에 반영되지 않을 수 있다
-- 이 경우 `mcp_reload_addon()` 기준으로 전체 애드온 재등록 후 확인하거나 Blender를 재시작한다
-- addons 폴더를 하드링크로 운영 중이면 파일 수정 후 링크가 끊길 수 있으므로 필요 시 `.claude/skills/sync-addon/skill.md` 절차에 따라 다시 동기화한다
-
-## 작업 원칙
-
-- 별도 진단 스크립트 단계를 기본 경로로 가정하지 않는다
-- 우선순위 기능은 현재 메인 구현 경로를 직접 읽고 수정한다
-- ARP 내부 동작 확인이 꼭 필요한 항목만 최소 범위 실험으로 검증한다
-- 실행 경로가 여러 갈래이므로 한 경로만 고치고 끝내지 않는다
-- fixture/회귀 도구를 늘리는 것보다 자동 역할 추론 정확도 개선을 우선한다
 
 ## Workflow
 
