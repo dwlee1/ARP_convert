@@ -4,7 +4,7 @@
       "command": "cmd",
       "args": ["/c", "uvx", "blender-mcp"],
       "env": {
-        "BLENDER_MCP_DISABLE_TELEMETRY": "1"
+        "DISABLE_TELEMETRY": "true"
       }
     }
   }
