@@ -266,3 +266,41 @@ def test_agent_entrypoint_runs_preview_build_weight_and_pair_gates():
         "_agent_validate_weights",
         "_agent_inspect_pairs",
     } <= called_names
+
+
+def test_mcp_bridge_has_retarget_and_frame_verify_helpers():
+    source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    function_names = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+
+    assert {
+        "_agent_setup_retarget",
+        "_agent_run_arp_retarget",
+        "_agent_copy_custom_scale",
+        "_agent_verify_frames",
+        "_agent_compare_frames_inline",
+        "_agent_cleanup",
+    } <= function_names
+
+
+def test_agent_entrypoint_runs_retarget_scale_and_frame_verify():
+    source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    entrypoint = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "mcp_agent_convert_current_file"
+    )
+    called_names = {
+        node.func.id
+        for node in ast.walk(entrypoint)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+    assert {
+        "_agent_setup_retarget",
+        "_agent_run_arp_retarget",
+        "_agent_copy_custom_scale",
+        "_agent_verify_frames",
+        "_agent_cleanup",
+    } <= called_names

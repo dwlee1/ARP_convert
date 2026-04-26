@@ -383,6 +383,348 @@ def _agent_inspect_pairs(report, report_path):
     return {"success": True, "data": data}
 
 
+def _agent_setup_retarget(report, report_path):
+    import agent_convert_contract as acc
+    from arp_utils import (
+        BAKE_PAIRS_KEY,
+        deserialize_bone_pairs,
+        find_arp_armature,
+        find_source_armature,
+        preflight_check_transforms,
+        quiet_logs,
+        setup_arp_retarget,
+    )
+
+    try:
+        with quiet_logs():
+            source_obj = find_source_armature()
+            arp_obj = find_arp_armature()
+    except Exception as e:
+        return acc.failed(
+            "setup_retarget",
+            "Retarget setup preflight failed.",
+            {"error": str(e), "traceback": traceback.format_exc()},
+            report_path,
+        )
+
+    if source_obj is None:
+        return acc.failed("setup_retarget", "Source armature was not found.", {}, report_path)
+    if arp_obj is None:
+        return acc.failed("setup_retarget", "ARP armature was not found.", {}, report_path)
+
+    pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
+    if not pairs_json:
+        return acc.failed(
+            "setup_retarget",
+            "ARP armature has no arpconv_bone_pairs data.",
+            {"arp_armature": arp_obj.name},
+            report_path,
+        )
+
+    bone_pairs = deserialize_bone_pairs(pairs_json)
+    error = preflight_check_transforms(source_obj, arp_obj)
+    if error:
+        return acc.failed(
+            "setup_retarget",
+            "Retarget transform preflight failed.",
+            {"error": error},
+            report_path,
+        )
+
+    try:
+        with quiet_logs():
+            result = setup_arp_retarget(source_obj, arp_obj, bone_pairs)
+    except Exception as e:
+        return acc.failed(
+            "setup_retarget",
+            "setup_arp_retarget raised an exception.",
+            {"error": str(e), "traceback": traceback.format_exc()},
+            report_path,
+        )
+
+    data = {
+        "source_armature": source_obj.name,
+        "arp_armature": arp_obj.name,
+        "total_pairs": len(bone_pairs),
+        **result,
+    }
+    report["steps"].append({"stage": "setup_retarget", "data": data})
+    return {"success": True, "data": data}
+
+
+def _agent_run_arp_retarget(report, report_path):
+    import agent_convert_contract as acc
+    from arp_utils import find_arp_armature, quiet_logs, run_arp_operator, select_only
+
+    before_actions = {action.name for action in bpy.data.actions}
+    try:
+        with quiet_logs():
+            arp_obj = find_arp_armature()
+            if arp_obj is None:
+                return acc.failed("arp_retarget", "ARP armature was not found.", {}, report_path)
+            select_only(arp_obj)
+            result = run_arp_operator(bpy.ops.arp.retarget)
+    except Exception as e:
+        return acc.failed(
+            "arp_retarget",
+            "ARP retarget operator raised an exception.",
+            {"error": str(e), "traceback": traceback.format_exc()},
+            report_path,
+        )
+
+    if "FINISHED" not in result:
+        return acc.failed(
+            "arp_retarget",
+            "ARP retarget operator did not finish.",
+            {"operator_result": list(result)},
+            report_path,
+        )
+
+    remap_actions = sorted(
+        action.name
+        for action in bpy.data.actions
+        if action.name not in before_actions
+        and (action.name.endswith("_remap") or "_remap." in action.name)
+    )
+    data = {"operator_result": list(result), "remap_actions": remap_actions}
+    report["steps"].append({"stage": "arp_retarget", "data": data})
+
+    if not remap_actions:
+        _agent_write_report(report_path, report)
+        return acc.blocked(
+            "arp_retarget",
+            "ARP retarget finished but no remap actions were created.",
+            data,
+            "Run ARP Re-Retarget manually in the Remap panel, then rerun frame verification.",
+            "arp_retarget",
+            report_path,
+        )
+
+    return {"success": True, "data": data}
+
+
+def _agent_cleanup(report):
+    try:
+        result = bpy.ops.arp_convert.cleanup()
+    except Exception as e:
+        warning = f"Cleanup raised an exception: {e}"
+        report["warnings"].append(warning)
+        return {"success": False, "warning": warning}
+
+    data = {"operator_result": list(result)}
+    report["steps"].append({"stage": "cleanup", "data": data})
+    if "FINISHED" not in result:
+        warning = f"Cleanup did not finish: {list(result)}"
+        report["warnings"].append(warning)
+        return {"success": False, "warning": warning}
+    return {"success": True, "data": data}
+
+
+def _agent_copy_custom_scale(report, report_path):
+    import agent_convert_contract as acc
+    from arp_utils import _copy_custom_scale_fcurves, find_arp_armature, quiet_logs
+
+    with quiet_logs():
+        arp_obj = find_arp_armature()
+    if arp_obj is None:
+        return acc.failed("copy_custom_scale", "ARP armature was not found.", {}, report_path)
+
+    try:
+        copied = _copy_custom_scale_fcurves(arp_obj)
+    except Exception as e:
+        return acc.failed(
+            "copy_custom_scale",
+            "Custom scale copy raised an exception.",
+            {"error": str(e), "traceback": traceback.format_exc()},
+            report_path,
+        )
+
+    data = {"arp_armature": arp_obj.name, "copied_fcurves": copied}
+    report["steps"].append({"stage": "copy_custom_scale", "data": data})
+    return {"success": True, "data": data}
+
+
+def _agent_verify_frames(report, report_path, pairs_data, actions):
+    import agent_convert_contract as acc
+
+    compare_pairs = acc.select_core_pairs(pairs_data.get("pairs", []), limit=8)
+    if not compare_pairs:
+        return acc.blocked(
+            "frame_verify",
+            "No core bone pairs are available for frame verification.",
+            {"total_pairs": pairs_data.get("total_pairs", 0)},
+            "Inspect bone_pairs and fix role assignments before rerunning retarget verification.",
+            "preview_roles",
+            report_path,
+        )
+
+    action = actions[0]
+    frames = acc.sample_frames(action["frame_start"], action["frame_end"], count=5)
+    try:
+        compare_result = _agent_compare_frames_inline(
+            compare_pairs, frames, action_name=action["name"], detailed=False
+        )
+    except Exception as e:
+        return acc.failed(
+            "frame_verify",
+            "Frame verification could not run.",
+            {"error": str(e), "traceback": traceback.format_exc()},
+            report_path,
+        )
+
+    threshold = acc.evaluate_frame_thresholds(compare_result)
+    data = {
+        **compare_result,
+        "frames": frames,
+        "pass_rate": threshold["pass_rate"],
+        "violations": threshold["violations"],
+    }
+    report["steps"].append({"stage": "frame_verify", "data": acc.compact_payload(data)})
+
+    if not threshold["ok"]:
+        try:
+            detailed = _agent_compare_frames_inline(
+                compare_pairs, frames, action_name=action["name"], detailed=True
+            )
+        except Exception:
+            detailed = data
+        report["diagnostic"] = {"stage": "frame_verify", **detailed}
+        _agent_write_report(report_path, report)
+        return acc.blocked(
+            "frame_verify",
+            "Frame verification exceeded allowed error thresholds.",
+            {"violations": threshold["violations"], "action": action["name"], "frames": frames},
+            "Inspect the frame verification offenders in the report before accepting the retarget.",
+            "frame_verify",
+            report_path,
+        )
+
+    return {"success": True, "data": data}
+
+
+def _agent_compare_frames_inline(pairs, frames, action_name=None, detailed=False):
+    from arp_utils import find_arp_armature, find_source_armature, quiet_logs
+    from mcp_verify import (
+        compute_position_stats,
+        compute_rotation_stats,
+        format_comparison_report,
+        summarize_pair_results,
+    )
+
+    with quiet_logs():
+        src_obj = find_source_armature()
+        arp_obj = find_arp_armature()
+    if src_obj is None:
+        raise RuntimeError("소스 아마추어를 찾을 수 없습니다.")
+    if arp_obj is None:
+        raise RuntimeError("ARP 아마추어를 찾을 수 없습니다.")
+
+    if action_name:
+        src_action = bpy.data.actions.get(action_name)
+        arp_action = (
+            bpy.data.actions.get(f"{action_name}_remap")
+            or bpy.data.actions.get(f"{action_name}_arp")
+            or next(
+                (
+                    action
+                    for action in bpy.data.actions
+                    if action.name.startswith(f"{action_name}_remap.")
+                ),
+                None,
+            )
+        )
+        if src_action is None or arp_action is None:
+            raise RuntimeError(f"액션 '{action_name}' 또는 retarget 결과 액션을 찾을 수 없습니다.")
+        if src_obj.animation_data is None:
+            src_obj.animation_data_create()
+        if arp_obj.animation_data is None:
+            arp_obj.animation_data_create()
+        src_obj.animation_data.action = src_action
+        arp_obj.animation_data.action = arp_action
+
+    pair_results = []
+    all_distances = []
+    all_rotation_errors = []
+    for src_name, arp_name in pairs:
+        src_pb = src_obj.pose.bones.get(src_name)
+        arp_pb = arp_obj.pose.bones.get(arp_name)
+        if src_pb is None or arp_pb is None:
+            pair_results.append(
+                {
+                    "src": src_name,
+                    "arp": arp_name,
+                    "error": "bone not found",
+                    "max_err": 1.0,
+                    "mean_err": 1.0,
+                    "rot_max_deg": 180.0,
+                    "rot_mean_deg": 180.0,
+                    "per_frame": [],
+                    "per_frame_rot_deg": [],
+                }
+            )
+            all_distances.append(1.0)
+            all_rotation_errors.append(180.0)
+            continue
+
+        per_frame = []
+        per_frame_rot_deg = []
+        for frame in frames:
+            bpy.context.scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            src_matrix = src_obj.matrix_world @ src_pb.matrix
+            arp_matrix = arp_obj.matrix_world @ arp_pb.matrix
+            s_pos = src_obj.matrix_world @ src_pb.head
+            a_pos = arp_obj.matrix_world @ arp_pb.head
+            distance = (a_pos - s_pos).length
+            rot_deg = src_matrix.to_quaternion().rotation_difference(
+                arp_matrix.to_quaternion()
+            ).angle
+            rot_deg = math.degrees(rot_deg)
+            per_frame.append(distance)
+            per_frame_rot_deg.append(rot_deg)
+            all_distances.append(distance)
+            all_rotation_errors.append(rot_deg)
+
+        pos_stats = compute_position_stats(per_frame)
+        rot_stats = compute_rotation_stats(per_frame_rot_deg)
+        pair_results.append(
+            {
+                "src": src_name,
+                "arp": arp_name,
+                "max_err": pos_stats["max"],
+                "mean_err": pos_stats["mean"],
+                "rot_max_deg": rot_stats["max"],
+                "rot_mean_deg": rot_stats["mean"],
+                "per_frame": per_frame,
+                "per_frame_rot_deg": per_frame_rot_deg,
+            }
+        )
+
+    overall = compute_position_stats(all_distances)
+    overall_rot = compute_rotation_stats(all_rotation_errors)
+    current_action_name = None
+    if src_obj.animation_data and src_obj.animation_data.action:
+        current_action_name = src_obj.animation_data.action.name
+
+    data = {
+        "action": action_name or current_action_name,
+        "frame_count": len(frames),
+        "pair_count": len(pairs),
+        "overall_max_err": overall["max"],
+        "overall_mean_err": overall["mean"],
+        "overall_rot_max_deg": overall_rot["max"],
+        "overall_rot_mean_deg": overall_rot["mean"],
+    }
+    if detailed:
+        data["results"] = pair_results
+        data["report"] = format_comparison_report(pair_results)
+    else:
+        summary = summarize_pair_results(pair_results)
+        data["pass_count"] = summary["pass_count"]
+        data["top_offenders"] = summary["top_offenders"]
+    return data
+
+
 def mcp_agent_convert_current_file(
     *,
     include_retarget=True,
@@ -507,23 +849,66 @@ def mcp_agent_convert_current_file(
             _agent_emit(status)
             return
 
+        setup_result = _agent_setup_retarget(report, report_path)
+        if setup_result.get("success") is not True:
+            _agent_write_report(report_path, report)
+            _agent_emit(setup_result)
+            return
+
+        retarget_result = _agent_run_arp_retarget(report, report_path)
+        if retarget_result.get("success") is not True:
+            _agent_write_report(report_path, report)
+            _agent_emit(retarget_result)
+            return
+
+        scale_result = _agent_copy_custom_scale(report, report_path)
+        if scale_result.get("success") is not True:
+            _agent_write_report(report_path, report)
+            _agent_emit(scale_result)
+            return
+
+        frame_result = _agent_verify_frames(
+            report, report_path, pairs_result["data"], preflight["actions"]
+        )
+        if frame_result.get("success") is not True:
+            _agent_emit(frame_result)
+            return
+
+        if allow_cleanup:
+            _agent_cleanup(report)
+
         data = {
             "blend_file": blend_file,
             "source_armature": preflight["source_armature"],
             "arp_armature": build_result["data"]["arp_armature"],
             "preview_confidence": preview_result["data"]["confidence"],
-            "steps_completed": ["preflight", "preview", "build_rig", "weights", "bone_pairs"],
-            "warnings": [*report["warnings"], "Retarget stages are not connected yet."],
+            "steps_completed": [
+                "preflight",
+                "preview",
+                "build_rig",
+                "weights",
+                "bone_pairs",
+                "setup_retarget",
+                "arp_retarget",
+                "copy_custom_scale",
+                "frame_verify",
+            ],
+            "warnings": report["warnings"],
             "summary": {
                 "bound_meshes": len(preflight["bound_meshes"]),
                 "actions": len(preflight["actions"]),
                 "bone_pairs": pairs_result["data"]["total_pairs"],
                 "unweighted_vertices": weight_result["data"]["unweighted_vertices"],
+                "remap_actions": len(retarget_result["data"]["remap_actions"]),
+                "copied_scale_fcurves": scale_result["data"]["copied_fcurves"],
+                "frame_verify_pass_rate": frame_result["data"]["pass_rate"],
+                "max_position_error_mm": frame_result["data"]["overall_max_err"] * 1000,
+                "max_rotation_error_deg": frame_result["data"]["overall_rot_max_deg"],
             },
             "report_path": report_path,
         }
         _agent_write_report(report_path, report)
-        _agent_emit(acc.partial("retarget_pending", data))
+        _agent_emit(acc.complete("complete", data))
     except Exception as e:
         _agent_emit(
             {
