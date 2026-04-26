@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 import agent_convert_contract as acc
@@ -183,3 +184,20 @@ def test_build_report_path_uses_blend_stem_and_timestamp(tmp_path: Path):
     )
 
     assert result == str(tmp_path / "Fox_AllAni_20260426_180000.json")
+
+
+def test_mcp_bridge_exposes_agent_convert_entrypoint():
+    source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    function_names = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+
+    assert "mcp_agent_convert_current_file" in function_names
+
+
+def test_mcp_bridge_has_agent_report_and_preflight_helpers():
+    source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    function_names = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+
+    assert {"_agent_emit", "_agent_write_report", "_agent_preflight"} <= function_names
+    assert '"agent_convert_contract"' in source

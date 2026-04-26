@@ -11,6 +11,7 @@ Entrypoints (모두 JSON stdout 출력):
   mcp_validate_weights()                    — 웨이트 검증
   mcp_inspect_bone_pairs(role_filter=None)  — bone_pairs 디코드
   mcp_compare_frames(pairs, frames, ...)    — 소스-ARP 위치 비교
+  mcp_agent_convert_current_file()          — 단일 파일 agent 변환 하네스
   mcp_inspect_preset_bones(preset, pattern) — ARP 프리셋 본 조회
   mcp_bake_animation()                      — F12 애니메이션 베이크 (= mcp_setup_retarget alias)
   mcp_reload_addon()                        — 애드온 재등록
@@ -26,6 +27,8 @@ import math
 import os
 import sys
 import traceback
+from datetime import datetime
+from pathlib import Path
 
 import bpy
 
@@ -61,9 +64,203 @@ def _reload():
         "skeleton_analyzer",
         "weight_transfer_rules",
         "mcp_verify",
+        "agent_convert_contract",
     ]:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
+
+
+# ═══════════════════════════════════════════════════════════════
+# 0. Agent Convert Harness helpers
+# ═══════════════════════════════════════════════════════════════
+
+
+def _agent_emit(payload):
+    """Print an agent harness payload without the legacy data/error wrapper."""
+    print(json.dumps(payload, ensure_ascii=False, default=str))
+
+
+def _agent_default_report_dir():
+    repo_root = Path(_SCRIPT_DIR).parent
+    return repo_root / "agent_reports"
+
+
+def _agent_write_report(report_path, report):
+    path = Path(report_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+
+
+def _agent_action_summary():
+    actions = []
+    for action in bpy.data.actions:
+        frame_start, frame_end = action.frame_range
+        actions.append(
+            {
+                "name": action.name,
+                "frame_start": round(frame_start),
+                "frame_end": round(frame_end),
+            }
+        )
+    return actions
+
+
+def _agent_preflight():
+    from arp_utils import (
+        find_arp_armature,
+        find_mesh_objects,
+        find_source_armature,
+        get_3d_viewport_context,
+        quiet_logs,
+    )
+
+    props = getattr(bpy.context.scene, "arp_convert_props", None)
+    if props is None:
+        return {
+            "success": False,
+            "status": "failed",
+            "problem": "ARP Convert addon properties are not registered.",
+            "evidence": {"scene": bpy.context.scene.name},
+        }
+
+    with quiet_logs():
+        source_obj = find_source_armature()
+        arp_obj = find_arp_armature()
+        viewport_context = get_3d_viewport_context()
+
+    if source_obj is None:
+        return {
+            "success": False,
+            "status": "blocked",
+            "problem": "No source armature was found in the current scene.",
+            "evidence": {"armature_count": len([o for o in bpy.data.objects if o.type == "ARMATURE"])},
+            "recommended_fix": "Open a quadruped .blend containing one source armature, then rerun the harness.",
+            "retry_from": "preflight",
+        }
+
+    if arp_obj is not None:
+        return {
+            "success": False,
+            "status": "blocked",
+            "problem": "An ARP armature already exists in the current scene.",
+            "evidence": {"arp_armature": arp_obj.name},
+            "recommended_fix": "Open an unconverted source file or clean the existing ARP rig before rerunning.",
+            "retry_from": "preflight",
+        }
+
+    if viewport_context is None:
+        return {
+            "success": False,
+            "status": "failed",
+            "problem": "3D View context is unavailable for Blender operators.",
+            "evidence": {"window_count": len(bpy.context.window_manager.windows)},
+        }
+
+    bound_meshes = find_mesh_objects(source_obj)
+    warnings = []
+    if not bound_meshes:
+        warnings.append("No mesh is bound to the source armature; weight verification will be limited.")
+
+    actions = _agent_action_summary()
+    if not actions:
+        warnings.append("No actions found; retarget will be skipped.")
+
+    return {
+        "success": True,
+        "blend_file": bpy.data.filepath,
+        "source_obj": source_obj,
+        "source_armature": source_obj.name,
+        "bound_meshes": [mesh.name for mesh in bound_meshes],
+        "actions": actions,
+        "warnings": warnings,
+    }
+
+
+def mcp_agent_convert_current_file(
+    *,
+    include_retarget=True,
+    allow_cleanup=False,
+    confidence_threshold=0.80,
+    verbosity="summary",
+    report_dir=None,
+):
+    """Run the current-scene agent conversion pipeline and print a standard JSON result."""
+    try:
+        _reload()
+        import agent_convert_contract as acc
+
+        blend_file = bpy.data.filepath or "untitled.blend"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = acc.build_report_path(
+            blend_file=blend_file,
+            report_dir=str(report_dir or _agent_default_report_dir()),
+            timestamp=timestamp,
+        )
+        report = {
+            "blend_file": blend_file,
+            "parameters": {
+                "include_retarget": include_retarget,
+                "allow_cleanup": allow_cleanup,
+                "confidence_threshold": confidence_threshold,
+                "verbosity": verbosity,
+            },
+            "steps": [],
+            "warnings": [],
+        }
+
+        preflight = _agent_preflight()
+        if preflight.get("success") is not True:
+            report["diagnostic"] = {"stage": "preflight", "evidence": preflight.get("evidence", {})}
+            _agent_write_report(report_path, report)
+            if preflight.get("status") == "blocked":
+                _agent_emit(
+                    acc.blocked(
+                        "preflight",
+                        preflight["problem"],
+                        preflight.get("evidence", {}),
+                        preflight["recommended_fix"],
+                        preflight["retry_from"],
+                        report_path,
+                    )
+                )
+                return
+            _agent_emit(
+                acc.failed(
+                    "preflight",
+                    preflight["problem"],
+                    preflight.get("evidence", {}),
+                    report_path,
+                )
+            )
+            return
+
+        report["warnings"].extend(preflight["warnings"])
+        data = {
+            "blend_file": blend_file,
+            "source_armature": preflight["source_armature"],
+            "steps_completed": ["preflight"],
+            "warnings": report["warnings"],
+            "summary": {
+                "bound_meshes": len(preflight["bound_meshes"]),
+                "actions": len(preflight["actions"]),
+            },
+            "report_path": report_path,
+        }
+        report["steps"].append({"stage": "preflight", "data": data})
+        _agent_write_report(report_path, report)
+        _agent_emit(acc.partial("preflight_complete", data))
+    except Exception as e:
+        _agent_emit(
+            {
+                "success": False,
+                "status": "failed",
+                "stage": "agent_exception",
+                "error": {
+                    "problem": str(e),
+                    "evidence": {"traceback": traceback.format_exc()},
+                },
+            }
+        )
 
 
 # ═══════════════════════════════════════════════════════════════
