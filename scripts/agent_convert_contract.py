@@ -31,6 +31,16 @@ CORE_ROLE_PRIORITY = [
     "ear_r",
 ]
 
+REQUIRED_ROLE_GROUPS = [
+    ("root_or_trajectory", {"root", "trajectory"}),
+    ("spine", {"spine"}),
+    ("head", {"head"}),
+    ("back_leg_l", {"back_leg_l"}),
+    ("back_leg_r", {"back_leg_r"}),
+    ("back_foot_l", {"back_foot_l"}),
+    ("back_foot_r", {"back_foot_r"}),
+]
+
 
 def blocked(stage, problem, evidence, recommended_fix, retry_from, report_path):
     return {
@@ -145,3 +155,12 @@ def build_report_path(blend_file, report_dir, timestamp):
     stem = Path(blend_file).stem or "untitled"
     safe_stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("_") or "untitled"
     return str(Path(report_dir) / f"{safe_stem}_{timestamp}.json")
+
+
+def validate_required_roles(pairs):
+    present = {pair.get("role") for pair in pairs if pair.get("role")}
+    missing = []
+    for label, accepted_roles in REQUIRED_ROLE_GROUPS:
+        if present.isdisjoint(accepted_roles):
+            missing.append("root" if label == "root_or_trajectory" else label)
+    return {"ok": not missing, "missing_roles": missing}

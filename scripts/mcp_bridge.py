@@ -176,6 +176,213 @@ def _agent_preflight():
     }
 
 
+def _agent_create_preview(confidence_threshold, report, report_path, verbosity):
+    import agent_convert_contract as acc
+    from arp_utils import ensure_object_mode, get_3d_viewport_context, quiet_logs
+
+    with quiet_logs():
+        ensure_object_mode()
+        ctx = get_3d_viewport_context()
+        if ctx is None:
+            return acc.failed(
+                "preview",
+                "3D View context is unavailable for Create Preview.",
+                {},
+                report_path,
+            )
+        with bpy.context.temp_override(**ctx):
+            result = bpy.ops.arp_convert.create_preview()
+
+    if "FINISHED" not in result:
+        return acc.failed(
+            "preview",
+            "Create Preview operator did not finish.",
+            {"operator_result": list(result)},
+            report_path,
+        )
+
+    props = bpy.context.scene.arp_convert_props
+    confidence = float(getattr(props, "confidence", 0.0) or 0.0)
+    preview_data = {
+        "source_armature": props.source_armature,
+        "preview_armature": props.preview_armature,
+        "confidence": round(confidence, 4),
+        "is_analyzed": bool(props.is_analyzed),
+    }
+    report["steps"].append({"stage": "preview", "data": preview_data})
+
+    if confidence < confidence_threshold:
+        roles_payload = _agent_collect_roles_payload()
+        report["diagnostic"] = {
+            "stage": "preview_roles",
+            **acc.compact_payload(roles_payload, verbosity=verbosity),
+        }
+        _agent_write_report(report_path, report)
+        return acc.blocked(
+            "preview_roles",
+            "Preview role confidence is below threshold.",
+            {
+                "confidence": round(confidence, 4),
+                "threshold": confidence_threshold,
+                "unmapped_count": len(roles_payload.get("unmapped_bones", [])),
+            },
+            "Open ARP Convert > Source Hierarchy, fix role assignments, then rerun the harness.",
+            "preview_roles",
+            report_path,
+        )
+
+    return {"success": True, "data": preview_data}
+
+
+def _agent_collect_roles_payload():
+    from skeleton_analyzer import read_preview_roles
+
+    props = bpy.context.scene.arp_convert_props
+    preview_obj = bpy.data.objects.get(props.preview_armature)
+    if preview_obj is None:
+        return {"roles": {}, "unmapped_bones": []}
+
+    roles = read_preview_roles(preview_obj)
+    return {"roles": roles, "unmapped_bones": list(roles.get("unmapped", []))}
+
+
+def _agent_build_rig(report, report_path):
+    import agent_convert_contract as acc
+    from arp_utils import ensure_object_mode, find_arp_armature, get_3d_viewport_context, quiet_logs
+
+    with quiet_logs():
+        ensure_object_mode()
+        ctx = get_3d_viewport_context()
+        if ctx is None:
+            return acc.failed(
+                "build_rig",
+                "3D View context is unavailable for Build Rig.",
+                {},
+                report_path,
+            )
+        with bpy.context.temp_override(**ctx):
+            result = bpy.ops.arp_convert.build_rig()
+
+    if "FINISHED" not in result:
+        return acc.failed(
+            "build_rig",
+            "Build Rig operator did not finish.",
+            {"operator_result": list(result)},
+            report_path,
+        )
+
+    arp_obj = find_arp_armature()
+    if arp_obj is None:
+        return acc.failed(
+            "build_rig",
+            "Build Rig finished but no ARP armature was found.",
+            {"operator_result": list(result)},
+            report_path,
+        )
+
+    c_bone_count = len([bone for bone in arp_obj.data.bones if bone.name.startswith("c_")])
+    data = {
+        "arp_armature": arp_obj.name,
+        "bone_count": len(arp_obj.data.bones),
+        "c_bone_count": c_bone_count,
+    }
+    report["steps"].append({"stage": "build_rig", "data": data})
+    return {"success": True, "arp_obj": arp_obj, "data": data}
+
+
+def _agent_validate_weights(report, report_path):
+    import agent_convert_contract as acc
+    from arp_utils import find_arp_armature, find_mesh_objects, quiet_logs
+
+    with quiet_logs():
+        arp_obj = find_arp_armature()
+        meshes = find_mesh_objects(arp_obj) if arp_obj else []
+
+    if arp_obj is None:
+        return acc.failed("weights", "ARP armature was not found.", {}, report_path)
+
+    mesh_results = []
+    total_unweighted = 0
+    for mesh_obj in meshes:
+        unweighted = 0
+        for vert in mesh_obj.data.vertices:
+            if not any(group.weight > 0.001 for group in vert.groups):
+                unweighted += 1
+        total_unweighted += unweighted
+        mesh_results.append(
+            {
+                "mesh": mesh_obj.name,
+                "total_verts": len(mesh_obj.data.vertices),
+                "unweighted_verts": unweighted,
+                "total_groups": len(mesh_obj.vertex_groups),
+            }
+        )
+
+    data = {
+        "arp_armature": arp_obj.name,
+        "meshes": mesh_results,
+        "unweighted_vertices": total_unweighted,
+    }
+    report["steps"].append({"stage": "weights", "data": data})
+
+    if meshes and total_unweighted > 0:
+        _agent_write_report(report_path, report)
+        return acc.blocked(
+            "weights",
+            "One or more bound meshes contain unweighted vertices.",
+            data,
+            "Inspect the listed meshes in Weight Paint and assign weights before rerunning.",
+            "weights",
+            report_path,
+        )
+
+    return {"success": True, "data": data}
+
+
+def _agent_inspect_pairs(report, report_path):
+    import agent_convert_contract as acc
+    from arp_utils import BAKE_PAIRS_KEY, deserialize_bone_pairs, find_arp_armature, quiet_logs
+    from mcp_verify import filter_pairs_by_role
+    from skeleton_analyzer import discover_arp_ctrl_map
+
+    with quiet_logs():
+        arp_obj = find_arp_armature()
+
+    if arp_obj is None:
+        return acc.failed("bone_pairs", "ARP armature was not found.", {}, report_path)
+
+    pairs_json = arp_obj.get(BAKE_PAIRS_KEY, "")
+    if not pairs_json:
+        return acc.failed(
+            "bone_pairs",
+            "ARP armature has no arpconv_bone_pairs data.",
+            {"arp_armature": arp_obj.name},
+            report_path,
+        )
+
+    bone_pairs = deserialize_bone_pairs(pairs_json)
+    ctrl_map = discover_arp_ctrl_map(arp_obj)
+    target_to_role = {ctrl: role for role, ctrls in ctrl_map.items() for ctrl in ctrls}
+    filtered = filter_pairs_by_role(bone_pairs, target_to_role)
+    validation = acc.validate_required_roles(filtered)
+    data = {"total_pairs": len(bone_pairs), "pairs": filtered, **validation}
+    report["steps"].append({"stage": "bone_pairs", "data": acc.compact_payload(data)})
+
+    if not validation["ok"]:
+        report["diagnostic"] = {"stage": "bone_pairs", "pairs": filtered}
+        _agent_write_report(report_path, report)
+        return acc.blocked(
+            "bone_pairs",
+            "Core role mappings are missing from bone_pairs.",
+            {"missing_roles": validation["missing_roles"], "total_pairs": len(bone_pairs)},
+            "Fix Preview role assignments for the missing roles and rerun Build Rig.",
+            "preview_roles",
+            report_path,
+        )
+
+    return {"success": True, "data": data}
+
+
 def mcp_agent_convert_current_file(
     *,
     include_retarget=True,
@@ -235,20 +442,88 @@ def mcp_agent_convert_current_file(
             return
 
         report["warnings"].extend(preflight["warnings"])
+        report["steps"].append(
+            {
+                "stage": "preflight",
+                "data": {
+                    "source_armature": preflight["source_armature"],
+                    "bound_meshes": preflight["bound_meshes"],
+                    "actions": preflight["actions"],
+                },
+            }
+        )
+
+        preview_result = _agent_create_preview(
+            confidence_threshold, report, report_path, verbosity
+        )
+        if preview_result.get("success") is not True:
+            _agent_emit(preview_result)
+            return
+
+        build_result = _agent_build_rig(report, report_path)
+        if build_result.get("success") is not True:
+            _agent_write_report(report_path, report)
+            _agent_emit(build_result)
+            return
+
+        weight_result = _agent_validate_weights(report, report_path)
+        if weight_result.get("success") is not True:
+            _agent_emit(weight_result)
+            return
+
+        pairs_result = _agent_inspect_pairs(report, report_path)
+        if pairs_result.get("success") is not True:
+            _agent_emit(pairs_result)
+            return
+
+        if not include_retarget or not preflight["actions"]:
+            data = {
+                "blend_file": blend_file,
+                "source_armature": preflight["source_armature"],
+                "arp_armature": build_result["data"]["arp_armature"],
+                "preview_confidence": preview_result["data"]["confidence"],
+                "steps_completed": [
+                    "preflight",
+                    "preview",
+                    "build_rig",
+                    "weights",
+                    "bone_pairs",
+                ],
+                "warnings": report["warnings"],
+                "summary": {
+                    "bound_meshes": len(preflight["bound_meshes"]),
+                    "actions": len(preflight["actions"]),
+                    "bone_pairs": pairs_result["data"]["total_pairs"],
+                    "unweighted_vertices": weight_result["data"]["unweighted_vertices"],
+                },
+                "report_path": report_path,
+            }
+            if include_retarget and not preflight["actions"]:
+                data["warnings"].append("No actions found; retarget was skipped.")
+                status = acc.partial("retarget_skipped", data)
+            else:
+                status = acc.complete("build_rig_complete", data)
+            _agent_write_report(report_path, report)
+            _agent_emit(status)
+            return
+
         data = {
             "blend_file": blend_file,
             "source_armature": preflight["source_armature"],
-            "steps_completed": ["preflight"],
-            "warnings": report["warnings"],
+            "arp_armature": build_result["data"]["arp_armature"],
+            "preview_confidence": preview_result["data"]["confidence"],
+            "steps_completed": ["preflight", "preview", "build_rig", "weights", "bone_pairs"],
+            "warnings": [*report["warnings"], "Retarget stages are not connected yet."],
             "summary": {
                 "bound_meshes": len(preflight["bound_meshes"]),
                 "actions": len(preflight["actions"]),
+                "bone_pairs": pairs_result["data"]["total_pairs"],
+                "unweighted_vertices": weight_result["data"]["unweighted_vertices"],
             },
             "report_path": report_path,
         }
-        report["steps"].append({"stage": "preflight", "data": data})
         _agent_write_report(report_path, report)
-        _agent_emit(acc.partial("preflight_complete", data))
+        _agent_emit(acc.partial("retarget_pending", data))
     except Exception as e:
         _agent_emit(
             {

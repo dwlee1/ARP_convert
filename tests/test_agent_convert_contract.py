@@ -186,6 +186,35 @@ def test_build_report_path_uses_blend_stem_and_timestamp(tmp_path: Path):
     assert result == str(tmp_path / "Fox_AllAni_20260426_180000.json")
 
 
+def test_validate_required_roles_accepts_root_spine_head_and_feet():
+    pairs = [
+        {"source": "DEF-root", "target": "c_root.x", "role": "root"},
+        {"source": "DEF-spine", "target": "c_spine_01.x", "role": "spine"},
+        {"source": "DEF-head", "target": "c_head.x", "role": "head"},
+        {"source": "DEF-thigh_L", "target": "c_thigh_b.l", "role": "back_leg_l"},
+        {"source": "DEF-thigh_R", "target": "c_thigh_b.r", "role": "back_leg_r"},
+        {"source": "DEF-foot_L", "target": "c_foot_fk.l", "role": "back_foot_l"},
+        {"source": "DEF-foot_R", "target": "c_foot_fk.r", "role": "back_foot_r"},
+    ]
+
+    result = acc.validate_required_roles(pairs)
+
+    assert result == {"ok": True, "missing_roles": []}
+
+
+def test_validate_required_roles_blocks_missing_head_and_foot():
+    pairs = [
+        {"source": "DEF-root", "target": "c_root.x", "role": "root"},
+        {"source": "DEF-spine", "target": "c_spine_01.x", "role": "spine"},
+        {"source": "DEF-thigh_L", "target": "c_thigh_b.l", "role": "back_leg_l"},
+        {"source": "DEF-thigh_R", "target": "c_thigh_b.r", "role": "back_leg_r"},
+    ]
+
+    result = acc.validate_required_roles(pairs)
+
+    assert result == {"ok": False, "missing_roles": ["head", "back_foot_l", "back_foot_r"]}
+
+
 def test_mcp_bridge_exposes_agent_convert_entrypoint():
     source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -201,3 +230,39 @@ def test_mcp_bridge_has_agent_report_and_preflight_helpers():
 
     assert {"_agent_emit", "_agent_write_report", "_agent_preflight"} <= function_names
     assert '"agent_convert_contract"' in source
+
+
+def test_mcp_bridge_has_build_gate_helpers():
+    source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    function_names = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+
+    assert {
+        "_agent_create_preview",
+        "_agent_collect_roles_payload",
+        "_agent_build_rig",
+        "_agent_validate_weights",
+        "_agent_inspect_pairs",
+    } <= function_names
+
+
+def test_agent_entrypoint_runs_preview_build_weight_and_pair_gates():
+    source = Path("scripts/mcp_bridge.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    entrypoint = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "mcp_agent_convert_current_file"
+    )
+    called_names = {
+        node.func.id
+        for node in ast.walk(entrypoint)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+    assert {
+        "_agent_create_preview",
+        "_agent_build_rig",
+        "_agent_validate_weights",
+        "_agent_inspect_pairs",
+    } <= called_names
