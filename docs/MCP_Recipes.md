@@ -43,7 +43,36 @@ for m in ["skeleton_analyzer", "arp_utils", "weight_transfer_rules", "mcp_verify
 | `mcp_bake_animation()` | F12 COPY_TRANSFORMS 베이크 | 없음 |
 | `mcp_inspect_bone_pairs(role_filter)` | bone_pairs 디코드 + 역할 필터 | `None` / str / list |
 | `mcp_compare_frames(pairs, frames, action_name, detailed=False)` | 소스-ARP 월드 위치 비교 | 본 쌍, 프레임, 액션명, 상세 플래그 |
+| `mcp_agent_convert_current_file()` | 단일 파일 Agent Convert Harness | include_retarget, allow_cleanup, confidence_threshold |
 | `mcp_inspect_preset_bones(preset, pattern)` | ARP 프리셋 본 이름 조회 | 프리셋명, 정규식 |
+
+## Agent Convert Harness
+
+실제 단일 `.blend` 리깅 변환 작업은 `mcp_agent_convert_current_file()`을 우선 사용한다.
+Blender에 대상 파일이 열려 있고 BlenderMCP가 연결된 상태에서 호출한다.
+
+```python
+import sys
+repo_scripts = r"C:\Users\DWLEE\ARP_convert\scripts"
+if repo_scripts not in sys.path:
+    sys.path.insert(0, repo_scripts)
+
+from mcp_bridge import mcp_agent_convert_current_file
+
+mcp_agent_convert_current_file(include_retarget=True)
+```
+
+반환 상태:
+
+| status | 의미 | 에이전트 행동 |
+|--------|------|--------------|
+| `complete` | Build Rig + Retarget + 검증 완료 | 요약과 `report_path` 보고 |
+| `partial` | Build Rig는 됐지만 Retarget 생략 또는 일부 중단 | 완료 범위와 다음 조치 보고 |
+| `blocked` | 사용자가 수정하면 재시도 가능한 상태 | `problem`, `evidence`, `recommended_fix`를 보고하고 중단 |
+| `failed` | 환경/코드/ARP 호출 실패 | `error`와 `report_path`를 보고하고 중단 |
+
+기본 응답은 compact JSON이다. 전체 role, bone_pairs, 프레임별 상세는
+`agent_reports/<blend>_<timestamp>.json`에 저장된다.
 
 ## 로그 레벨 / 토큰 최적화
 

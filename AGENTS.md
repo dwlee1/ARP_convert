@@ -100,6 +100,20 @@ ruff check scripts/ tests/
 - `mcp_reload_addon()`으로 전체 애드온 재등록 후 관련 MCP 스모크 실행
 - 관련 변경 기준: `mcp_build_rig`, `mcp_setup_retarget`, `mcp_inspect_bone_pairs`, `mcp_compare_frames`
 
+## AI 에이전트 변환 하네스
+
+실제 단일 `.blend` 리깅 변환 작업은 공통 MCP 진입점
+`mcp_agent_convert_current_file(include_retarget=True)`를 우선 사용한다.
+Codex와 Claude 모두 같은 status 계약을 따른다.
+
+- `complete`: 요약과 `report_path` 보고
+- `partial`: 완료된 범위와 다음 행동 보고
+- `blocked`: 사용자가 수정 가능한 문제이므로 `problem/evidence/recommended_fix/retry_from` 보고 후 중단
+- `failed`: 환경/코드/ARP 실패이므로 `error`와 `report_path` 보고 후 중단
+
+하네스가 `blocked`를 반환한 상태에서 임의로 다음 단계로 진행하지 않는다.
+`retry_from`은 v1에서 부분 재시작 파라미터가 아니라 진단 라벨이다.
+
 ## Workflow
 
 개발 작업을 일관되게 진행하기 위한 규칙. 2026-04-05 F12 작업에서 superpowers 스킬 풀 사이클을 첫 적용한 경험을 토대로 합의됨.
