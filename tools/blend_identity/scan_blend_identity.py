@@ -42,7 +42,7 @@ def get_bundle_dir() -> Path:
 def find_project_root(start_dir: Path) -> Path:
     current = start_dir.resolve()
     for candidate in (current, *current.parents):
-        if (candidate / "Asset" / "BlenderFile").exists():
+        if (candidate.parent / "Asset" / "BlenderFile").exists():
             return candidate
     return current
 
@@ -50,7 +50,7 @@ def find_project_root(start_dir: Path) -> Path:
 RUNTIME_DIR = get_runtime_dir()
 BUNDLE_DIR = get_bundle_dir()
 PROJECT_ROOT = find_project_root(RUNTIME_DIR)
-ASSET_ROOT = str(PROJECT_ROOT / "Asset" / "BlenderFile")
+ASSET_ROOT = str(PROJECT_ROOT.parent / "Asset" / "BlenderFile")
 EXTRACT_SCRIPT = str(BUNDLE_DIR / "extract_blend_identity.py")
 OUTPUT_DIR = str(RUNTIME_DIR / "output")
 DEFAULT_JSON = os.path.join(OUTPUT_DIR, "blend_identity_report.json")

@@ -21,10 +21,10 @@ from collections.abc import Iterable, MutableSet, Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
-DEFAULT_SOURCE = ROOT_DIR / "Asset" / "BlenderFile"
+DEFAULT_SOURCE = ROOT_DIR.parent / "Asset" / "BlenderFile"
 DEFAULT_DEST_BY_GROUP = {
-    "folder": ROOT_DIR / "Asset" / "latest_blends_by_folder",
-    "animal": ROOT_DIR / "Asset" / "latest_blends_by_animal",
+    "folder": ROOT_DIR.parent / "Asset" / "latest_blends_by_folder",
+    "animal": ROOT_DIR.parent / "Asset" / "latest_blends_by_animal",
 }
 DEFAULT_EXCLUDED_DIRS_FOR_ANIMAL = (
     "포트레이트",

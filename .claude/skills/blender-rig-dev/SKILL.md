@@ -71,7 +71,7 @@ ruff check scripts/ tests/
 이후 `/sync-addon` 실행 후 MCP 스모크:
 
 ```python
-import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderRigConvert\scripts')
+import sys; sys.path.insert(0, r'C:\Users\manag\Desktop\BlenderAddons\ArpConvert\scripts')
 from mcp_bridge import mcp_reload_addon, mcp_inspect_bone_pairs, mcp_compare_frames
 mcp_reload_addon()
 ```

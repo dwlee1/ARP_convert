@@ -141,7 +141,7 @@ def main():
         except Exception:
             pass
         # 방법 2: 고정 경로
-        candidates.append(r"C:\Users\manag\Desktop\BlenderRigConvert")
+        candidates.append(r"C:\Users\manag\Desktop\BlenderAddons\ArpConvert")
         for c in candidates:
             if os.path.exists(os.path.join(c, "CLAUDE.md")):
                 return c

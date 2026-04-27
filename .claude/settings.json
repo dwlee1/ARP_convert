@@ -17,7 +17,7 @@
   "permissions": {
     "allow": [
       "Bash(python -m ruff format scripts/ tests/)",
-      "Read(//c/Users/manag/Desktop/BlenderRigConvert/**)",
+      "Read(//c/Users/manag/Desktop/BlenderAddons/ArpConvert/**)",
       "Bash(python -m pre_commit install)",
       "Bash(python tests/generate_cat_fixture.py)",
       "Bash(python -m pytest tests/test_skeleton_analyzer.py -v)",
@@ -43,13 +43,13 @@
       "Bash(python -m pytest -xvs -k \"test_ik_bmap\" --no-header --co)",
       "Bash(python -m pytest -xvs --no-header -c /dev/null -p no:cacheprovider -o \"testpaths=tests\" -o \"pythonpath=scripts\" -k \"x_never_match\")",
       "WebFetch(domain:support.rokoko.com)",
-      "Bash(ln \"c:/Users/manag/Desktop/BlenderRigConvert/scripts/arp_utils.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_utils.py\")",
-      "Bash(ln \"c:/Users/manag/Desktop/BlenderRigConvert/scripts/arp_convert_addon.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_convert_addon.py\")",
+      "Bash(ln \"c:/Users/manag/Desktop/BlenderAddons/ArpConvert/scripts/arp_utils.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_utils.py\")",
+      "Bash(ln \"c:/Users/manag/Desktop/BlenderAddons/ArpConvert/scripts/arp_convert_addon.py\" \"/c/Users/manag/AppData/Roaming/Blender Foundation/Blender/4.5/scripts/addons/arp_convert_addon.py\")",
       "Bash(find 'C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5' -type d -name *auto_rig*)",
       "Bash(find . -name *.bmap -type f)",
-      "Bash(grep -n \"def populate_bone_map\" /c/Users/manag/Desktop/BlenderRigConvert/scripts/*.py)",
+      "Bash(grep -n \"def populate_bone_map\" /c/Users/manag/Desktop/BlenderAddons/ArpConvert/scripts/*.py)",
       "Bash(find 'C:\\Users\\manag\\AppData\\Roaming\\Blender Foundation\\Blender\\4.5\\extensions\\user_default\\auto_rig_pro\\src' -name *.py -type f)",
-      "Bash(find /c/Users/manag/Desktop/BlenderRigConvert -name *.bmap -type f)"
+      "Bash(find /c/Users/manag/Desktop/BlenderAddons/ArpConvert -name *.bmap -type f)"
     ]
   }
 }

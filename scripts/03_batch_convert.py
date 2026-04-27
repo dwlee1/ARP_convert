@@ -30,8 +30,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Blender 실행 파일 경로
 BLENDER_EXE = r"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
 
-# 검색 대상 루트
-ASSET_ROOT = os.path.join(PROJECT_ROOT, "Asset", "BlenderFile")
+# 검색 대상 루트 (워크스페이스 상위로 한 단계 올라감)
+ASSET_ROOT = os.path.normpath(os.path.join(PROJECT_ROOT, "..", "Asset", "BlenderFile"))
 
 # 파이프라인 스크립트
 PIPELINE_SCRIPT = os.path.join(PROJECT_ROOT, "scripts", "pipeline_runner.py")

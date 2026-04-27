@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ASSET_ROOT = REPO_ROOT / "Asset" / "Blender"
+ASSET_ROOT = REPO_ROOT.parent / "Asset" / "Blender"
 MIGRATION_CSV = REPO_ROOT / "docs" / "MigrationInventory.csv"
 BLEND_CSV = ASSET_ROOT / "animal_blend_inventory.csv"
 
