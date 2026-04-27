@@ -80,30 +80,5 @@
   "enabledMcpjsonServers": [
     "blender"
   ],
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cp CLAUDE.md AGENTS.md",
-            "if": "Edit(**/CLAUDE.md)",
-            "statusMessage": "AGENTS.md 동기화"
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cp CLAUDE.md AGENTS.md",
-            "if": "Write(**/CLAUDE.md)",
-            "statusMessage": "AGENTS.md 동기화"
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }
