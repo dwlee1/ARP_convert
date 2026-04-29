@@ -7,6 +7,9 @@ dist/
 # MCP agent conversion reports
 /agent_reports/
 
+# 벤치마크 결과 (PC마다 다름)
+benchmark_result.txt
+
 # Blender 자동 백업
 *.blend1
 *.blend2
