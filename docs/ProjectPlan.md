@@ -109,6 +109,7 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 - [x] Build Rig post-process controller auto-size 적용 — spine 체인 전체 길이 기반 균일 절대 크기 방식 (v2): `target = spine_total × BODY_FRACTION(0.10)`, `scale = target / ctrl_bone_length`. head/neck/spine/ear 컨트롤러가 동일한 절대 표시 크기(~15cm)로 통일됨. ARP IK/FK driver가 있는 본(foot/leg)은 자동 제외.
 - [x] trajectory 역할 추가 — root 부모 본 자동 감지 → c_traj 매핑, trajectory가 있으면 ARP 단일 root 슬롯을 이 행에 할당
 - [x] F8: 웨이트 전송 실제 검증 — 여우/너구리 리그 weight paint 검증 문제없음
+- [x] 어태치먼트 본 constraint mute (2026-05-06): root(parent=None) 본 위 Child Of/ARMATURE constraint가 ARP `bake_anim → get_bones_matrix`(animation.py:196)에서 `None.matrix_channel` 폭발을 일으키는 문제. `arp_retarget.py`에 `mute_attachment_constraints` / `restore_attachment_constraints` helper 추가, `mcp_bridge._agent_run_arp_retarget`이 `try/finally`로 자동 mute → restore. (GUI 경로는 후속 — 다이얼로그 modal 흐름 추가 작업 필요)
 
 ### 자동화 전략
 
@@ -169,6 +170,8 @@ pipeline_runner.py: 소스 분석 → ARP 리그 생성 → ref 정렬 → match
 ## 후속 기능
 
 > 완료된 후속 기능(F12 / MCP 피드백 / addon 분할 / F8 / F6 / UX overhaul)은 `docs/archive/completed-features.md` 참조.
+
+- [ ] GUI 경로 어태치먼트 constraint mute — 현재 MCP 하네스만 자동 처리. `_deferred_execute_retarget`이 ARP 다이얼로그를 INVOKE_DEFAULT로 띄우는 modal 흐름이라 mute/restore 시점 정합이 어려움. 옵션: (a) SetupRetarget에서 mute하고 Cleanup에서 restore (saved를 scene custom prop에 직렬화), (b) ARP retarget 결과를 폴링하는 timer 콜백, (c) EXEC_DEFAULT로 다이얼로그 우회.
 
 ## Unity 프로젝트 이주
 

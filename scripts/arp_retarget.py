@@ -26,7 +26,9 @@ __all__ = [
     "_override_bones_map",
     "cleanup_after_retarget",
     "deserialize_bone_pairs",
+    "mute_attachment_constraints",
     "preflight_check_transforms",
+    "restore_attachment_constraints",
     "serialize_bone_pairs",
     "setup_arp_retarget",
 ]
@@ -214,6 +216,49 @@ def _mute_master_rotation_constraints(arp_obj):
                 muted += 1
     if muted:
         log(f"  master COPY_ROTATION(OFFSET) mute: {muted}개")
+
+
+_ATTACHMENT_CONSTRAINT_TYPES = ("CHILD_OF", "ARMATURE")
+
+
+def mute_attachment_constraints(source_obj):
+    """root(parent=None) 어태치먼트 본의 Child Of/ARMATURE constraint를 일시 mute.
+
+    ARP의 bake_anim → get_bones_matrix는 본에 Child Of 또는 ARMATURE constraint가
+    있으면 그것을 logical parent로 간주하고 ``get_pose_bone(bparent_name)``으로
+    부모를 가져온다. 그 lookup이 None을 반환하면 ``None.matrix_channel`` 호출에서
+    AttributeError로 폭발한다(animation.py:196). hierarchical parent가 None인
+    어태치먼트 본(예: Food)에서 빈번하게 발생.
+
+    retarget 호출 직전 mute → 호출 후 ``restore_attachment_constraints``로 복원.
+    """
+    from arp_utils import log
+
+    saved = []
+    affected_bones = set()
+    for pb in source_obj.pose.bones:
+        if pb.parent is not None:
+            continue
+        for c in pb.constraints:
+            if c.type in _ATTACHMENT_CONSTRAINT_TYPES and not c.mute:
+                saved.append((c, c.mute))
+                c.mute = True
+                affected_bones.add(pb.name)
+    if saved:
+        log(
+            f"  어태치먼트 constraint mute: {len(saved)}개 ({len(affected_bones)}본: {sorted(affected_bones)})"
+        )
+    return saved
+
+
+def restore_attachment_constraints(saved):
+    """``mute_attachment_constraints``로 저장한 (constraint, prev_mute) 리스트를 복원."""
+    for c, prev in saved:
+        try:
+            c.mute = prev
+        except ReferenceError:
+            # constraint가 retarget 도중 삭제됐다면 무시
+            continue
 
 
 def _delete_existing_remap_actions():

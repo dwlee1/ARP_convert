@@ -133,7 +133,9 @@ def _agent_preflight():
             "success": False,
             "status": "blocked",
             "problem": "No source armature was found in the current scene.",
-            "evidence": {"armature_count": len([o for o in bpy.data.objects if o.type == "ARMATURE"])},
+            "evidence": {
+                "armature_count": len([o for o in bpy.data.objects if o.type == "ARMATURE"])
+            },
             "recommended_fix": "Open a quadruped .blend containing one source armature, then rerun the harness.",
             "retry_from": "preflight",
         }
@@ -159,7 +161,9 @@ def _agent_preflight():
     bound_meshes = find_mesh_objects(source_obj)
     warnings = []
     if not bound_meshes:
-        warnings.append("No mesh is bound to the source armature; weight verification will be limited.")
+        warnings.append(
+            "No mesh is bound to the source armature; weight verification will be limited."
+        )
 
     actions = _agent_action_summary()
     if not actions:
@@ -454,14 +458,26 @@ def _agent_setup_retarget(report, report_path):
 
 def _agent_run_arp_retarget(report, report_path):
     import agent_convert_contract as acc
-    from arp_utils import find_arp_armature, quiet_logs, run_arp_operator, select_only
+    from arp_utils import (
+        find_arp_armature,
+        find_source_armature,
+        mute_attachment_constraints,
+        quiet_logs,
+        restore_attachment_constraints,
+        run_arp_operator,
+        select_only,
+    )
 
     before_actions = {action.name for action in bpy.data.actions}
+    saved_constraints = []
+    source_obj = find_source_armature()
     try:
         with quiet_logs():
             arp_obj = find_arp_armature()
             if arp_obj is None:
                 return acc.failed("arp_retarget", "ARP armature was not found.", {}, report_path)
+            if source_obj is not None:
+                saved_constraints = mute_attachment_constraints(source_obj)
             select_only(arp_obj)
             result = run_arp_operator(bpy.ops.arp.retarget)
     except Exception as e:
@@ -471,6 +487,8 @@ def _agent_run_arp_retarget(report, report_path):
             {"error": str(e), "traceback": traceback.format_exc()},
             report_path,
         )
+    finally:
+        restore_attachment_constraints(saved_constraints)
 
     if "FINISHED" not in result:
         return acc.failed(
@@ -676,9 +694,9 @@ def _agent_compare_frames_inline(pairs, frames, action_name=None, detailed=False
             s_pos = src_obj.matrix_world @ src_pb.head
             a_pos = arp_obj.matrix_world @ arp_pb.head
             distance = (a_pos - s_pos).length
-            rot_deg = src_matrix.to_quaternion().rotation_difference(
-                arp_matrix.to_quaternion()
-            ).angle
+            rot_deg = (
+                src_matrix.to_quaternion().rotation_difference(arp_matrix.to_quaternion()).angle
+            )
             rot_deg = math.degrees(rot_deg)
             per_frame.append(distance)
             per_frame_rot_deg.append(rot_deg)
@@ -795,9 +813,7 @@ def mcp_agent_convert_current_file(
             }
         )
 
-        preview_result = _agent_create_preview(
-            confidence_threshold, report, report_path, verbosity
-        )
+        preview_result = _agent_create_preview(confidence_threshold, report, report_path, verbosity)
         if preview_result.get("success") is not True:
             _agent_emit(preview_result)
             return
